@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.0.4 - Fix Telegraf crash-loop (2026-09-20)
+
+Follow-up to the bug flagged (but not fixed) in 1.0.3. Turned out to be
+three separate, layered bugs - fixing the first one just uncovered the
+next, each confirmed by actually running the container rather than
+assuming a fix worked:
+
+1. **Invalid config fields**, rejected by Telegraf 1.38's stricter
+   validation: `inputs.disk`'s `paths` (doesn't exist - `mount_points`
+   already did this), `inputs.docker`'s `total`/`perdevice`/
+   `container_names` (replaced by list-valued `total_include`/
+   `perdevice_include`; `container_names` never existed), and
+   `inputs.file`'s `from_beginning`/`tag_files` (belong to a different
+   plugin, `inputs.tail`). The `inputs.file` block itself (reading
+   `/proc/cpuinfo`/`/proc/meminfo`) was removed rather than patched -
+   `inputs.file` expects its files already in a parseable metrics format,
+   which raw `/proc` contents aren't, and `inputs.cpu`/`inputs.mem`
+   already cover that data correctly via native OS calls. Also removed a
+   duplicate `[[inputs.processes]]` block.
+2. **Docker socket permission denied**, masked until fix #1 let Telegraf
+   get far enough to actually try connecting. The image's default user
+   (uid 999) can't read the bind-mounted `docker.sock`. `user: root` in
+   compose looked like the fix but wasn't enough on its own: the image's
+   own `/entrypoint.sh` unconditionally drops from root to the `telegraf`
+   user via `setpriv` before launching, and deliberately excludes the
+   `root` group (which is what owns the socket here) from what it carries
+   over - see
+   [influxdata-docker#724](https://github.com/influxdata/influxdata-docker/issues/724).
+   A host-specific docker-group GID via `group_add` would work on native
+   Linux but isn't portable across the Windows/Synology hosts this repo
+   targets. Fixed by overriding `entrypoint: ["/usr/bin/telegraf"]` to
+   bypass the image's privilege-drop script entirely.
+3. **`inputs.influxdb` only supports InfluxDB 1.x's `/debug/vars`
+   endpoint** - this project runs 2.x. It was logging `invalid character
+   '<' looking for beginning of value` (an HTML error page, not JSON)
+   every 30s and gathering nothing. Replaced with
+   `inputs.prometheus` pointed at InfluxDB 2.x's real `/metrics` endpoint,
+   which does the same job (InfluxDB's own internal stats) correctly.
+
+Verified live end-to-end: Telegraf runs with zero errors/warnings besides
+expected benign ones (diskio can't see host block devices from inside a
+container, which is normal), and real metrics - including
+`usage_active`, the field the Grafana dashboard actually queries, and
+InfluxDB's own internal stats - are confirmed landing in InfluxDB via a
+direct Flux query.
+
 ## 1.0.3 - Collapse the two Grafana instances; wire Grafana -> Gotify alerting (2026-09-20)
 
 ### One Grafana instead of two

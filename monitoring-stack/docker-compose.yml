@@ -58,6 +58,20 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     container_name: telegraf
+    # The image's default user (uid 999, non-root) can't read the bind-
+    # mounted docker.sock - confirmed live, it fails with "permission
+    # denied" and crash-loops. `user: root` alone doesn't fix it either:
+    # the image's own /entrypoint.sh unconditionally drops from root to
+    # the telegraf user via setpriv before launching, and deliberately
+    # strips the "root" group (which is what actually owns the socket on
+    # Docker Desktop) from the groups it's allowed to keep - see
+    # https://github.com/influxdata/influxdata-docker/issues/724. A
+    # host-specific docker-group GID (group_add) would work on native
+    # Linux but isn't portable across Windows/Synology, which this repo
+    # needs to run on. Bypassing that entrypoint script entirely and
+    # running telegraf directly as root is the portable fix.
+    user: root
+    entrypoint: ["/usr/bin/telegraf"]
     volumes:
       - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
