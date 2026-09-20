@@ -6,6 +6,13 @@ networks:
     driver: bridge
     name: caddy-network
     external: true
+  # Owned by monitoring-stack - joined here so Grafana can reach InfluxDB.
+  # This means monitoring-stack must be deployed before utilities (already
+  # the order _scripts/deploy.ps1 uses) - see TROUBLESHOOTING.md.
+  monitoring-network:
+    driver: bridge
+    name: monitoring-network
+    external: true
 
 services:
   portainer:
@@ -235,7 +242,9 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # Grafana - Dashboards and visualizations
+  # Grafana - Dashboards and visualizations. One instance for everything
+  # (Prometheus, Loki, and InfluxDB via monitoring-network) rather than a
+  # separate Grafana per data source - see CHANGELOG.md.
   grafana:
     image: grafana/grafana:13.2.2
     restart: unless-stopped
@@ -245,14 +254,23 @@ services:
       - grafana-data:/var/lib/grafana
       - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       - ./grafana-provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-provisioning/alerting:/etc/grafana/provisioning/alerting:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
       - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
+      # Read by grafana-provisioning/datasources/datasources.yml's InfluxDB
+      # entry - must match monitoring-stack/.env's INFLUXDB_ADMIN_TOKEN.
+      - INFLUXDB_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
+      # Read by grafana-provisioning/alerting/contact-points.yaml. Create
+      # an Application in Gotify's web UI to get a token (the same one
+      # Watchtower uses below is fine, or make a separate one).
+      - GOTIFY_TOKEN=${GOTIFY_TOKEN:-}
     networks:
       - utilities
       - caddy-network
+      - monitoring-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s

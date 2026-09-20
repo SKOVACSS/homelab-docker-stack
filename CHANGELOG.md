@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.0.3 - Collapse the two Grafana instances; wire Grafana -> Gotify alerting (2026-09-20)
+
+### One Grafana instead of two
+
+`monitoring-stack/grafana-advanced` (InfluxDB/Telegraf) and
+`utilities/grafana` (Prometheus/Loki) are now just `utilities/grafana`,
+provisioned with all three datasources. `utilities/docker-compose.yml`
+joins `monitoring-network` (owned by `monitoring-stack`) externally so
+Grafana can reach InfluxDB by container name - this makes `utilities` now
+depend on `monitoring-stack` being deployed first, which is already the
+order `_scripts/deploy.ps1` uses (see TROUBLESHOOTING.md for what happens
+if you deploy them out of order manually). The InfluxDB dashboard moved
+from `monitoring-stack/grafana-provisioning/` (now removed) into
+`utilities/grafana-provisioning/dashboards/`.
+
+Verified live: deployed both stacks, confirmed all three datasources
+loaded, and confirmed Grafana could actually query InfluxDB across the
+cross-stack network (`"datasource is working. 3 buckets found"`) - not
+just that the config parses.
+
+**Found in passing, not fixed (separate, pre-existing bug):**
+`monitoring-stack/telegraf.conf` fails to start on Telegraf 1.38 - several
+plugin fields it uses (`inputs.disk`'s `paths`, `inputs.docker`'s `total`/
+`container_names`/`perdevice`) aren't valid for this version, so Telegraf
+crash-loops. This was never caught before because nobody had actually run
+Telegraf itself against this config until this session's live test.
+
+### Grafana -> Gotify alerting
+
+Added `utilities/grafana-provisioning/alerting/` (contact point +
+notification policy). Verified live end-to-end: fired a real test
+notification through Grafana's alerting API and confirmed Gotify received
+a correctly-rendered message (`"FIRING - TestAlert (1 alert)"` /
+`"This is a live test from Claude"`). Two things worth knowing (both in
+TROUBLESHOOTING.md):
+- The contact point targets Gotify's actual REST endpoint, not the
+  `gotify://` shoutrrr URI Watchtower uses elsewhere - confirmed Grafana's
+  generic webhook integration has no concept of shoutrrr schemes.
+- A `priority` setting is silently dropped by Grafana's webhook
+  integration (only documented settings like title/message/url pass
+  through) - alerts land in Gotify at default priority. Fixing that needs
+  the full custom `payload` template override, which wasn't worth the
+  added fragility here.
+
+This wires the notification *path* only - no alert rules are provisioned
+(Grafana ships with none by default), since "what should page you" is a
+judgment call outside this scope.
+
 ## 1.0.2 - Fix a data-loss bug in validate-stacks.sh (2026-09-20)
 
 While testing 1.0.1's `validate-stacks.sh` against an interrupt (Ctrl-C)

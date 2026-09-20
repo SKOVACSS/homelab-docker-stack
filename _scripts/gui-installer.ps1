@@ -519,13 +519,12 @@ function Show-Step4 {
         $script:data.InfluxdbAdminPassword   = Generate-SecurePassword
         $script:data.InfluxdbAdminToken      = Generate-SecurePassword 32
         $script:data.GrafanaMainPassword     = Generate-SecurePassword
-        $script:data.GrafanaAdvancedPassword = Generate-SecurePassword
         $script:data.GotifyAdminPassword     = Generate-SecurePassword
         $script:data.VaultwardenAdminToken   = Generate-SecurePassword 32
         $script:data.ImmichDbPassword        = Generate-SecurePassword
 
         $statusLabel.Text = @"
-✓ Generated 21 unique secrets (one per service/database - no reuse)
+✓ Generated 20 unique secrets (one per service/database - no reuse)
 
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
@@ -584,7 +583,7 @@ ProtonVPN Country: $($script:data.ProtonCountry)
 Plex Domain: $($script:data.PlexDomain)
 Jellyfin Domain: $($script:data.JellyfinDomain)
 
-Passwords: ✓ Generated (21 unique secure secrets)
+Passwords: ✓ Generated (20 unique secure secrets)
 
 ═════════════════════════════════════════════
 Click "Create .env Files" to proceed
@@ -733,9 +732,9 @@ TZ=$($script:data.Timezone)
 DOMAIN=$d
 INFLUXDB_ADMIN_USER=admin
 INFLUXDB_ADMIN_PASSWORD=$($script:data.InfluxdbAdminPassword)
+# Must match INFLUXDB_ADMIN_TOKEN in utilities\.env exactly - the one
+# Grafana instance (in utilities) uses this to query InfluxDB.
 INFLUXDB_ADMIN_TOKEN=$($script:data.InfluxdbAdminToken)
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=$($script:data.GrafanaAdvancedPassword)
 TZ=$($script:data.Timezone)
 "@
     $monitoringEnv | Out-File "$appRoot\monitoring-stack\.env" -Encoding UTF8 -Force
@@ -755,6 +754,8 @@ VAULTWARDEN_SIGNUPS_ALLOWED=false
 VAULTWARDEN_INVITATIONS_ALLOWED=true
 GRAFANA_ADMIN_USER=admin
 GRAFANA_ADMIN_PASSWORD=$($script:data.GrafanaMainPassword)
+# Must match INFLUXDB_ADMIN_TOKEN in monitoring-stack\.env exactly.
+INFLUXDB_ADMIN_TOKEN=$($script:data.InfluxdbAdminToken)
 "@
     $utilitiesEnv | Out-File "$appRoot\utilities\.env" -Encoding UTF8 -Force
 
