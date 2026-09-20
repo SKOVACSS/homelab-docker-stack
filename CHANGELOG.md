@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.0.2 - Fix a data-loss bug in validate-stacks.sh (2026-09-20)
+
+While testing 1.0.1's `validate-stacks.sh` against an interrupt (Ctrl-C)
+mid-run, a bug in its backup/restore logic caused every stack's real
+`.env` file to be deleted. Nothing was deployed at the time, so no live
+credentials were lost, but this is worth being explicit about since the
+whole point of that script was to be safe to run against real files.
+
+Root cause: a single global `trap ... EXIT INT TERM` handler looped over
+*every* stack to restore/clean up, backed by one shared temp directory
+that could be (and was) removed by an earlier invocation of the same trap
+while the main loop was still mid-iteration - the interrupted stack's
+backup lookup then silently failed and its `.env` was left holding
+placeholder values instead of being restored.
+
+Fixed by removing the shared trap/temp-directory design entirely:
+- Only `immich-app` actually needs an on-disk `.env` swap (its compose
+  file uses `env_file:`, which Compose reads straight off disk regardless
+  of `--env-file`) - every other stack never touches the real file at all.
+- The one stack that does swap backs up to a plainly-named sibling file
+  (`immich-app/.env.validate-stacks-backup`), not a temp directory that
+  gets programmatically deleted - so even in the worst case, the backup
+  survives on disk and is recoverable by hand.
+- The script now self-heals on every run: if it finds a leftover
+  `*.env.validate-stacks-backup` from a previous interrupted run, it
+  restores that first before doing anything else.
+- Verified: normal run leaves no files behind; a real `.env` present for
+  immich-app survives byte-for-byte; a simulated interrupted prior run
+  (backup file present, dummy content left in `.env`) is correctly healed
+  on the next run.
+
 ## 1.0.1 - Quick wins (2026-09-20)
 
 Follow-up pass after tagging v1.0.0: notification wiring, and a set of real
