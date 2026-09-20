@@ -1,6 +1,10 @@
 # Real secrets - every stack's .env holds live credentials. Never commit these.
 **/.env
 !.env.example
+**/.env.validate-stacks-backup
+
+# Local tooling config, not part of the project
+.claude/
 
 # Docker/runtime state that shouldn't be versioned
 **/gluetun/
