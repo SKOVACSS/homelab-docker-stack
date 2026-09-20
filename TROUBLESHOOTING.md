@@ -62,18 +62,46 @@ mail delivery regardless of how Mailu is configured. If mail doesn't send,
 check that first - the fix is a smart-host relay (e.g. SendGrid, AWS SES),
 not anything in this repo.
 
-## Two separate Grafana instances
+## One Grafana, two stacks
 
-`monitoring-stack/grafana-advanced` (port 3001, `metrics.yourdomain.com`)
-visualizes InfluxDB/Telegraf host metrics. `utilities/grafana` (port 3000,
-`grafana.yourdomain.com`) visualizes Prometheus/Loki container metrics and
-logs. This is redundant for a small homelab - two things doing overlapping
-jobs - kept as two only because collapsing them into one Grafana with both
-datasources is a bigger change than this pass covers. If you don't need
-both, it's safe to comment out the `influxdb`/`telegraf`/`grafana-advanced`
-services in `monitoring-stack/docker-compose.yml` and lean on
-`utilities/`'s Prometheus + node-exporter for host metrics instead (add a
-Prometheus scrape target or dashboard as needed).
+`utilities/grafana` (port 3000, `grafana.yourdomain.com`) is the only
+Grafana - it has Prometheus, Loki, *and* InfluxDB provisioned as
+datasources (there used to be a second `grafana-advanced` instance just
+for InfluxDB; collapsed into one - see CHANGELOG.md). To reach InfluxDB,
+Grafana joins `monitoring-network`, which is created by `monitoring-stack`
+and declared `external: true` in `utilities/docker-compose.yml`. That
+means **`monitoring-stack` must be deployed before `utilities`** (already
+the order `_scripts/deploy.ps1` uses) - if you ever deploy stacks manually
+out of order, `utilities` will fail to start with a
+"network monitoring-network declared as external, but could not be found"
+error. Deploy `monitoring-stack` first and re-run.
+
+If you don't want InfluxDB/Telegraf at all, it's safe to comment out the
+`influxdb`/`telegraf` services in `monitoring-stack/docker-compose.yml`
+and drop the `monitoring-network` entries from `utilities/docker-compose.yml`
+- Grafana works fine with just Prometheus/Loki.
+
+## Grafana alerting only forwards title/message to Gotify, not priority
+
+`utilities/grafana-provisioning/alerting/` wires Grafana's alerting to
+Gotify via a webhook contact point pointed at Gotify's real REST endpoint
+(`http://gotify:80/message?token=...` - not the `gotify://` shoutrrr URI
+Watchtower uses elsewhere in this repo, which Grafana's webhook integration
+doesn't understand). Verified live: Grafana's default alert JSON plus a
+`title`/`message` template is accepted by Gotify as-is (it only requires
+`message` and ignores the rest). A `priority` setting does **not** get
+forwarded, though - Grafana's webhook integration only passes through a
+fixed set of known settings, so alerts land in Gotify at the default
+priority (0, not urgent). Getting a custom priority through needs the full
+`payload` template override (with Grafana's `tmpl.Exec`/`coll.Dict`
+functions) instead of the simple `title`/`message` fields - skipped as
+more fragility than a homelab needs.
+
+This wires the *notification path* - it doesn't include any alert rules
+(Grafana ships with none by default). Add rules under Alerting -> Alert
+rules in the UI, or provision them under
+`grafana-provisioning/alerting/rules.yaml`, and point them at the `gotify`
+contact point.
 
 ## InfluxDB is pinned to 2.x, not 3.x
 

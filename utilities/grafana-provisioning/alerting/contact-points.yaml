@@ -1,0 +1,30 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: gotify
+    receivers:
+      - uid: gotify-webhook
+        type: webhook
+        settings:
+          # Gotify's real REST endpoint (a plain HTTP POST) - NOT the
+          # gotify:// shoutrrr URI scheme Watchtower uses elsewhere in this
+          # repo. Grafana's webhook integration has no idea what shoutrrr
+          # is; it just POSTs JSON to whatever URL you give it.
+          url: http://gotify:80/message?token=${GOTIFY_TOKEN}
+          httpMethod: POST
+          # Gotify's message API only requires "message" (title/priority are
+          # optional) - it ignores the rest of Grafana's default webhook
+          # JSON (receiver/status/alerts/etc.), so no full payload override
+          # is needed. Verified live: a body with these two fields *plus*
+          # Grafana's other default fields is accepted (HTTP 200) by
+          # Gotify's real /message endpoint.
+          title: '{{ .Status | toUpper }} - {{ .CommonLabels.alertname }} ({{ len .Alerts }} alert{{ if ne (len .Alerts) 1 }}s{{ end }})'
+          message: '{{ range .Alerts }}{{ .Annotations.summary }}{{ if .Annotations.description }}: {{ .Annotations.description }}{{ end }}{{ "\n" }}{{ end }}'
+          # Note: a "priority" setting here does NOT get forwarded to
+          # Gotify (verified live - Grafana's webhook integration only
+          # passes through documented settings like title/message/url, and
+          # silently drops unrecognized ones). Messages land at Gotify's
+          # default priority 0. Getting a custom priority through requires
+          # the full "payload" template override instead of title/message -
+          # skipped here as unnecessary complexity for a homelab.

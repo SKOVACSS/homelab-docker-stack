@@ -3,14 +3,15 @@
 # Displays: InfluxDB time-series data in Grafana
 # Replaces: External monitoring services
 
+# monitoring-network is owned here and joined externally by utilities'
+# Grafana (see utilities/docker-compose.yml) so one Grafana instance can
+# show Prometheus/Loki AND InfluxDB data - see TROUBLESHOOTING.md for the
+# deployment-order consequence of that (this stack must come up before
+# utilities, which the _scripts/deploy.ps1 order already does).
 networks:
   monitoring-network:
     driver: bridge
     name: monitoring-network
-  caddy-network:
-    driver: bridge
-    name: caddy-network
-    external: true
 
 services:
   # ========== INFLUXDB: Time-Series Database ==========
@@ -87,51 +88,14 @@ services:
           cpus: '0.5'
           memory: 256M
 
-  # ========== GRAFANA: Visualization & Dashboards ==========
-  grafana-advanced:
-    image: grafana/grafana:13.2.2
-    restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=false"
-    container_name: grafana-advanced
-    ports:
-      - "3001:3000"
-    volumes:
-      - grafana-storage:/var/lib/grafana
-      # Bind mount (not a named volume) so the datasource/dashboard files in
-      # this repo are actually loaded - see ./grafana-provisioning/.
-      - ./grafana-provisioning:/etc/grafana/provisioning:ro
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-      - GF_SERVER_ROOT_URL=https://metrics.${DOMAIN}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      # Read by grafana-provisioning/datasources/datasources.yml
-      - INFLUXDB_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
-    depends_on:
-      - influxdb
-    networks:
-      - monitoring-network
-      - caddy-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 1G
-        reservations:
-          cpus: '1.0'
-          memory: 512M
+  # Grafana lives in utilities/docker-compose.yml (one instance for
+  # Prometheus/Loki/InfluxDB, not a separate one per data source - see
+  # CHANGELOG.md). It reaches InfluxDB by joining monitoring-network
+  # externally, and reads INFLUXDB_ADMIN_TOKEN from utilities/.env (must
+  # match the value here).
 
 volumes:
   influxdb-data:
     driver: local
   influxdb-config:
-    driver: local
-  grafana-storage:
     driver: local

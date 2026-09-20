@@ -13,3 +13,20 @@ datasources:
     access: proxy
     url: http://loki:3100
     editable: false
+
+  # Reaches monitoring-stack's InfluxDB by joining monitoring-network
+  # externally - see docker-compose.yml. INFLUXDB_ADMIN_TOKEN here must
+  # match the same variable in monitoring-stack/.env.
+  - name: InfluxDB
+    uid: influxdb-v2
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: homelab
+      defaultBucket: homelab
+      httpMode: POST
+    secureJsonData:
+      token: ${INFLUXDB_ADMIN_TOKEN}
+    editable: false
