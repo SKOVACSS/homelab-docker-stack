@@ -237,20 +237,12 @@ vault.{$DOMAIN} {
   }
 }
 
-# Grafana - System monitoring dashboards (Prometheus/Loki data)
+# Grafana - System monitoring dashboards (Prometheus, Loki, and InfluxDB
+# all in this one instance - see CHANGELOG.md)
 grafana.{$DOMAIN} {
   import security_headers
   import rate_limit grafana
   reverse_proxy grafana:3000 {
-    header_up X-Real-IP {http.request.remote}
-  }
-}
-
-# Grafana (advanced) - InfluxDB/Telegraf metrics dashboards
-metrics.{$DOMAIN} {
-  import security_headers
-  import rate_limit metrics
-  reverse_proxy grafana-advanced:3000 {
     header_up X-Real-IP {http.request.remote}
   }
 }

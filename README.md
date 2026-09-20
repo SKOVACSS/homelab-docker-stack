@@ -19,8 +19,8 @@ family and friends.
 | `immich-app/` | Google Photos replacement. |
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |
 | `email-stack/` | Mailu (self-hosted email). |
-| `monitoring-stack/` | InfluxDB + Telegraf + a Grafana instance for host/container metrics. |
-| `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter + a second Grafana instance, Uptime Kuma, Watchtower. |
+| `monitoring-stack/` | InfluxDB + Telegraf (host/container metrics - feeds the Grafana in `utilities/`). |
+| `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower. |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
 
 Each stack is an independent Docker Compose project with its own
