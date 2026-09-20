@@ -1,0 +1,357 @@
+# Network Strategy:
+# - caddy-network:     Public-facing (routes from Caddy reverse proxy) - EXTERNAL, owned by the caddy stack
+# - internal-network:  Internal only (no internet access)
+# - media-network:     Media apps + indexer queries (can reach internet)
+#
+# FIX APPLIED: caddy-network was previously created HERE as its own bridge
+# network with a custom subnet, which conflicted with 5 other stacks
+# (privacy-stack, security-stack, email-stack, monitoring-stack,
+# notification-stack) that expect caddy-network to already exist as an
+# EXTERNAL network owned by the caddy stack. Whichever stack started first
+# was silently "winning" ownership of the network name. caddy-network is now
+# correctly marked external here, matching the corrected caddy stack.
+
+networks:
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+  internal-network:
+    driver: bridge
+    name: internal-network
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+
+  media-network:
+    driver: bridge
+    name: media-network
+    ipam:
+      config:
+        - subnet: 172.23.0.0/16
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.3
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      # openvpn (default) uses PROTON_OPENVPN_*; set to "wireguard" in .env to
+      # use PROTON_WIREGUARD_KEY instead (see gluetun's ProtonVPN docs).
+      - VPN_TYPE=${VPN_TYPE:-openvpn}
+      - OPENVPN_USER=${PROTON_OPENVPN_USERNAME}
+      - OPENVPN_PASSWORD=${PROTON_OPENVPN_PASSWORD}
+      - SERVER_COUNTRIES=${PROTON_COUNTRIES}
+      - WIREGUARD_PRIVATE_KEY=${PROTON_WIREGUARD_KEY}
+      - WIREGUARD_ADDRESSES=${PROTON_WIREGUARD_ADDRESSES}
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,10.0.0.0/8
+      - VPN_PORT_FORWARDING=on
+      - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+    ports:
+      # QBIT_PORT = qBittorrent's WebUI (static, proxied by Caddy).
+      # BT_PORT = the BitTorrent peer port, which MUST match whatever port
+      # ProtonVPN forwards you (check gluetun logs after connecting, then
+      # update BT_PORT in .env and redeploy). These must stay two different
+      # numbers - qBittorrent binds both a WebUI socket and a peer-listening
+      # socket, and giving them the same port number makes one of the two
+      # fail to bind.
+      - "${QBIT_PORT}:${QBIT_PORT}"
+      - "${BT_PORT}:${BT_PORT}"
+      - "${BT_PORT}:${BT_PORT}/udp"
+    volumes:
+      - ./gluetun:/gluetun
+    networks:
+      - media-network
+      # So Caddy (on caddy-network) can reach gluetun:${QBIT_PORT} to proxy
+      # qBittorrent's WebUI - see caddy/Caddyfile's qbit.{$DOMAIN} block.
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/openvpn/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # qBittorrent routed through VPN via gluetun
+  # NOTE: network_mode: service:gluetun means qBittorrent shares gluetun's network namespace
+  # Therefore: NO ports: mapping here - ports are published on gluetun only (see above)
+  # Sonarr/Radarr/Prowlarr must point download_client to gluetun hostname, not qbittorrent
+  # hotio doesn't publish stable numbered version tags for its images -
+  # `release` is its documented stable channel (vs. `nightly`/`testing`).
+  # Watchtower is disabled for this service (label below), so it only
+  # updates when you deliberately run `docker compose pull`.
+  qbittorrent:
+    image: ghcr.io/hotio/qbittorrent:release
+    restart: unless-stopped
+    depends_on:
+      gluetun:
+        condition: service_started
+    network_mode: service:gluetun
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - WEBUI_PORT=${QBIT_PORT}
+      - BT_PORT=${BT_PORT}
+    volumes:
+      - qbit-config:/config
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+      - ${MEDIA_MOVIES}:/media/movies:ro
+      - ${MEDIA_TV}:/media/tv:ro
+      - ${MEDIA_MUSIC}:/media/music:ro
+      - ${MEDIA_BOOKS}:/media/books:ro
+    # NO ports: section - qBittorrent has no independent network, shares gluetun
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  sonarr:
+    image: ghcr.io/hotio/sonarr:release
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - sonarr-config:/config
+      - ${MEDIA_TV}:/tv
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+    ports:
+      - "8989:8989"
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  radarr:
+    image: ghcr.io/hotio/radarr:release
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - radarr-config:/config
+      - ${MEDIA_MOVIES}:/movies
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+    ports:
+      - "7878:7878"
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7878/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  prowlarr:
+    image: ghcr.io/hotio/prowlarr:release
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - prowlarr-config:/config
+    ports:
+      - "9696:9696"
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9696/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Readarr (book automation) has been removed: hotio's upstream repo was
+  # archived June 2025 and officially retired - it never left beta in its
+  # whole lifetime and will not be fixed. See CHANGELOG.md. If you want
+  # book automation, look at LazyLibrarian or Chaptarr instead.
+
+  lidarr:
+    image: ghcr.io/hotio/lidarr:release
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - lidarr-config:/config
+      - ${MEDIA_MUSIC}:/music
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+    ports:
+      - "8686:8686"
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8686/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  plex:
+    image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
+    restart: unless-stopped
+    environment:
+      - PLEX_UID=1000
+      - PLEX_GID=1000
+      - TZ=${TZ:-UTC}
+      - PLEX_CLAIM=${PLEX_CLAIM_TOKEN}
+      - ADVERTISE_IP=http://${PLEX_DOMAIN}:443/
+    volumes:
+      - plex-config:/config
+      - ${MEDIA_MOVIES}:/movies
+      - ${MEDIA_TV}:/tv
+      - ${MEDIA_MUSIC}:/music
+      - ${MEDIA_PHOTOS}:/photos
+    ports:
+      - "32400:32400/tcp"
+      - "3005:3005/tcp"
+      - "8324:8324/tcp"
+      - "32469:32469/tcp"
+      - "1900:1900/udp"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:32400/web/index.html"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+
+  jellyfin:
+    image: jellyfin/jellyfin:12.1
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - JELLYFIN_PublishedServerUrl=https://${JELLYFIN_DOMAIN}
+    volumes:
+      - jellyfin-config:/config
+      - jellyfin-cache:/cache
+      - ${MEDIA_MOVIES}:/movies:ro
+      - ${MEDIA_TV}:/tv:ro
+      - ${MEDIA_MUSIC}:/music:ro
+      - ${MEDIA_PHOTOS}:/photos:ro
+    ports:
+      - "8096:8096"
+      - "8920:8920"
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 3G
+        reservations:
+          cpus: '2.0'
+          memory: 1.5G
+
+volumes:
+  gluetun:
+    driver: local
+  qbit-config:
+    driver: local
+  sonarr-config:
+    driver: local
+  radarr-config:
+    driver: local
+  prowlarr-config:
+    driver: local
+  lidarr-config:
+    driver: local
+  plex-config:
+    driver: local
+  jellyfin-config:
+    driver: local
+  jellyfin-cache:
+    driver: local

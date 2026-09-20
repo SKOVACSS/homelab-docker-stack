@@ -1,0 +1,20 @@
+# Real secrets - every stack's .env holds live credentials. Never commit these.
+**/.env
+!.env.example
+
+# Docker/runtime state that shouldn't be versioned
+**/gluetun/
+**/wireguard/config/
+**/fail2ban/data/
+immich-app/library/
+immich-app/postgres/
+
+# Backups (these can be large and contain the same secrets as .env)
+_scripts/backups/
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/

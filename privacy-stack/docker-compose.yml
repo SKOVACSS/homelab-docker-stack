@@ -1,0 +1,492 @@
+# Privacy Stack - Open-Source Alternatives to Corporate Services
+# Replace: Spotify, Google Drive, Dropbox, Evernote, Pocket, OneNote, Asana, Google Photos
+# Plus: Paperless-ngx, Trilium, Focalboard
+
+networks:
+  privacy-network:
+    driver: bridge
+    name: privacy-network
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  # ========== MUSIC STREAMING (Replace Spotify) ==========
+  navidrome:
+    image: deluan/navidrome:0.64.0
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "4533:4533"
+    volumes:
+      - navidrome-config:/data
+      - ${MEDIA_MUSIC}:/music:ro
+    environment:
+      - ND_LOGLEVEL=info
+      - ND_BASEURL=https://music.${DOMAIN}
+      - ND_ENABLEGRAVATAR=false
+      - ND_ENABLEEXTERNALSERVICES=false
+      - ND_ENABLESTARRATING=true
+      - ND_ENABLEUSERRATING=true
+      - ND_DEFAULTUSERPREFERENCES={"theme":"Dark"}
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4533/rest/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  # ========== FILE SYNC (Replace Dropbox/Google Drive) ==========
+  syncthing:
+    image: syncthing/syncthing:2.1.5
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "8384:8384"    # Web UI
+      - "22000:22000"  # Sync protocol
+      - "21027:21027/udp"  # Discovery
+    volumes:
+      - syncthing-config:/var/syncthing/config
+      - ${SYNC_FOLDER}:/var/syncthing/sync
+    environment:
+      - STNODEFAMILY=ipv4
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8384"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ========== ALL-IN-ONE (Replace Google: Drive, Calendar, Contacts, Notes) ==========
+  nextcloud:
+    image: nextcloud:35.0.0
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "8080:80"
+    volumes:
+      - nextcloud-data:/var/www/html
+      - nextcloud-config:/var/www/html/config
+      - ${NEXTCLOUD_DATA}:/var/www/html/data
+    environment:
+      - NEXTCLOUD_ADMIN_USER=${NEXTCLOUD_ADMIN_USER}
+      - NEXTCLOUD_ADMIN_PASSWORD=${NEXTCLOUD_ADMIN_PASSWORD}
+      - NEXTCLOUD_TRUSTED_DOMAINS=nextcloud.${DOMAIN}
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=nextcloud.${DOMAIN}
+      - OVERWRITEWEBROOT=/
+      - TRUSTED_PROXIES=caddy
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASS}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=nextcloud-db
+    depends_on:
+      - nextcloud-db
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+
+  # ========== NEXTCLOUD DATABASE ==========
+  nextcloud-db:
+    image: mariadb:11.4.13
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    volumes:
+      - nextcloud-db:/var/lib/mysql
+    environment:
+      - MYSQL_PASSWORD=${NEXTCLOUD_DB_PASS}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_ROOT_PASSWORD=${NEXTCLOUD_DB_ROOT_PASS}
+      - MYSQL_INITDB_SKIP_TZINFO=1
+    networks:
+      - privacy-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # ========== DOCUMENT SCANNING (Replace Evernote) ==========
+  paperless-ngx:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.1.3
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - paperless-export:/usr/src/paperless/export
+      - ${PAPERLESS_CONSUME}:/usr/src/paperless/consume
+    environment:
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      - PAPERLESS_DBHOST=paperless-db
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASS}
+      - PAPERLESS_REDIS=redis://paperless-redis:6379
+      - PAPERLESS_TASK_WORKERS=2
+      - PAPERLESS_THREADS_PER_WORKER=1
+      - PAPERLESS_TIME_ZONE=UTC
+      - PAPERLESS_DISABLE_LOGIN=false
+      - PAPERLESS_ENABLE_COMPRESSION=true
+      - PAPERLESS_ENABLE_NGRAM_SEARCH=true
+    depends_on:
+      - paperless-db
+      - paperless-redis
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+
+  # ========== PAPERLESS DATABASE ==========
+  paperless-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - paperless-postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASS}
+      - POSTGRES_USER=paperless
+      - POSTGRES_DB=paperless
+    networks:
+      - privacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========== PAPERLESS REDIS CACHE ==========
+  paperless-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - paperless-redis:/data
+    networks:
+      - privacy-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # ========== READ-LATER SERVICE (Replace Pocket) ==========
+  wallabag:
+    image: wallabag/wallabag:2.6.14
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "8888:80"
+    volumes:
+      - wallabag-data:/var/www/wallabag/web/uploads
+      - wallabag-cache:/var/www/wallabag/var/cache
+    environment:
+      - SYMFONY__ENV__DATABASE_HOST=wallabag-db
+      - SYMFONY__ENV__DATABASE_PORT=5432
+      - SYMFONY__ENV__DATABASE_NAME=wallabag
+      - SYMFONY__ENV__DATABASE_USER=wallabag
+      - SYMFONY__ENV__DATABASE_PASSWORD=${WALLABAG_DB_PASS}
+      - SYMFONY__ENV__DATABASE_DRIVER=pdo_pgsql
+      - SYMFONY__ENV__MAILER_HOST=${MAILER_HOST}
+      - SYMFONY__ENV__MAILER_PORT=${MAILER_PORT}
+      - SYMFONY__ENV__FROM_EMAIL=${WALLABAG_EMAIL}
+      - SYMFONY__ENV__FOSUSER_REGISTRATION=false
+    depends_on:
+      - wallabag-db
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ========== WALLABAG DATABASE ==========
+  wallabag-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - wallabag-postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=${WALLABAG_DB_PASS}
+      - POSTGRES_USER=wallabag
+      - POSTGRES_DB=wallabag
+    networks:
+      - privacy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallabag"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========== ADVANCED NOTE-TAKING (Replace OneNote) ==========
+  # zadam/trilium is abandoned (archived upstream); TriliumNext is the
+  # actively-maintained community successor with the same data format.
+  trilium:
+    image: triliumnext/trilium:v0.105.0
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "8010:8080"
+    volumes:
+      - trilium-data:/home/node/trilium-data
+    environment:
+      - TRILIUM_DATA_DIR=/home/node/trilium-data
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========== PROJECT MANAGEMENT (Replace Asana/Trello) ==========
+  focalboard:
+    image: mattermost/focalboard:7.10.0
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "3030:8000"
+    volumes:
+      - focalboard-data:/opt/focalboard/data
+    environment:
+      - FOCALBOARD_PORT=8000
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  # ========== ONLINE DOCUMENT EDITOR (Integrates with Nextcloud) ==========
+  onlyoffice:
+    image: onlyoffice/documentserver:9.4.0.1
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "9080:80"
+    volumes:
+      - onlyoffice-data:/var/www/onlyoffice/Data
+      - onlyoffice-logs:/var/log/onlyoffice
+    environment:
+      - JWT_ENABLED=true
+      - JWT_SECRET=${NEXTCLOUD_ADMIN_PASSWORD}
+      - ALLOW_PRIVATE_IP_ADDRESS=true
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '2.0'
+          memory: 2G
+
+  # ========== CALENDAR/CONTACTS (Alternative to Nextcloud) - Optional ==========
+  radicale:
+    image: tomsquest/docker-radicale:3.8.0.0
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "5232:5232"
+    volumes:
+      - radicale-data:/var/lib/radicale
+    environment:
+      - RADICALE_USERS_TYPE=none
+      - RADICALE_AUTH_TYPE=none
+    networks:
+      - privacy-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5232"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+volumes:
+  # Navidrome
+  navidrome-config:
+    driver: local
+
+  # Syncthing
+  syncthing-config:
+    driver: local
+
+  # Nextcloud
+  nextcloud-data:
+    driver: local
+  nextcloud-config:
+    driver: local
+  nextcloud-db:
+    driver: local
+
+  # Paperless
+  paperless-data:
+    driver: local
+  paperless-media:
+    driver: local
+  paperless-export:
+    driver: local
+  paperless-postgres:
+    driver: local
+  paperless-redis:
+    driver: local
+
+  # Wallabag
+  wallabag-data:
+    driver: local
+  wallabag-cache:
+    driver: local
+  wallabag-postgres:
+    driver: local
+
+  # Trilium
+  trilium-data:
+    driver: local
+
+  # Focalboard
+  focalboard-data:
+    driver: local
+
+  # Radicale
+  radicale-data:
+    driver: local
+
+  # OnlyOffice
+  onlyoffice-data:
+    driver: local
+  onlyoffice-logs:
+    driver: local

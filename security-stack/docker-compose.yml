@@ -1,0 +1,98 @@
+# Security Stack - Fail2Ban + VPN Server
+# Fail2Ban: Monitor logs and ban repeated failed attempts
+# WireGuard: VPN server for direct secure access
+
+networks:
+  security-network:
+    driver: bridge
+    name: security-network
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  # ========== FAIL2BAN: Brute Force Protection ==========
+  fail2ban:
+    image: crazymax/fail2ban:1.1.1
+    restart: unless-stopped
+    container_name: fail2ban
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    volumes:
+      - ./fail2ban/data:/data
+      - ./fail2ban/config:/etc/fail2ban/jail.d
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+    environment:
+      - TZ=UTC
+      - F2B_LOG_LEVEL=INFO
+      - F2B_LOG_TARGET=/proc/self/fd/1
+      - F2B_DBPURGEAGE=1d
+    networks:
+      - security-network
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    healthcheck:
+      test: ["CMD", "fail2ban-client", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ========== WIREGUARD: VPN Server ==========
+  wireguard:
+    image: linuxserver/wireguard:1.0.20260223-r0-ls122
+    restart: unless-stopped
+    container_name: wireguard
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - SERVERURL=${WIREGUARD_DOMAIN}
+      - SERVERPORT=51820
+      - PEERS=3
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+      - PERSISTENTKEEPALIVE_PEERS=25
+      - LOG_CONFS=true
+    volumes:
+      - ./wireguard/config:/config
+      - /lib/modules:/lib/modules:ro
+    ports:
+      - "51820:51820/udp"
+    networks:
+      - security-network
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    healthcheck:
+      test: ["CMD", "test", "-f", "/config/wg0.conf"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  fail2ban-data:
+    driver: local

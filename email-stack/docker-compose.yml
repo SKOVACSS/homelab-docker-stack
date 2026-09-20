@@ -1,0 +1,270 @@
+# Email Stack - Self-Hosted Email Server
+# Replaces: Gmail, ProtonMail (privacy-respecting email)
+# Services: Mailu (all-in-one email solution)
+# Features: IMAP, POP3, SMTP, Webmail, Spam filtering
+
+networks:
+  email-network:
+    driver: bridge
+    name: email-network
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  # ========== MAILU: All-in-One Email Server ==========
+  mailu-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    container_name: mailu-redis
+    volumes:
+      - mailu-redis:/data
+    networks:
+      - email-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  mailu-database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    container_name: mailu-database
+    volumes:
+      - mailu-database:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=mailu
+      - POSTGRES_USER=mailu
+      - POSTGRES_PASSWORD=${MAILU_DB_PASSWORD}
+    networks:
+      - email-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailu"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  mailu-admin:
+    image: ghcr.io/mailu/admin:2024.06.10
+    restart: unless-stopped
+    container_name: mailu-admin
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    # No host port published: reachable only via Caddy's mailadmin.{$DOMAIN}
+    # route (caddy-network), keeping the firewall model to 80/443/WireGuard only.
+    volumes:
+      - mailu-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - MAILU_VERSION=latest
+      - SECRET_KEY=${MAILU_SECRET_KEY}
+      - DOMAIN=${DOMAIN}
+      - HOSTNAMES=mail.${DOMAIN}
+      - ADMIN=true
+      - MAIL_ADMIN=admin
+      - INITIAL_ADMIN_ACCOUNT=${MAIL_ADMIN_USER}
+      - INITIAL_ADMIN_PASSWORD=${MAIL_ADMIN_PASSWORD}
+      - DATABASE_URL=postgresql://mailu:${MAILU_DB_PASSWORD}@mailu-database/mailu
+      - REDIS_URL=redis://mailu-redis:6379
+      - SQLALCHEMY_TRACK_MODIFICATIONS=false
+      - DKIM_SELECTOR=default
+      - DKIM_PATH=/dkim/{domain}.{selector}.key
+    depends_on:
+      - mailu-database
+      - mailu-redis
+    networks:
+      - email-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  mailu-imap:
+    image: ghcr.io/mailu/dovecot:2024.06.10
+    restart: unless-stopped
+    container_name: mailu-imap
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "143:143"    # IMAP
+      - "993:993"    # IMAPS
+      - "110:110"    # POP3
+      - "995:995"    # POP3S
+    volumes:
+      - mailu-mail:/mail
+      - mailu-dkim:/dkim
+    environment:
+      - DOMAIN=${DOMAIN}
+      - IMAP_ADDRESS=0.0.0.0
+      - ADMIN_ADDRESS=mailu-admin
+      - ADMIN_PORT=5555
+      - REDIS_URL=redis://mailu-redis:6379
+    depends_on:
+      - mailu-admin
+      - mailu-redis
+    networks:
+      - email-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "143"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  mailu-smtp:
+    image: ghcr.io/mailu/postfix:2024.06.10
+    restart: unless-stopped
+    container_name: mailu-smtp
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS
+      - "587:587"    # Submission
+    volumes:
+      - mailu-mail:/mail
+      - mailu-dkim:/dkim
+    environment:
+      - DOMAIN=${DOMAIN}
+      - MESSAGE_SIZE_LIMIT=50000000
+      - ADMIN_ADDRESS=mailu-admin
+      - ADMIN_PORT=5555
+      - REDIS_URL=redis://mailu-redis:6379
+    depends_on:
+      - mailu-admin
+      - mailu-redis
+    networks:
+      - email-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "25"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+  mailu-rspamd:
+    image: ghcr.io/mailu/rspamd:2024.06.10
+    restart: unless-stopped
+    container_name: mailu-rspamd
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    # No host port published: rspamd is only called internally by postfix/
+    # dovecot over email-network, nothing outside the stack needs to reach it.
+    volumes:
+      - mailu-filter:/var/lib/rspamd
+    environment:
+      - DOMAIN=${DOMAIN}
+      - ADMIN_ADDRESS=mailu-admin
+      - ADMIN_PORT=5555
+      - REDIS_URL=redis://mailu-redis:6379
+    depends_on:
+      - mailu-redis
+    networks:
+      - email-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11333/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  mailu-webmail:
+    image: ghcr.io/mailu/webmail:2024.06.10
+    restart: unless-stopped
+    container_name: mailu-webmail
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    # No host port published: reachable only via Caddy's webmail.{$DOMAIN}
+    # route (caddy-network), keeping the firewall model to 80/443/WireGuard only.
+    volumes:
+      - mailu-webmail:/var/www/html/plugins/persistent
+    environment:
+      - DOMAIN=${DOMAIN}
+      - IMAP_ADDRESS=mailu-imap
+      - IMAP_PORT=143
+      - SMTP_ADDRESS=mailu-smtp
+      - SMTP_PORT=587
+    depends_on:
+      - mailu-imap
+      - mailu-smtp
+    networks:
+      - email-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  mailu-redis:
+    driver: local
+  mailu-database:
+    driver: local
+  mailu-data:
+    driver: local
+  mailu-mail:
+    driver: local
+  mailu-dkim:
+    driver: local
+  mailu-filter:
+    driver: local
+  mailu-webmail:
+    driver: local

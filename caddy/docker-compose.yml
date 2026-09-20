@@ -1,0 +1,46 @@
+services:
+  caddy:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL}
+      # DOMAIN and QBIT_PORT are read directly by the Caddyfile (via {$VAR}
+      # substitution at config-load time), not by docker compose variable
+      # interpolation, so they must be passed through here explicitly.
+      DOMAIN: ${DOMAIN}
+      QBIT_PORT: ${QBIT_PORT}
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2019/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+volumes:
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+networks:
+  caddy-network:
+    driver: bridge
+    name: caddy-network

@@ -1,0 +1,296 @@
+# Caddy Reverse Proxy Configuration - Security Hardened
+# Includes: HSTS, CSP, security headers, real rate limiting, auto-HTTPS
+#
+# Rate limiting uses the mholt/caddy-ratelimit plugin, compiled into the
+# image via ./Dockerfile (the stock caddy image does not include it).
+# {$DOMAIN} and {$QBIT_PORT} are substituted from the container's
+# environment (see docker-compose.yml) at config-load time.
+
+# Global settings
+{
+  email {$ACME_EMAIL}
+  acme_ca https://acme-v02.api.letsencrypt.org/directory
+
+  order rate_limit after basic_auth
+}
+
+# Security header middleware (applied to all routes)
+(security_headers) {
+  # HTTPS Strict Transport Security (force HTTPS for 1 year)
+  header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+  # Prevent MIME sniffing
+  header X-Content-Type-Options "nosniff"
+
+  # Prevent clickjacking
+  header X-Frame-Options "SAMEORIGIN"
+
+  # XSS Protection (deprecated but good fallback)
+  header X-XSS-Protection "1; mode=block"
+
+  # Content Security Policy (prevent injection attacks)
+  header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https:;"
+
+  # Referrer Policy (privacy)
+  header Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Permissions Policy (disable dangerous features)
+  header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+
+  # Remove X-Powered-By (don't reveal tech stack)
+  header -Server
+}
+
+# Rate limiting middleware (protect against brute force).
+# Each call site passes a unique zone name (import rate_limit <name>) so
+# multiple site blocks don't collide on one shared zone definition.
+(rate_limit) {
+  rate_limit {
+    zone {args[0]}_zone {
+      key    {remote_host}
+      events 30
+      window 1m
+    }
+  }
+}
+
+# ========== MEDIA APPS ==========
+
+# Sonarr - TV shows automation
+sonarr.{$DOMAIN} {
+  import security_headers
+  import rate_limit sonarr
+  reverse_proxy sonarr:8989 {
+    header_up X-Remote-User "authenticated"
+  }
+}
+
+# Radarr - Movie automation
+radarr.{$DOMAIN} {
+  import security_headers
+  import rate_limit radarr
+  reverse_proxy radarr:7878 {
+    header_up X-Remote-User "authenticated"
+  }
+}
+
+# Prowlarr - Indexer manager
+prowlarr.{$DOMAIN} {
+  import security_headers
+  import rate_limit prowlarr
+  reverse_proxy prowlarr:9696 {
+    header_up X-Remote-User "authenticated"
+  }
+}
+
+# Lidarr - Music automation
+lidarr.{$DOMAIN} {
+  import security_headers
+  import rate_limit lidarr
+  reverse_proxy lidarr:8686 {
+    header_up X-Remote-User "authenticated"
+  }
+}
+
+# qBittorrent - Torrent client WebUI (VPN-routed via gluetun's network namespace)
+qbit.{$DOMAIN} {
+  import security_headers
+  import rate_limit qbit
+  reverse_proxy gluetun:{$QBIT_PORT} {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== MEDIA SERVERS ==========
+
+# Plex - Commercial media server
+plex.{$DOMAIN} {
+  import security_headers
+  reverse_proxy plex:32400 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Jellyfin - Open-source media server
+jellyfin.{$DOMAIN} {
+  import security_headers
+  reverse_proxy jellyfin:8096 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Immich - Google Photos replacement
+photos.{$DOMAIN} {
+  import security_headers
+  reverse_proxy immich-server:2283 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== PRIVACY STACK: MUSIC ==========
+
+# Navidrome - Spotify replacement
+music.{$DOMAIN} {
+  import security_headers
+  import rate_limit music
+  reverse_proxy navidrome:4533 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== PRIVACY STACK: FILES & COLLABORATION ==========
+
+# Nextcloud - Google Drive/Calendar/Contacts replacement
+nextcloud.{$DOMAIN} {
+  import security_headers
+  reverse_proxy nextcloud:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Syncthing - Dropbox replacement (P2P)
+sync.{$DOMAIN} {
+  import security_headers
+  reverse_proxy syncthing:8384 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== PRIVACY STACK: DOCUMENTS & NOTES ==========
+
+# Paperless-ngx - Evernote replacement
+papers.{$DOMAIN} {
+  import security_headers
+  import rate_limit papers
+  reverse_proxy paperless-ngx:8000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Wallabag - Pocket replacement
+read.{$DOMAIN} {
+  import security_headers
+  import rate_limit wallabag
+  reverse_proxy wallabag:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Trilium (TriliumNext) - OneNote replacement
+notes.{$DOMAIN} {
+  import security_headers
+  reverse_proxy trilium:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== PRIVACY STACK: PROJECT MANAGEMENT ==========
+
+# Focalboard - Asana/Trello replacement
+# NOTE: upstream (mattermost/focalboard) is unmaintained as a standalone
+# project (no releases since 2024, README says "seeking maintainers").
+# It still runs fine, but there will be no further security patches.
+# Consider Vikunja as a maintained alternative if this matters to you.
+boards.{$DOMAIN} {
+  import security_headers
+  import rate_limit boards
+  reverse_proxy focalboard:8000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== PRIVACY STACK: CALENDAR/CONTACTS ==========
+
+# Radicale - CalDAV/CardDAV server
+cal.{$DOMAIN} {
+  import security_headers
+  reverse_proxy radicale:5232 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== UTILITIES ==========
+
+# Portainer - Container management UI
+portainer.{$DOMAIN} {
+  import security_headers
+  import rate_limit portainer
+  reverse_proxy portainer:9000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Uptime Kuma - Service monitoring
+uptime.{$DOMAIN} {
+  import security_headers
+  reverse_proxy uptime-kuma:3001 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Vaultwarden - Password manager (Bitwarden alternative)
+vault.{$DOMAIN} {
+  import security_headers
+  import rate_limit vault
+  reverse_proxy vaultwarden:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Grafana - System monitoring dashboards (Prometheus/Loki data)
+grafana.{$DOMAIN} {
+  import security_headers
+  import rate_limit grafana
+  reverse_proxy grafana:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Grafana (advanced) - InfluxDB/Telegraf metrics dashboards
+metrics.{$DOMAIN} {
+  import security_headers
+  import rate_limit metrics
+  reverse_proxy grafana-advanced:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== AUTHENTICATION ==========
+
+# Authentik - central login portal (also used for OIDC integrations)
+auth.{$DOMAIN} {
+  import security_headers
+  import rate_limit auth
+  reverse_proxy authentik-server:9000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== EMAIL ==========
+
+# Mailu admin panel
+mailadmin.{$DOMAIN} {
+  import security_headers
+  import rate_limit mailadmin
+  reverse_proxy mailu-admin:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Mailu webmail (Roundcube-successor webmail client)
+webmail.{$DOMAIN} {
+  import security_headers
+  reverse_proxy mailu-webmail:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== STATIC PAGES (OPTIONAL) ==========
+
+# Dashboard (optional: simple status page)
+dashboard.{$DOMAIN} {
+  import security_headers
+  file_server {
+    root /var/www/html
+  }
+}

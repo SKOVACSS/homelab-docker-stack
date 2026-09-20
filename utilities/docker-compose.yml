@@ -1,0 +1,277 @@
+networks:
+  utilities:
+    driver: bridge
+    name: utilities
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.45.1
+    restart: unless-stopped
+    ports:
+      - "9001:9000"
+      - "8001:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - portainer-data:/data
+    networks:
+      - utilities
+      - caddy-network
+    # Portainer has no PORTAINER_PASSWORD_HASHED environment variable (that
+    # was never read by the binary - the real mechanism is the
+    # --admin-password-file CLI flag). Simplest correct approach: leave it
+    # unset and create the admin account through the web UI the first time
+    # you open portainer.DOMAIN - Portainer prompts for this automatically
+    # and locks the setup page after the first account is created.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # containrrr/watchtower was archived (Dec 2025, no more releases/security
+  # fixes). nicholas-fedor/watchtower is the community continuation the
+  # project's own discussion thread points to.
+  watchtower:
+    image: nickfedor/watchtower:1.22.2
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Auto-update settings
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_INCLUDE_RESTARTING=false
+      - WATCHTOWER_POLL_INTERVAL=86400
+      - WATCHTOWER_SCHEDULE=0 2 * * * *
+      - WATCHTOWER_NOTIFICATIONS=off
+      # Only update images with these labels
+      - WATCHTOWER_LABEL_ENABLE=true
+    networks:
+      - utilities
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # Uptime Kuma - Service monitoring
+  # FIX APPLIED: external port changed 3001 -> 3002 to avoid conflict with Grafana (which uses 3000/3001 in some configs)
+  uptime-kuma:
+    image: louislam/uptime-kuma:2.5.5
+    restart: unless-stopped
+    ports:
+      - "3002:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    networks:
+      - utilities
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Vaultwarden - Self-hosted Bitwarden password manager
+  # FIX APPLIED: external port changed 80 -> 8077 to avoid conflict with Caddy reverse proxy
+  vaultwarden:
+    image: vaultwarden/server:1.37.3
+    restart: unless-stopped
+    ports:
+      - "8077:80"
+    volumes:
+      - vaultwarden-data:/data
+    environment:
+      - DOMAIN=https://vault.${DOMAIN}
+      - SIGNUPS_ALLOWED=${VAULTWARDEN_SIGNUPS_ALLOWED:-false}
+      - INVITATIONS_ALLOWED=${VAULTWARDEN_INVITATIONS_ALLOWED:-true}
+      - ADMIN_TOKEN=${VAULTWARDEN_ADMIN_TOKEN}
+      - LOG_LEVEL=warn
+      - LOG_FILE=/data/vaultwarden.log
+      # Security settings
+      - EXTENDED_LOGGING=true
+      - LOG_FILE_ENABLED=true
+    networks:
+      - utilities
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Loki - Centralized logging system
+  loki:
+    image: grafana/loki:3.7.8
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - utilities
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/loki/api/v1/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # node-exporter - host CPU/memory/disk/network metrics for Prometheus.
+  # NOTE (Windows/macOS + Docker Desktop): `network_mode: host` and `pid: host`
+  # only give true host visibility on native Linux, so this runs as a normal
+  # container here - it will report the Docker Desktop Linux VM's resources,
+  # not your real Windows host. On a native Linux/Synology deployment, add
+  # `pid: host` and `network_mode: host` (dropping the `networks:` list
+  # below) for accurate bare-metal numbers.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - utilities
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - utilities
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Grafana - Dashboards and visualizations
+  grafana:
+    image: grafana/grafana:13.2.2
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana-provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN}
+    networks:
+      - utilities
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  portainer-data:
+    driver: local
+  uptime-kuma-data:
+    driver: local
+  vaultwarden-data:
+    driver: local
+  loki-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
