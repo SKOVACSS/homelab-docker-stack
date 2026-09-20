@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.0.1 - Quick wins (2026-09-20)
+
+Follow-up pass after tagging v1.0.0: notification wiring, and a set of real
+bugs found by actually running the fixed scripts against a live stack
+rather than just parse-checking them (below), plus CI to stop regressions.
+
+- **Fixed a live misclassification bug in `health-check.ps1`**: it parsed
+  `docker compose ps`'s human-readable table by splitting on whitespace,
+  which breaks the moment the STATUS column contains a space (e.g. "Up 5
+  hours (healthy)") - and its unhealthy-detection branch was unreachable
+  dead code, since the earlier `-match "Up"` branch caught every running
+  container, healthy or not, before the unhealthy check ever ran. An
+  actually-unhealthy container would have been reported as fine. Rewrote
+  to use `docker compose ps --format json`'s real `State`/`Health` fields,
+  and verified against live containers in all three states (healthy,
+  unhealthy, not running).
+- **Fixed the same class of bug in `deploy.ps1`**'s status/wait-for-healthy
+  logic: `Show-Status`'s "total" count included the table header row (so
+  running-count could never equal total-count, even when everything was
+  actually up), and `Deploy-Stack`'s health-wait loop matched the substring
+  "healthy" anywhere in the output rather than checking every container.
+  Both switched to the same `--format json` approach.
+- **Fixed a dead code path in `health-check.ps1`**: `docker ps` always
+  prints a header row even with zero containers running, so the "nothing
+  is running" early-exit check (`-not $containers`) could never actually
+  trigger. Switched to `docker ps -q`.
+- Replaced `Invoke-Expression` in `deploy.ps1` with a direct argument-array
+  call (avoids shell-string quoting hazards).
+- Fixed `deploy.ps1 -Action` being both `Mandatory` and defaulted to
+  `"deploy"` (contradictory - the default could never apply). Now optional,
+  defaulting to `deploy`.
+- Renamed a local `$pwd` in `gui-installer.ps1` that shadowed PowerShell's
+  automatic current-directory variable.
+- Implemented `health-check.ps1 -JSON` for real (previously accepted but
+  did nothing) - now emits clean, `ConvertFrom-Json`-able output with no
+  decorative text mixed in.
+- Added optional Gotify push notifications to `backup.ps1` (on completion)
+  and `health-check.ps1` (on unhealthy/down), and to Watchtower itself (on
+  update) - all opt-in, off unless a token is configured, all verified
+  against a live Gotify instance including a real end-to-end Watchtower
+  notification.
+- Added `_scripts/validate-stacks.sh` and a GitHub Actions workflow
+  (`.github/workflows/validate.yml`) that runs it plus PSScriptAnalyzer on
+  every push: `docker compose config` against every stack using
+  `.env.example`'s documented variables, failing on invalid YAML or on a
+  `${VAR}` the compose file references that isn't documented. Confirmed it
+  actually catches both bug classes from the 1.0 pass by reintroducing them
+  temporarily and watching it fail.
+
 ## 1.0 - Full audit and remediation pass (2026-09-20)
 
 Earlier documentation in this repo's history repeatedly declared the stack

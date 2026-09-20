@@ -30,9 +30,10 @@ You can also skip this and edit any stack's `.env` by hand - the variable
 ## deploy.ps1
 
 ```powershell
-.\deploy.ps1 -Action <deploy|start|stop|restart|down|status|logs> [-Stack <name>] [-Pull] [-Quiet]
+.\deploy.ps1 [-Action <deploy|start|stop|restart|down|status|logs>] [-Stack <name>] [-Pull] [-Quiet]
 ```
 
+`-Action` defaults to `deploy`, so bare `.\deploy.ps1` does a full deploy.
 `deploy` brings every stack up in dependency order: **caddy** first (it
 owns the shared `caddy-network`), then **authentik**, then everything else.
 Deploying stacks individually and out of order will fail unless `caddy` is
@@ -49,13 +50,15 @@ already up.
 ## health-check.ps1
 
 ```powershell
-.\health-check.ps1 [-Detailed] [-JSON]
+.\health-check.ps1 [-Detailed] [-JSON] [-GotifyUrl <url>] [-GotifyToken <token>]
 ```
 
 Walks every stack, reports each container as healthy / running-without-a-
 healthcheck / unhealthy / not-running, and prints an overall percentage.
 `-Detailed` adds network/volume/disk-usage info. Exit code is 0 if
-everything is healthy, 1 otherwise (useful in a scheduled task).
+everything is healthy, 1 otherwise (useful in a scheduled task). Pass
+`-GotifyUrl`/`-GotifyToken` to get a push notification when something's
+unhealthy or down (same opt-in pattern as `backup.ps1`).
 
 ## setup-directories.ps1
 
@@ -109,4 +112,19 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 then validate the specific stack's config:
 ```powershell
 docker compose -f ..\<stack>\docker-compose.yml --env-file ..\<stack>\.env config
+```
+
+## Validation (also runs in CI - see .github/workflows/validate.yml)
+
+```bash
+# Every stack's docker-compose.yml is syntactically valid, and every ${VAR}
+# it references is documented in ../.env.example. Catches the exact class
+# of bug (invalid YAML, undocumented variables) this repo's 1.0 pass found.
+bash validate-stacks.sh
+```
+
+```powershell
+# Static analysis on these scripts (path-resolution bugs, unsafe patterns).
+Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
+Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
 ```

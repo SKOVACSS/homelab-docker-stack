@@ -57,11 +57,18 @@ services:
       - WATCHTOWER_INCLUDE_RESTARTING=false
       - WATCHTOWER_POLL_INTERVAL=86400
       - WATCHTOWER_SCHEDULE=0 2 * * * *
-      - WATCHTOWER_NOTIFICATIONS=off
+      # Off by default. To get a Gotify notification whenever Watchtower
+      # updates something: create an Application in Gotify's web UI, then
+      # set GOTIFY_TOKEN in this stack's .env (see .env.example) - that
+      # alone flips these on via the defaults below.
+      - WATCHTOWER_NOTIFICATIONS=${WATCHTOWER_NOTIFICATIONS:-off}
+      - WATCHTOWER_NOTIFICATION_URL=gotify://gotify:80/${GOTIFY_TOKEN:-}?disabletls=yes
       # Only update images with these labels
       - WATCHTOWER_LABEL_ENABLE=true
     networks:
       - utilities
+      # To reach notification-stack's "gotify" service by container name.
+      - caddy-network
     deploy:
       resources:
         limits:

@@ -21,10 +21,9 @@ down - Remove all containers (keep volumes)
 #>
 
 param(
-    [Parameter(Mandatory=$true)]
     [ValidateSet("deploy", "start", "stop", "restart", "down", "logs", "status")]
     [string]$Action = "deploy",
-    
+
     [string]$Stack = "",
     [switch]$Pull = $false,
     [switch]$Quiet = $false
@@ -58,28 +57,36 @@ function Deploy-Stack {
     }
     
     Write-Status "Starting $StackName..." "step"
-    
-    $pullArg = if ($Pull) { "--pull always" } else { "" }
-    $result = Invoke-Expression "docker compose -f '$stackPath\docker-compose.yml' up $pullArg -d" 2>&1
-    
+
+    $composeArgs = @("compose", "-f", "$stackPath\docker-compose.yml", "up")
+    if ($Pull) { $composeArgs += @("--pull", "always") }
+    $composeArgs += "-d"
+    $result = & docker @composeArgs 2>&1
+
     if ($LASTEXITCODE -eq 0) {
         Write-Status "$StackName started" "success"
-        
+
         if ($WaitForHealthy) {
             Write-Status "Waiting for $StackName to be healthy..." "info"
             $retries = 0
             $maxRetries = 30
-            
+
             while ($retries -lt $maxRetries) {
-                $healthy = docker compose -f "$stackPath\docker-compose.yml" ps 2>&1 | Select-String "healthy"
-                if ($healthy) {
+                # --format json + State/Health fields, not a substring
+                # match on the human-readable table - see CHANGELOG.md for
+                # why the old text-parsing approach silently misclassified
+                # containers in health-check.ps1.
+                $lines = docker compose -f "$stackPath\docker-compose.yml" ps --format json 2>$null
+                $containers = $lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json }
+                $notReady = $containers | Where-Object { $_.State -ne "running" -or $_.Health -eq "unhealthy" -or $_.Health -eq "starting" }
+                if ($containers -and -not $notReady) {
                     Write-Status "$StackName is healthy" "success"
                     return $true
                 }
                 Start-Sleep -Seconds 2
                 $retries++
             }
-            
+
             Write-Status "$StackName not ready after $($maxRetries * 2) seconds" "warning"
         }
         return $true
@@ -172,10 +179,14 @@ function Show-Status {
         foreach ($s in $stacks) {
             $stackPath = Join-Path $appRoot $s
             if (Test-Path "$stackPath\docker-compose.yml") {
-                $ps = docker compose -f "$stackPath\docker-compose.yml" ps 2>&1
-                $running = $ps | Select-String "Up" | Measure-Object | Select-Object -ExpandProperty Count
-                $total = $ps | Select-String "^\w" | Measure-Object | Select-Object -ExpandProperty Count
-                
+                # --format json + State field, not a substring match on the
+                # table (the old "^\w" total count included the header row,
+                # so running/total could never actually be equal).
+                $lines = docker compose -f "$stackPath\docker-compose.yml" ps --all --format json 2>$null
+                $containers = $lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json }
+                $running = ($containers | Where-Object { $_.State -eq "running" } | Measure-Object).Count
+                $total = ($containers | Measure-Object).Count
+
                 if ($running -eq $total -and $total -gt 0) {
                     Write-Host "  ✅ $s ($running/$total)" -ForegroundColor Green
                 } elseif ($running -gt 0) {

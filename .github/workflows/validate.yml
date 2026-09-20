@@ -1,0 +1,33 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  compose:
+    name: docker compose config on every stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash _scripts/validate-stacks.sh
+
+  scripts:
+    name: PSScriptAnalyzer on _scripts/*.ps1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+          $results = Invoke-ScriptAnalyzer -Path _scripts -Recurse -Severity Warning,Error -Settings _scripts/PSScriptAnalyzerSettings.psd1
+          $results | Format-Table -AutoSize | Out-String -Width 200 | Write-Output
+          # PSReviewUnusedParameter false-positives on params only read from
+          # inside a helper function via script scope (e.g. GotifyUrl/
+          # GotifyToken read inside Send-GotifyNotification) - shown above,
+          # not treated as a failure.
+          $blocking = $results | Where-Object { $_.RuleName -ne 'PSReviewUnusedParameter' }
+          if ($blocking) {
+            Write-Output "::error::PSScriptAnalyzer found blocking issues (see table above)"
+            exit 1
+          }

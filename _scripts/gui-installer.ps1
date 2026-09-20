@@ -15,8 +15,8 @@ function Generate-SecurePassword {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
     $bytes = [byte[]]::new($Length)
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-    $pwd = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
-    return $pwd
+    $password = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
+    return $password
 }
 
 function Validate-Email { param([string]$e) return $e -match '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' }
