@@ -14,7 +14,7 @@ family and friends.
 |---|---|
 | `caddy/` | Reverse proxy - HTTPS, security headers, rate limiting. Every other stack routes through this one. |
 | `authentik/` | Single sign-on (SSO) for the whole lab. |
-| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent (VPN-routed via gluetun), Plex, Jellyfin. |
+| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent (VPN-routed via gluetun), Plex, Jellyfin, Seerr (movie/show requests). |
 | `privacy-stack/` | Nextcloud, Navidrome, Syncthing, Paperless-ngx, Wallabag, Trilium, Focalboard, OnlyOffice, Radicale. |
 | `immich-app/` | Google Photos replacement. |
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |

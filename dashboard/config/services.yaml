@@ -27,6 +27,15 @@
         icon: qbittorrent.png
         href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Torrent client (VPN-routed)
+    - Seerr:
+        # Homepage's icon pack doesn't have a "seerr" icon yet (very new
+        # rebrand as of 2026) - overseerr.png as the closest visual match
+        # until one exists; harmless to swap later if it looks wrong.
+        icon: overseerr.png
+        href: "https://requests.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Request movies & shows
+        server: my-docker
+        container: seerr
 
 - Media Servers:
     - Plex:
