@@ -4,7 +4,7 @@
 
 - **Docker Desktop** (Windows/macOS) or Docker Engine + the Compose plugin (Linux). Verify with `docker compose version` (needs the v2 CLI - `docker-compose` with a hyphen is the old, unsupported v1).
 - **A domain name on Cloudflare** (nameservers pointed at Cloudflare - free plan is enough). Required, not optional: Caddy gets every certificate through Cloudflare's DNS API, and the whole point of Cloudflare Tunnel (below) is remote access with no port forwarding, which needs Cloudflare in front of the domain either way.
-- Accounts/keys you'll be asked for during setup: a [ProtonVPN](https://protonvpn.com) plan with port forwarding (for the media stack's VPN routing), a [Plex claim token](https://plex.tv/claim) if you want Plex.
+- Accounts/keys you'll be asked for during setup: a [ProtonVPN](https://protonvpn.com) plan with port forwarding (for the media stack's VPN routing). If you want Plex, a Plex account is all you actually need up front - the wizard's [Plex claim token](https://plex.tv/claim) field is optional (see step 5 below for why it's usually easier to just claim it manually after deploying).
 
 ## 1. Set up Cloudflare Tunnel
 
@@ -149,6 +149,16 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
 
 - **Authentik**: visit `auth.yourdomain.com`, log in as `akadmin` with the
   `BOOTSTRAP_PASSWORD` from `authentik/.env`.
+- **Plex** (`plex.yourdomain.com`): the wizard's Plex Claim Token field is
+  optional and normally left blank - `setup-directories.ps1` and
+  `deploy.ps1` run as separate steps after the wizard finishes, so a token
+  (4-minute lifetime) almost always expires before the Plex container
+  actually starts. That's fine, not a failure: visit
+  `http://<this-pc>:32400/web` and sign in with your Plex account there
+  instead - Plex's own first-run setup will claim the server for you, no
+  time pressure. Only bother with the wizard's token field if you can
+  finish the wizard, `setup-directories.ps1`, and `deploy.ps1` all within
+  about 4 minutes of generating it.
 - **Portainer, Trilium, Focalboard, Jellyfin**: each sets its own admin
   account through its own first-visit web UI (no pre-set password to
   change) - do this for all four promptly after deploying, same reasoning

@@ -91,6 +91,26 @@ without a real Cloudflare account and domain:
   turns out to matter in practice, WireGuard (already in `security-stack/`)
   remains available as a direct alternative for that specific device/use.
 
+## Plex Claim Token is optional - and usually pointless to set
+
+`plex.tv/claim` tokens expire in 4 minutes, but `gui-installer.ps1` asks
+for it in step 3 of 5, then `setup-directories.ps1` and `deploy.ps1` (which
+builds a custom Caddy image first) still have to run as separate steps
+after the wizard finishes - by the time the Plex container actually
+starts and tries to consume the token, it has almost always already
+expired. That's why the field is optional: leave it blank, deploy
+normally, then visit `http://<this-pc>:32400/web` and sign into your Plex
+account there - Plex's own first-run setup claims the server for you with
+no time pressure. An expired or missing `PLEX_CLAIM` doesn't cause any
+error in `plexinc/pms-docker`'s logs; the container just starts unclaimed.
+
+If you do want the wizard's token to actually work, get it from
+`https://plex.tv/claim` only once you're ready to immediately run the
+wizard's remaining steps, `setup-directories.ps1`, and
+`deploy.ps1 -Action deploy` back to back within about 4 minutes - tight,
+but possible if `deploy.ps1` has already built its Caddy image once
+before (subsequent deploys skip that build step).
+
 ## Pi-hole: port 53 already in use on native Linux
 
 `dns-stack/`'s `pihole` service publishes host port 53 (UDP/TCP) - real

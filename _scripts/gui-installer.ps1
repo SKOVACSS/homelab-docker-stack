@@ -471,7 +471,7 @@ function Show-Step3 {
     $script:form.Controls.Add($titleLabel)
 
     $descLabel = New-Object System.Windows.Forms.Label
-    $descLabel.Text = "Get your Plex claim token (expires in 4 minutes!)"
+    $descLabel.Text = "Optional: pre-claim your Plex server so it's already signed into your account on first boot"
     $descLabel.Top = 55
     $descLabel.Left = 20
     $descLabel.Width = 600
@@ -481,21 +481,27 @@ function Show-Step3 {
     $script:form.Controls.Add($descLabel)
 
     $warnLabel = New-Object System.Windows.Forms.Label
-    # Plain WARNING: prefix, not the emoji - a compound/supplementary-plane
-    # emoji like this one has no glyph in Segoe UI's default (non-emoji)
-    # rendering here and shows as a tofu box instead - confirmed live.
-    $warnLabel.Text = "WARNING: Token expires in 4 minutes! Go to https://plex.tv/claim, copy token (starts with 'claim-'), paste here immediately."
+    # Leave this blank in practice: the token expires in 4 minutes, but
+    # setup-directories.ps1 and deploy.ps1 (which builds a custom Caddy
+    # image first) run as SEPARATE steps after this wizard finishes, so by
+    # the time the Plex container actually starts, several minutes have
+    # almost always passed and the token is already dead. An
+    # expired/invalid PLEX_CLAIM just makes plexinc/pms-docker start
+    # unclaimed - no error, no crash - so skipping this is the normal path,
+    # not a degraded one. Claim it afterward at http://<this-pc>:32400/web
+    # by signing into your Plex account there instead - no time pressure.
+    $warnLabel.Text = "Leave blank and claim manually after deploying (recommended - see below). If you do want to fill this in, get the token from https://plex.tv/claim and finish this whole wizard, setup-directories.ps1, AND deploy.ps1 within about 4 minutes - otherwise it'll already be expired by the time Plex starts."
     $warnLabel.Top = 100
     $warnLabel.Left = 20
     $warnLabel.Width = 600
     $warnLabel.Height = 50
     $warnLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
-    $warnLabel.ForeColor = [System.Drawing.Color]::Red
+    $warnLabel.ForeColor = [System.Drawing.Color]::Blue
     $script:form.Controls.Add($warnLabel)
 
     # Token Label
     $tokenLabelCtrl = New-Object System.Windows.Forms.Label
-    $tokenLabelCtrl.Text = "Plex Claim Token"
+    $tokenLabelCtrl.Text = "Plex Claim Token (optional)"
     $tokenLabelCtrl.Top = 160
     $tokenLabelCtrl.Left = 20
     $tokenLabelCtrl.Width = 600
@@ -534,8 +540,10 @@ function Show-Step3 {
     $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
     $nextBtn.Add_Click({
         $token = $script:tokenBox.Text.Trim()
-        if ([string]::IsNullOrEmpty($token)) { Show-Error "Plex token required"; return }
-        if (-not $token.StartsWith("claim-")) { Show-Error "Token should start with 'claim-'"; return }
+        # Optional - see $warnLabel above for why leaving it blank is the
+        # normal path, not a fallback. Only validated when something was
+        # actually typed in.
+        if (-not [string]::IsNullOrEmpty($token) -and -not $token.StartsWith("claim-")) { Show-Error "Token should start with 'claim-'"; return }
 
         $script:data.PlexToken = $token
         $script:data.PlexDomain = "plex.$($script:data.Domain)"
@@ -736,6 +744,11 @@ function Show-Step5 {
         "Mail Domain: $($script:data.MailDomain) (separate from Domain - needs`nits own Cloudflare Public Hostname rules and DNS-edit permission too)"
     }
     $secretCountText = if ($script:data.SetupEmail) { "22 unique secure secrets" } else { "20 unique secure secrets" }
+    $plexClaimText = if ([string]::IsNullOrEmpty($script:data.PlexToken)) {
+        "Plex Claim Token: not set - claim it manually after deploying at`nhttp://<this-pc>:32400/web (sign in with your Plex account there)"
+    } else {
+        "Plex Claim Token: ✓ Set (only works if you finish this wizard AND`ndeploy within ~4 minutes of getting it - otherwise it'll expire, which`nis harmless, just means claiming it manually instead)"
+    }
 
     $reviewBox.Text = @"
 CONFIGURATION SUMMARY
@@ -756,6 +769,7 @@ ProtonVPN Country: $($script:data.ProtonCountry)
 
 Plex Domain: $($script:data.PlexDomain)
 Jellyfin Domain: $($script:data.JellyfinDomain)
+$plexClaimText
 
 Passwords: ✓ Generated ($secretCountText)
 
