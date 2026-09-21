@@ -52,10 +52,15 @@ What's actually implemented, and what you still have to do yourself.
 - **Keep `.env` files out of any git remote.** They hold real credentials.
   If you initialize git here, make sure `.gitignore` excludes `**/.env`
   before your first commit (it does, unless you've changed it).
-- **Set first-run admin passwords promptly.** A few services (Portainer,
-  Nextcloud, Paperless-ngx, Wallabag, Trilium, Focalboard) create their
-  admin account on first web UI visit rather than from an env var - see
-  SETUP.md step 5.
+- **Set first-run admin passwords promptly** for the services that create
+  their admin account on first web UI visit rather than from an env var:
+  Portainer, Wallabag, Trilium, and Focalboard - see SETUP.md step 5.
+  (Nextcloud and Paperless-ngx look similar but aren't in this category -
+  both auto-create their admin account straight from
+  `NEXTCLOUD_ADMIN_USER`/`PASSWORD` and `PAPERLESS_ADMIN_USER`/`PASSWORD`
+  in their `.env`, confirmed against each project's own docs, so
+  `gui-installer.ps1`'s generated passwords already take effect with no
+  extra step.)
 - **Firewall your host.** With Cloudflare Tunnel handling web access (see
   above), nothing needs an inbound port opened at all for 80/443 traffic -
   block unsolicited inbound WAN traffic entirely if your router/firewall

@@ -3,6 +3,10 @@
 !.env.example
 **/.env.validate-stacks-backup
 
+# gui-installer.ps1's password-manager import file - plaintext, meant to
+# be imported into Vaultwarden/Proton Pass and then deleted, not kept.
+credentials-export.csv
+
 # Local tooling config, not part of the project
 .claude/
 

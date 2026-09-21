@@ -682,7 +682,8 @@ Click "Create .env Files" to proceed
     $createBtn.BackColor = [System.Drawing.Color]::LightGreen
     $createBtn.Add_Click({
         Create-EnvFiles
-        Show-Success "Success!`n`nAll .env files created.`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
+        $credPath = Export-Credentials
+        Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
         $form.Close()
     })
     $form.Controls.Add($createBtn)
@@ -851,6 +852,67 @@ PIHOLE_WEBPASSWORD=$($script:data.PiholeWebPassword)
 TZ=$($script:data.Timezone)
 "@
     $dnsEnv | Out-File "$appRoot\dns-stack\.env" -Encoding UTF8 -Force
+}
+
+function Export-Credentials {
+    # Writes every credential this wizard just generated (or collected) to
+    # one CSV in Bitwarden's import format - Vaultwarden speaks it
+    # natively, and Proton Pass explicitly supports "Bitwarden (csv)" as
+    # an import source, so this one file drops into either without any
+    # reformatting. This is the file SECURITY.md means by "back up your
+    # secrets" - it's plaintext, gitignored, and meant to be imported and
+    # then deleted, not kept sitting on disk.
+    $d = $script:data.Domain
+    $rows = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+    function New-CredRow {
+        param([string]$Name, [string]$Uri = "", [string]$Login = "", [string]$Secret = "", [string]$Notes = "")
+        [PSCustomObject]@{
+            folder         = "Homelab"
+            favorite       = ""
+            type           = "login"
+            name           = $Name
+            notes          = $Notes
+            fields         = ""
+            reprompt       = ""
+            login_uri      = $Uri
+            login_username = $Login
+            login_password = $Secret
+            login_totp     = ""
+        }
+    }
+
+    $rows.Add((New-CredRow "Cloudflare API Token" "https://dash.cloudflare.com/profile/api-tokens" "" $script:data.CloudflareApiToken "Zone:DNS:Edit token - used by Caddy for certificate issuance (caddy/.env)"))
+    $rows.Add((New-CredRow "Cloudflare Tunnel Token" "https://one.dash.cloudflare.com" "" $script:data.CloudflareTunnelToken "Used by the cloudflared container (caddy/.env)"))
+    $rows.Add((New-CredRow "Authentik (SSO)" "https://auth.$d" "akadmin" $script:data.AuthentikBootstrapPass "Bootstrap admin account - authentik/.env BOOTSTRAP_PASSWORD"))
+    $rows.Add((New-CredRow "Authentik Bootstrap Token" "https://auth.$d" "" $script:data.AuthentikBootstrapToken "API token, not a login password"))
+    $rows.Add((New-CredRow "Authentik Database" "" "authentik" $script:data.AuthentikPgPassword "Internal Postgres password - not a login page"))
+    $rows.Add((New-CredRow "Nextcloud" "https://nextcloud.$d" "admin" $script:data.NextcloudAdminPassword "Auto-provisioned from .env on first boot"))
+    $rows.Add((New-CredRow "Nextcloud Database" "" "nextcloud" $script:data.NextcloudDbPassword "Internal MariaDB password - not a login page"))
+    $rows.Add((New-CredRow "Nextcloud Database Root" "" "root" $script:data.NextcloudDbRootPassword "Internal MariaDB root password - not a login page"))
+    $rows.Add((New-CredRow "Paperless-ngx" "https://papers.$d" "admin" $script:data.PaperlessAdminPassword "Auto-provisioned from .env on first boot"))
+    $rows.Add((New-CredRow "Paperless-ngx Database" "" "paperless" $script:data.PaperlessDbPassword "Internal Postgres password - not a login page"))
+    $rows.Add((New-CredRow "Wallabag Database" "" "wallabag" $script:data.WallabagDbPassword "Internal Postgres password - not a login page"))
+    $rows.Add((New-CredRow "Wallabag App Login" "https://read.$d" "wallabag" "" "Ships with default password 'wallabag' - change on first login, then fill in here"))
+    $rows.Add((New-CredRow "Mailu Admin / Webmail" "https://mailadmin.$d" "admin" $script:data.MailAdminPassword "Same login also works at webmail.$d"))
+    $rows.Add((New-CredRow "Mailu Secret Key" "" "" $script:data.MailuSecretKey "Internal session-signing key, not a login password"))
+    $rows.Add((New-CredRow "InfluxDB Admin" "" "admin" $script:data.InfluxdbAdminPassword "No direct web route published - reached via Grafana"))
+    $rows.Add((New-CredRow "InfluxDB API Token" "" "" $script:data.InfluxdbAdminToken "API token, not a login password"))
+    $rows.Add((New-CredRow "Grafana" "https://grafana.$d" "admin" $script:data.GrafanaMainPassword ""))
+    $rows.Add((New-CredRow "Gotify" "https://gotify.$d" "admin" $script:data.GotifyAdminPassword ""))
+    $rows.Add((New-CredRow "Vaultwarden Admin Panel" "https://vault.$d/admin" "" $script:data.VaultwardenAdminToken "Token-based admin panel login, no username"))
+    $rows.Add((New-CredRow "Immich Database" "" "postgres" $script:data.ImmichDbPassword "Internal Postgres password - not a login page"))
+    $rows.Add((New-CredRow "Pi-hole" "https://pihole.$d" "" $script:data.PiholeWebPassword "Password-only login, no username"))
+    $rows.Add((New-CredRow "ProtonVPN" "https://account.protonvpn.com" $script:data.ProtonUsername $script:data.ProtonPassword "Used by media-stack's gluetun VPN routing"))
+    $rows.Add((New-CredRow "Portainer" "https://portainer.$d" "" "" "Set your own password on first visit, then fill in here"))
+    $rows.Add((New-CredRow "Trilium" "https://notes.$d" "" "" "Set your own password on first visit, then fill in here"))
+    $rows.Add((New-CredRow "Focalboard" "https://boards.$d" "" "" "Set your own password on first visit, then fill in here"))
+    $rows.Add((New-CredRow "Jellyfin" "https://jellyfin.$d" "" "" "Set your own admin account on first visit, then fill in here"))
+
+    $exportPath = "$appRoot\credentials-export.csv"
+    $rows | Select-Object folder, favorite, type, name, notes, fields, reprompt, login_uri, login_username, login_password, login_totp |
+        Export-Csv -Path $exportPath -NoTypeInformation -Encoding UTF8
+    return $exportPath
 }
 
 $form = Create-Form
