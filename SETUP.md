@@ -76,6 +76,22 @@ and pages load. First-run setup for a few services:
   logs gluetun` for the port ProtonVPN forwarded you, then update `BT_PORT`
   in `media-stack/.env` and redeploy that stack (`.\deploy.ps1 -Action
   restart -Stack media-stack`).
+- **Seerr** (`requests.yourdomain.com`): lets family/friends request movies
+  and shows instead of asking you directly. First-run setup, all through
+  its own web UI:
+  1. Sign in with Plex, or point it at Jellyfin's server URL + an API key
+     from Jellyfin's dashboard - either way, it can then import your
+     Plex/Jellyfin user accounts, so people log in with a login they
+     already have.
+  2. Add Sonarr and Radarr as request targets (Settings -> Services),
+     using each one's own API key (find it under Settings -> General in
+     Sonarr/Radarr's own web UI).
+  3. Set each user's approval permission (Users tab) - auto-approve for
+     people you trust to request freely, manual-approval-required for
+     anyone else (you'll get a request to approve/deny instead).
+  4. Optional: Settings -> Notifications -> Gotify, once you've created an
+     Application for it in Gotify's web UI to get a token - same pattern as
+     Watchtower/Diun's Gotify setup.
 
 ## 6. Back up
 

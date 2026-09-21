@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.3.0 - Add Seerr: let family/friends request movies and shows (2026-09-21)
+
+New service in `media-stack/`: Seerr (`ghcr.io/seerr-team/seerr:v3.4.1`),
+reachable at `requests.{$DOMAIN}`. Lets family/friends browse and request
+movies/shows themselves instead of asking directly - it talks to
+Sonarr/Radarr to actually fulfill approved requests.
+
+**Chose Seerr over Overseerr or Jellyseerr deliberately**: Overseerr was
+archived by its own maintainers in early 2026, and its team merged efforts
+with Jellyseerr into Seerr - the actively maintained successor to both.
+It's also the only one of the three that supports both Plex AND Jellyfin as
+a backend, which matters here since this stack runs both; either one's
+user accounts can be imported directly, so family members request media
+with a login they already have rather than a new one.
+
+Joins `media-network` (to reach Sonarr/Radarr) and `caddy-network` (its own
+route, and to reach Plex/Jellyfin directly). No new secrets or `.env`
+changes needed - it keeps its own SQLite config, and Sonarr/Radarr/Plex/
+Jellyfin connections plus each user's approval policy (auto vs.
+manual-approval-required, configurable per person) are first-run/admin-UI
+setup, the same pattern as Portainer/Nextcloud's own first-visit setup -
+see SETUP.md for the exact steps. Also wired for Gotify notifications
+(opt-in, same pattern as Watchtower/Diun).
+
+Live-tested: pulled and ran the pinned image standalone, confirmed it
+boots cleanly and serves `/api/v1/status` (200, real JSON) within seconds,
+confirmed the Homepage dashboard tile parses correctly, and validated the
+new Caddy route (`caddy validate` against the rebuilt custom image).
+
 ## 1.2.2 - Fix Mailu admin bootstrap, dead Postgres container, GUI installer cleanup (2026-09-21)
 
 Reviewed `_scripts/gui-installer.ps1` end to end (unmodified since before the
