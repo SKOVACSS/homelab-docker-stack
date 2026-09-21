@@ -17,7 +17,12 @@ services:
     image: gotify/server:3.1.1
     restart: unless-stopped
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      # Auto-updates like everything else. Gotify is small, mature,
+      # single-binary software with a conservative release history (no
+      # pattern of breaking changes) - the realistic failure risk here is
+      # low, a deliberate call made explicitly aware that this is also the
+      # channel every other alert in this stack depends on.
+      - "com.centurylinklabs.watchtower.enable=true"
     container_name: gotify
     ports:
       - "8765:80"

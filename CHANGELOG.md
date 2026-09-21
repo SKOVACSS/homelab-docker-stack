@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.0.7 - Enable Watchtower auto-update fleet-wide, notify-only for Gotify (2026-09-21)
+
+Found while wiring up Watchtower notifications: `SECURITY.md` documented
+Watchtower as opt-in per service, "excludes every database, Authentik,
+and qBittorrent by default" - implying everything else was opted in.
+In reality every single service across all ~40 containers in every stack
+was labeled `com.centurylinklabs.watchtower.enable=false`. Auto-update
+had been fully configured (schedule, cleanup, notification wiring) but
+was completely inert - nothing was ever eligible to update. Same class
+of bug as the Telegraf crash-loop: looked configured, never exercised.
+
+**Decision:** auto-update everything. Flipped every `enable=false` label
+to `true`, including Gotify - initially carved out as `monitor-only`
+(notified, never auto-applied) since it's the notification channel every
+other alert in this stack depends on, but revisited: Gotify is small,
+mature, single-binary software with a conservative release history and
+no pattern of breaking changes, so the realistic failure risk is low.
+Folded in as a deliberate call made with that blast-radius tradeoff
+explicit, not because the risk was reassessed as zero.
+- **Caddy** - left `false`. It's a local build (`build: .`), not pulled
+  from a registry, so there's no upstream tag for Watchtower to check;
+  enabling it would be a no-op that only adds log noise.
+
+**Caveat worth knowing:** Watchtower only re-triggers when the digest
+behind a service's *currently pinned tag* changes upstream. Some images
+here are already on a floating-enough tag (Postgres `16-alpine`/
+`17-alpine`, Redis `7-alpine`, the hotio arr-suite's `:release`) where
+this produces genuine continuous auto-updates. Others are pinned to an
+exact version (MariaDB `11.4.13`, Plex, Grafana, Nextcloud, etc.), where
+Watchtower stays idle until that exact pin is bumped by hand - flipping
+the label alone doesn't make those continuously current. Converting the
+exact-pinned images to appropriate floating tags, where each upstream
+project supports it safely, is follow-up work, not done here.
+
+Also updated `SECURITY.md` and `README.md`, which both described the
+old (never-actually-true) opt-in-by-default behavior.
+
+**Not yet applied to any running container** - Watchtower reads labels
+off the live container, not the compose file, so this takes effect only
+once each affected stack is redeployed (`deploy.ps1 -Action deploy`).
+
 ## 1.0.6 - Version-drift checker: image inventory (2026-09-20)
 
 First piece of the version-drift checker: `_scripts/check-versions.ps1`

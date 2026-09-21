@@ -18,10 +18,17 @@ What's actually implemented, and what you still have to do yourself.
 - **Network segmentation.** Each stack has its own internal Docker network;
   only the specific services that need to be reachable from outside join
   the shared `caddy-network`. Databases and caches never do.
-- **No `:latest` tags anywhere** - every image is pinned, so an update is
-  something you choose. Watchtower only touches services explicitly labeled
-  `com.centurylinklabs.watchtower.enable=true`, which excludes every
-  database, Authentik, and qBittorrent by default.
+- **No `:latest` tags anywhere** - every image is pinned, so what's running
+  is always visible in the compose file. Watchtower auto-updates every
+  service except the locally-built Caddy image, which has no upstream tag
+  to check. This includes Gotify - the notification channel every other
+  alert in this stack depends on - on the basis that it's small, mature,
+  single-binary software with no history of breaking changes, so the
+  realistic risk is low; a deliberate call, not an oversight. Whether
+  auto-update is actually continuous for a given service depends on
+  whether its pinned tag floats (e.g. `postgres:18-alpine`) or is exact
+  (e.g. `mariadb:11.4.13`, where Watchtower stays idle until the pin
+  itself is bumped by hand).
 - **Resource limits** on every service (`deploy.resources`), so one runaway
   container can't starve the others.
 - **Health checks** on nearly every service, surfaced by

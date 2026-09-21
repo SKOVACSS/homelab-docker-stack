@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
     container_name: fail2ban
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - ./fail2ban/data:/data
       - ./fail2ban/config:/etc/fail2ban/jail.d
@@ -54,7 +54,7 @@ services:
     restart: unless-stopped
     container_name: wireguard
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE

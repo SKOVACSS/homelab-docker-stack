@@ -40,11 +40,14 @@ since it owns the shared `caddy-network` every other stack joins).
   should ever be exposed on ports 80/443. Everything else stays on internal
   Docker networks and reaches the outside world only through it (mail's raw
   SMTP/IMAP ports are the one necessary exception - see TROUBLESHOOTING.md).
-- **No `:latest` tags.** Every image is pinned to a specific version so an
-  update is something you choose, not something that happens to you
-  overnight. Watchtower is opt-in per service (see the
-  `com.centurylinklabs.watchtower.enable` label) and is disabled by default
-  on anything stateful (databases, auth, torrent client).
+- **No `:latest` tags.** Every image is pinned to a specific version, so
+  what's actually running is always visible in the compose file itself.
+  Watchtower auto-updates everything except the locally-built Caddy image,
+  which has no upstream tag to check (see the
+  `com.centurylinklabs.watchtower.enable` label per service). Whether a
+  given image's pin actually floats (patch-level auto-update) or is exact
+  (Watchtower effectively idle until the pin itself is bumped) varies by
+  image; see CHANGELOG.md.
 - **Secrets live in `.env` files, one per stack**, never in the compose
   files themselves. Generate them with `_scripts/gui-installer.ps1`, or by
   hand using `python -c "import secrets; print(secrets.token_urlsafe(32))"`.

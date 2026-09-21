@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
     container_name: mailu-admin
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     # No host port published: reachable only via Caddy's mailadmin.{$DOMAIN}
     # route (caddy-network), keeping the firewall model to 80/443/WireGuard only.
     volumes:
@@ -112,7 +112,7 @@ services:
     restart: unless-stopped
     container_name: mailu-imap
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - "143:143"    # IMAP
       - "993:993"    # IMAPS
@@ -151,7 +151,7 @@ services:
     restart: unless-stopped
     container_name: mailu-smtp
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - "25:25"      # SMTP
       - "465:465"    # SMTPS
@@ -189,7 +189,7 @@ services:
     restart: unless-stopped
     container_name: mailu-rspamd
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     # No host port published: rspamd is only called internally by postfix/
     # dovecot over email-network, nothing outside the stack needs to reach it.
     volumes:
@@ -222,7 +222,7 @@ services:
     restart: unless-stopped
     container_name: mailu-webmail
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     # No host port published: reachable only via Caddy's webmail.{$DOMAIN}
     # route (caddy-network), keeping the firewall model to 80/443/WireGuard only.
     volumes:

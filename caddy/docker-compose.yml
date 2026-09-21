@@ -24,6 +24,10 @@ services:
       timeout: 5s
       retries: 3
     labels:
+      # Left disabled deliberately, not swept up in the everything-else
+      # auto-update rollout: this image is a local build, not pulled from a
+      # registry, so there's no upstream tag for Watchtower to check - the
+      # label would just be a no-op that adds noise to its logs.
       - "com.centurylinklabs.watchtower.enable=false"
     deploy:
       resources:
