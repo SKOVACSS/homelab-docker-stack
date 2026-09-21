@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.6.2 - Make the Plex Claim Token field optional (2026-09-21)
+
+The wizard's step 3 required a Plex claim token before letting you
+continue, but `plex.tv/claim` tokens expire in 4 minutes while
+`setup-directories.ps1` and `deploy.ps1` (which builds a custom Caddy
+image on first run) both happen as separate steps after the wizard
+finishes - by the time the Plex container actually starts, the token
+was almost always already dead on arrival. An expired/missing
+`PLEX_CLAIM` doesn't error, it just leaves Plex unclaimed, which you fix
+by signing in at `http://<host>:32400/web` afterward - no time pressure.
+
+Made the field genuinely optional (no longer required to proceed), reworded
+the wizard's warning text and step 5 review summary to explain the
+manual-claim path as the normal route rather than a fallback, and
+documented the timing issue and manual-claim instructions in SETUP.md
+and TROUBLESHOOTING.md.
+
+## 1.6.1 - Fix gui-installer.ps1 scoping bugs (2026-09-21)
+
+Two related PowerShell/WinForms scoping bugs, found only once someone
+actually clicked through the wizard for the first time (neither was
+caught by static analysis or CI, which can't drive a real GUI):
+
+1. Every button's event handler referenced controls from its enclosing
+   `Show-StepN` function's local scope via a plain `{}` scriptblock.
+   PowerShell resolves those references through the *live* scope chain at
+   the moment the event fires, not at definition time - since `Show-StepN`
+   returns immediately after wiring up its screen (well before
+   `$form.ShowDialog()` starts listening for clicks), every field read
+   back as `$null` the instant you clicked anything.
+2. The first fix for that (`.GetNewClosure()` on each handler) solved it,
+   but `GetNewClosure()` turns out to also mishandle explicitly
+   scope-qualified variables like `$script:data` - it silently rebinds
+   them to `$null` inside the closure instead of deferring to the real
+   script-scope lookup, breaking `$script:data`/`$script:step` the moment
+   the previous bug was fixed.
+
+Replaced `GetNewClosure()` entirely: every control read from inside a
+handler (plus `$form` itself) is now `$script:`-scoped instead, the same
+mechanism `$script:data`/`$script:step` already relied on successfully
+throughout this file. Verified by driving the real wizard programmatically
+through all 5 steps end-to-end rather than just parsing it.
+
 ## 1.6.0 - Make the email server optional and deferrable (2026-09-21)
 
 Mailu is by far the most complex, fragile stack in this repo - see the
