@@ -1,5 +1,65 @@
 # Changelog
 
+## 1.5.0 - Security audit: no-auth services, a dangerous docker.sock mount, redundant port exposure (2026-09-21)
+
+A dedicated security pass across the whole codebase, not just the
+diff-by-diff review each feature already got. Three categories of real,
+independently-confirmed findings:
+
+**Services with no real authentication, now closed:**
+- **Radicale** (calendar/contacts) ran with `RADICALE_AUTH_TYPE=none` -
+  its own image's default, confirmed live via a raw `PROPFIND` request
+  returning a normal response with zero credentials. Anyone who reached
+  `cal.{$DOMAIN}` could read/write every family member's calendar and
+  contacts. Fixed at the Caddy layer (`basic_auth` on the `cal.{$DOMAIN}`
+  route, one shared family credential) rather than Radicale's own more
+  limited auth options - CalDAV/CardDAV clients (phone Calendar/Contacts
+  apps) handle a Basic-auth challenge from a fronting proxy identically to
+  one from the server itself, so this isn't a workaround.
+- **Sonarr, Radarr, Prowlarr, Lidarr** had no authentication of their own
+  either (these apps don't ship with auth enabled by default). Same fix:
+  Caddy `basic_auth` on all four routes, one shared credential distinct
+  from Radicale's (admin-only vs. family-facing).
+- Both new credentials (`ARR_AUTH_HASH`, `RADICALE_AUTH_HASH`) are bcrypt
+  hashes generated via `caddy hash-password`, never plaintext -
+  `gui-installer.ps1` generates them the same way it already shells out to
+  Docker for other setup steps.
+
+**A genuinely dangerous, unnecessary Docker socket mount, removed:**
+`mailu-admin` mounted `/var/run/docker.sock` read-write - full root-
+equivalent host access from an internet-facing container (reachable at
+`mailadmin.{$MAIL_DOMAIN}`) that processes untrusted mail-related input.
+Confirmed via Mailu's own upstream source that this does nothing: the
+only actual Docker SDK usage anywhere in Mailu's codebase is in their own
+test harness, not the admin service's runtime code, and their official
+reference `docker-compose.yml` mounts only `data` and `dkim` for `admin` -
+no socket at all. Live-tested the removal: `mailu-admin` reaches healthy
+and creates its admin account identically with no socket access.
+
+**A silent data-loss bug found while fixing the above**: Radicale's
+volume was mounted at `/var/lib/radicale`, but this exact pinned image
+version's actual default `filesystem_folder` is `/data/collections` -
+confirmed by inspecting the image's own baked-in default config directly.
+Every calendar/contact would have been written to the container's
+ephemeral filesystem instead of the named volume, gone on the next
+recreation. Fixed by mounting the volume where the image actually reads
+from.
+
+**Redundant direct port publishing, removed repo-wide**: continuing the
+pattern already fixed for Gotify (1.2.1), found the same issue on
+Portainer, Uptime Kuma, Vaultwarden, Grafana, Sonarr, Radarr, Prowlarr,
+Lidarr, and qBittorrent's WebUI port - all reachable via Caddy already,
+all *also* directly published to the host, bypassing Caddy's TLS/rate-
+limiting/security-headers/basic_auth entirely. Also removed the same
+exposure from three services with no Caddy route and no reason to be
+reachable at all: Loki, Prometheus, and InfluxDB (pure backend data
+sources Grafana/Telegraf already reach internally), OnlyOffice (JWT-
+protected already, but still unnecessary exposure - Nextcloud reaches it
+over `privacy-network`), and Portainer's unused Edge Agent port. Live-
+tested: brought up Grafana and Vaultwarden with no published ports,
+confirmed `docker port` shows nothing bound, confirmed both remain fully
+reachable over the internal Docker network exactly as Caddy needs.
+
 ## 1.4.3 - Documentation accuracy pass (2026-09-21)
 
 Ran a systematic documentation audit (every top-level `.md` file and

@@ -79,7 +79,9 @@ The wizard collects your domain, email, the two Cloudflare tokens from
 step 1, an optional separate Mail Domain (leave blank to use your main
 domain for Mailu too), ProtonVPN credentials, and Plex token, generates a
 unique cryptographically-random secret for every database/service that
-needs one (20 in total - no password is reused across services), and
+needs one (22 in total, including a shared Caddy basic-auth login for
+Sonarr/Radarr/Prowlarr/Lidarr and one for Radicale - see
+TROUBLESHOOTING.md for why those two needed adding), and
 writes a correct `.env` file into every stack directory.
 
 It also writes `credentials-export.csv` in the repo root - every login,

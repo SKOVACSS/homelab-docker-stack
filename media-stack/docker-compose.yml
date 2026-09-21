@@ -55,14 +55,14 @@ services:
       - VPN_PORT_FORWARDING=on
       - VPN_PORT_FORWARDING_PROVIDER=protonvpn
     ports:
-      # QBIT_PORT = qBittorrent's WebUI (static, proxied by Caddy).
       # BT_PORT = the BitTorrent peer port, which MUST match whatever port
       # ProtonVPN forwards you (check gluetun logs after connecting, then
-      # update BT_PORT in .env and redeploy). These must stay two different
-      # numbers - qBittorrent binds both a WebUI socket and a peer-listening
-      # socket, and giving them the same port number makes one of the two
-      # fail to bind.
-      - "${QBIT_PORT}:${QBIT_PORT}"
+      # update BT_PORT in .env and redeploy) - this one has to be published,
+      # real peers on the internet connect to it directly, unlike a web UI.
+      # QBIT_PORT (qBittorrent's WebUI) is NOT published here anymore: it's
+      # proxied by Caddy (qbit.{$DOMAIN}) same as every other admin UI, and
+      # a direct LAN-reachable copy bypassing Caddy served no purpose - a
+      # security audit flagged the same redundant-port pattern repo-wide.
       - "${BT_PORT}:${BT_PORT}"
       - "${BT_PORT}:${BT_PORT}/udp"
     volumes:
@@ -140,8 +140,12 @@ services:
       - sonarr-config:/config
       - ${MEDIA_TV}:/tv
       - ${QBIT_DOWNLOADS_PATH}:/downloads
-    ports:
-      - "8989:8989"
+    # No published port: reachable only via Caddy's sonarr.{$DOMAIN} route
+    # (basic_auth-protected - see caddy/Caddyfile's arr_auth), same
+    # firewall model as every other admin UI in this repo. Previously
+    # published directly, which a security audit found meant this app's
+    # own weak/local-only auth default was bypassable straight from the
+    # LAN - see TROUBLESHOOTING.md.
     networks:
       - media-network
       - caddy-network
@@ -173,8 +177,7 @@ services:
       - radarr-config:/config
       - ${MEDIA_MOVIES}:/movies
       - ${QBIT_DOWNLOADS_PATH}:/downloads
-    ports:
-      - "7878:7878"
+    # No published port - see the identical comment on sonarr above.
     networks:
       - media-network
       - caddy-network
@@ -204,8 +207,7 @@ services:
       - TZ=${TZ:-UTC}
     volumes:
       - prowlarr-config:/config
-    ports:
-      - "9696:9696"
+    # No published port - see the identical comment on sonarr above.
     networks:
       - media-network
       - caddy-network
@@ -242,8 +244,7 @@ services:
       - lidarr-config:/config
       - ${MEDIA_MUSIC}:/music
       - ${QBIT_DOWNLOADS_PATH}:/downloads
-    ports:
-      - "8686:8686"
+    # No published port - see the identical comment on sonarr above.
     networks:
       - media-network
       - caddy-network

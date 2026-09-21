@@ -1,5 +1,38 @@
 # Troubleshooting & Known Limitations
 
+## Sonarr/Radarr/Prowlarr/Lidarr and Radicale now require a login
+
+Fixed a real security gap found in a full audit: these apps ship with
+authentication either off or defaulted to "disabled for local addresses,"
+a setting that becomes meaningless once every request arrives via a
+reverse proxy (every request looks local to the app at that point) - and
+Radicale is configured with `RADICALE_AUTH_TYPE=none` outright. Combined
+with Cloudflare Tunnel making every subdomain reachable from the public
+internet, these were live with zero credentials required. Fixed with
+Caddy-level `basic_auth` in front of all five (`arr_auth` snippet and the
+`cal.{$DOMAIN}` block in `caddy/Caddyfile`).
+
+- **Changing the password later**: generate a new hash with
+  `docker run --rm caddy:2.11.4 caddy hash-password --plaintext "new-password"`,
+  update `ARR_AUTH_HASH` or `RADICALE_AUTH_HASH` in `caddy/.env` with the
+  result (double every `$` in it - see the Portainer entry below for why),
+  then redeploy: `.\deploy.ps1 -Action restart -Stack caddy`.
+- **`gui-installer.ps1` needs Docker Desktop running** to generate these
+  two credentials specifically (it shells out to `caddy hash-password` to
+  produce a real bcrypt hash, rather than approximating one) - if Docker
+  isn't running yet when you click "Generate Passwords," you'll get a
+  clear error naming the problem rather than a corrupted hash.
+- **One shared login for all four *arr apps**, not a distinct one per
+  app - a deliberate, documented exception to this repo's usual
+  one-secret-per-service rule, since they're a single trust boundary in
+  practice (you, the admin, managing your own automation - not a
+  family-facing login). Radicale gets its own separate credential since
+  it's genuinely family-facing.
+- **CalDAV/CardDAV apps handle this fine.** A Basic-auth challenge from a
+  fronting reverse proxy is indistinguishable, from the client's
+  perspective, from one issued by the CalDAV server itself - phone
+  Calendar/Contacts apps don't need any special configuration for this.
+
 ## Cloudflare Tunnel: certificates, Plex relay, and the wildcard dashboard warning
 
 This repo's remote-access model changed from "port-forward 80/443 to
