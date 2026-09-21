@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.4.3 - Documentation accuracy pass (2026-09-21)
+
+Ran a systematic documentation audit (every top-level `.md` file and
+`.env.example`, cross-referenced against actual current compose/script
+behavior) rather than relying on catching drift opportunistically as
+each feature landed. Found and fixed, all in `_scripts/README.md` unless
+noted:
+
+- Understated which stacks `gui-installer.ps1` writes a `.env` for (said
+  10, actually 12 - missing `dashboard` and `dns-stack`, both added back
+  in 1.1.1/1.2.0 without this doc catching up).
+- Missing `check-versions.ps1` from the script table entirely, despite it
+  existing and being referenced correctly from the top-level `README.md`.
+- Stale secret count ("21", correct value is 20 as of 1.2.2's Mailu
+  Postgres removal).
+- `backup.ps1`'s documented usage line was missing the `offsite-snapshots`/
+  `offsite-check` actions and `-ResticRepository`/`-ResticPassword`
+  params added in 1.1.2 - present in the top-level README's Quick
+  Reference but never brought into this file.
+- Also fixed a real "Needs Admin?" inaccuracy in the script table itself:
+  still said `gui-installer.ps1` needs admin rights, which stopped being
+  true when 1.2.2 removed its `RunAsAdministrator` requirement.
+- **`SECURITY.md`**: its first-run-admin-account list was itself wrong in
+  a different way than the one 1.4.1 already fixed - it named Wallabag as
+  a "sets its own account on first visit" service, but Wallabag actually
+  ships with a fixed, publicly-documented default login (`admin`/
+  `wallabag`), which is a more urgent problem than an unset password, not
+  the same category. Jellyfin (genuinely first-visit setup) was missing
+  from the list entirely. Corrected in both `SECURITY.md` and `SETUP.md`.
+- **`PLATFORM.md`**: didn't mention Cloudflare Tunnel/DNS-01 anywhere,
+  despite being the doc a cross-platform reader would check for exactly
+  this kind of "does this differ by OS" question. Added a short note that
+  the Cloudflare setup is identical regardless of platform.
+
 ## 1.4.2 - Let Mailu live on a separate domain from everything else (2026-09-21)
 
 **The problem**: this deployment's main domain already has real email
