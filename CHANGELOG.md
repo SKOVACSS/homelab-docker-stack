@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.6.4 - Fix gluetun crash-looping on a wizard-generated media-stack/.env (2026-09-21)
+
+Found by actually deploying the stack for the first time, not by static
+validation (`docker compose config` can't catch either of these - both
+are runtime checks inside the gluetun binary itself):
+
+1. `gui-installer.ps1` wrote literal placeholder text
+   (`your-wireguard-private-key`, `your-wireguard-addresses`) into
+   `PROTON_WIREGUARD_KEY`/`PROTON_WIREGUARD_ADDRESSES` even though the
+   wizard always sets `VPN_TYPE=openvpn` and has no fields to actually
+   collect WireGuard credentials. gluetun tries to parse
+   `WIREGUARD_ADDRESSES` as an IP whenever it's non-empty regardless of
+   `VPN_TYPE`, so the placeholder crashed it on every startup. `.env.example`
+   already had this right (genuinely blank) - only the wizard's generated
+   output had the bug. Fixed to write both blank, matching `.env.example`.
+2. The wizard's VPN Country dropdown offered ISO codes (`US`, `UK`, `CA`,
+   ...), but gluetun's ProtonVPN provider validates `SERVER_COUNTRIES`
+   against full country names (`United States`, `United Kingdom`, ...) -
+   a code fails with "the country specified is not valid". Fixed the
+   dropdown to use full names.
+
+Both were live-reproduced against a real deploy and confirmed fixed
+(gluetun connected, got a ProtonVPN IP, and forwarded a port) before
+being documented in TROUBLESHOOTING.md for anyone who already has a
+`.env` written by the old, buggy version of the wizard.
+
 ## 1.6.3 - Let the wizard deploy and health-check itself (2026-09-21)
 
 Added an unchecked-by-default checkbox to the wizard's final step:
