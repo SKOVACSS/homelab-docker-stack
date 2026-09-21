@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.4.1 - Export every generated credential to a password-manager-ready CSV (2026-09-21)
+
+`gui-installer.ps1` now writes `credentials-export.csv` (repo root,
+gitignored) alongside the `.env` files it's always generated - every
+login, API token, and internal database password it just generated or
+collected, in Bitwarden's CSV import format. Chose that specific format
+deliberately: Vaultwarden speaks it natively, and Proton Pass explicitly
+lists "Bitwarden (csv)" as a supported import source, so one file covers
+both password managers named as the target with no reformatting.
+
+26 entries per install: every service with its own login gets its
+URL/username/password; internal-only database passwords (Postgres/
+MariaDB credentials nothing ever logs into directly) are included too
+under "future access and ongoing maintenance," labeled as internal rather
+than a login page; the handful of services that create their own admin
+account on first web visit instead of from an env var (Portainer,
+Trilium, Focalboard, Jellyfin) get a blank placeholder entry with a note,
+rather than being silently left out of the manifest entirely.
+
+Also fixed a real, unrelated documentation bug found while cataloging
+which services actually need this treatment: SECURITY.md claimed
+Nextcloud and Paperless-ngx create their admin account on first web UI
+visit. They don't - both auto-provision their admin account straight from
+the `NEXTCLOUD_ADMIN_USER`/`PASSWORD` and `PAPERLESS_ADMIN_USER`/`PASSWORD`
+env vars `gui-installer.ps1` already generates, confirmed against each
+project's own documentation. Corrected rather than left standing next to
+new, more careful credential-handling docs.
+
+Live-tested: ran the export function standalone against a full set of
+simulated wizard data (all 26 rows), confirmed the CSV round-trips through
+PowerShell's own `Import-Csv` cleanly with every field populated
+correctly, and confirmed a clean `Invoke-ScriptAnalyzer` pass after fixing
+a real blocking error the first draft introduced (a helper function with
+both a `Username` and `Password` parameter trips
+`PSAvoidUsingUsernameAndPasswordParams` - renamed rather than suppressed,
+since the flagged pattern was trivial to avoid entirely here).
+
 ## 1.4.0 - Remote access via Cloudflare Tunnel (no port forwarding, works behind CGNAT) (2026-09-21)
 
 **The problem this solves**: this server is on Starlink, which uses CGNAT -

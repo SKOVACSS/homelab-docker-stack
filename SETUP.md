@@ -65,6 +65,13 @@ cryptographically-random secret for every database/service that needs one
 (20 in total - no password is reused across services), and writes a
 correct `.env` file into every stack directory.
 
+It also writes `credentials-export.csv` in the repo root - every login,
+token, and internal database password it just generated or collected, in
+one CSV. Both Vaultwarden and Proton Pass accept this directly (Import ->
+Bitwarden (csv) in either one) - import it, confirm everything landed,
+then **delete the file**. It's plaintext and gitignored, but not something
+that should sit on disk longer than it takes to import once.
+
 Don't want to use the wizard? Every stack's `.env` file is plain text -
 open any of them and edit directly. Just keep the variable *names* as they
 are; the compose files reference them by name.
