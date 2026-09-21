@@ -19,8 +19,11 @@ services:
     container_name: navidrome
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "4533:4533"
+    # No published port: reachable only via Caddy's music.{$DOMAIN} route.
+    # Navidrome has its own real per-user login (unlike several other
+    # services below), but a direct LAN-reachable copy bypassing Caddy's
+    # TLS/rate-limiting/headers still served no purpose - see
+    # TROUBLESHOOTING.md.
     volumes:
       - navidrome-config:/data
       - ${MEDIA_MUSIC}:/music:ro
@@ -57,8 +60,11 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     ports:
-      - "8384:8384"    # Web UI
-      - "22000:22000"  # Sync protocol
+      # Web UI (8384) deliberately NOT published - reachable only via
+      # Caddy's sync.{$DOMAIN} route. The other two stay published: they're
+      # Syncthing's actual sync protocol and LAN peer discovery, not an
+      # admin UI - unlike a web UI, Caddy can't proxy these (not HTTP).
+      - "22000:22000"      # Sync protocol
       - "21027:21027/udp"  # Discovery
     volumes:
       - syncthing-config:/var/syncthing/config
@@ -89,8 +95,8 @@ services:
     container_name: nextcloud
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "8080:80"
+    # No published port - reachable only via Caddy's nextcloud.{$DOMAIN}
+    # route. See the navidrome comment above for why.
     volumes:
       - nextcloud-data:/var/www/html
       - nextcloud-config:/var/www/html/config
@@ -164,8 +170,8 @@ services:
     container_name: paperless-ngx
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "8000:8000"
+    # No published port - reachable only via Caddy's papers.{$DOMAIN}
+    # route. See the navidrome comment above for why.
     volumes:
       - paperless-data:/usr/src/paperless/data
       - paperless-media:/usr/src/paperless/media
@@ -261,8 +267,9 @@ services:
     container_name: wallabag
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "8888:80"
+    # No published port - reachable only via Caddy's read.{$DOMAIN} route.
+    # See the navidrome comment above for why (and SECURITY.md/SETUP.md
+    # for Wallabag's default-login issue, which this is unrelated to).
     volumes:
       - wallabag-data:/var/www/wallabag/web/uploads
       - wallabag-cache:/var/www/wallabag/var/cache
@@ -332,8 +339,8 @@ services:
     container_name: trilium
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "8010:8080"
+    # No published port - reachable only via Caddy's notes.{$DOMAIN} route.
+    # See the navidrome comment above for why.
     volumes:
       - trilium-data:/home/node/trilium-data
     environment:
@@ -362,8 +369,8 @@ services:
     container_name: focalboard
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "3030:8000"
+    # No published port - reachable only via Caddy's boards.{$DOMAIN}
+    # route. See the navidrome comment above for why.
     volumes:
       - focalboard-data:/opt/focalboard/data
     environment:
@@ -386,14 +393,29 @@ services:
           memory: 512M
 
   # ========== ONLINE DOCUMENT EDITOR (Integrates with Nextcloud) ==========
+  # Deliberately still publishes its port, unlike every other service in
+  # this file: Nextcloud's OnlyOffice integration embeds the editor as an
+  # iframe your browser loads directly from OnlyOffice's own address, not
+  # something Nextcloud proxies server-side - so it has to be reachable by
+  # end-user browsers somehow. A security audit flagged this alongside the
+  # others; not fixed the same way (just removing the port) because that
+  # would break document editing outright, not just close unused exposure.
+  # Not internet-facing in practice given CGNAT/no port forwarding, only
+  # LAN-reachable - see TROUBLESHOOTING.md for the real fix (a proper
+  # office.{$DOMAIN} Caddy route + reconfiguring Nextcloud's OnlyOffice
+  # connector URL), tracked as a follow-up rather than rushed here.
   onlyoffice:
     image: onlyoffice/documentserver:9.4.0.1
     restart: unless-stopped
     container_name: onlyoffice
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "9080:80"
+    # No published port: no Caddy route, and not meant to be browsed
+    # directly - Nextcloud's own Office integration reaches it internally
+    # over privacy-network. A security audit found it published to the
+    # host anyway (JWT_ENABLED below already required a valid token for
+    # any request, so this wasn't as severe as the auth-free findings
+    # elsewhere, but still unnecessary exposure).
     volumes:
       - onlyoffice-data:/var/www/onlyoffice/Data
       - onlyoffice-logs:/var/log/onlyoffice
@@ -425,11 +447,27 @@ services:
     container_name: radicale
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "5232:5232"
+    # No published host port: reachable only via Caddy's cal.{$DOMAIN}
+    # route (caddy-network) - this used to publish 5232 directly, bypassing
+    # Caddy's TLS/rate-limiting/security-headers/basic_auth entirely, the
+    # same issue already fixed for Gotify (see CHANGELOG.md 1.2.1).
     volumes:
-      - radicale-data:/var/lib/radicale
+      # /data, not /var/lib/radicale: confirmed live against this exact
+      # pinned image version that its actual default filesystem_folder is
+      # /data/collections. The old /var/lib/radicale mount didn't match
+      # anything the image reads, so every calendar/contact would have
+      # been written to the container's own ephemeral filesystem instead
+      # of this named volume - gone on every container recreation.
+      - radicale-data:/data
     environment:
+      # Real auth is enforced at Caddy (basic_auth on cal.{$DOMAIN} - see
+      # caddy/Caddyfile) rather than here: this image's own auth options
+      # are more limited, and CalDAV/CardDAV clients handle a fronting
+      # proxy's Basic-auth challenge identically to the server's own, so
+      # there's no benefit to configuring both. Leaving Radicale's own
+      # auth at its default (none) is safe specifically because Caddy is
+      # the only network path to this container - see the port comment
+      # above.
       - RADICALE_USERS_TYPE=none
       - RADICALE_AUTH_TYPE=none
     networks:

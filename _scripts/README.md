@@ -21,7 +21,7 @@ file just documents each script's options.
 Walks through: domain/email/timezone/Cloudflare tokens -> ProtonVPN
 credentials -> Plex claim token -> generate secrets -> review & write (see
 SETUP.md step 1 for how to get the two Cloudflare tokens - they need to
-exist before this wizard can use them). Generates 20 distinct
+exist before this wizard can use them). Generates 22 distinct
 cryptographically-random secrets (never reuses one across services) and
 writes a `.env` into every stack directory: `authentik`, `caddy`,
 `media-stack`, `privacy-stack`, `security-stack`, `email-stack`,
