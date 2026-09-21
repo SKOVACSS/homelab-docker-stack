@@ -235,7 +235,7 @@ function Show-Step1 {
     $emailSetupCheckbox.Add_CheckedChanged({
         $mailDomainLabelCtrl.Enabled = $emailSetupCheckbox.Checked
         $mailDomainBox.Enabled = $emailSetupCheckbox.Checked
-    })
+    }.GetNewClosure())
 
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
@@ -308,7 +308,7 @@ function Show-Step1 {
 
         $script:step = 2
         Show-Step2 $form
-    })
+    }.GetNewClosure())
 }
 
 function Show-Step2 {
@@ -414,7 +414,7 @@ function Show-Step2 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 1; Show-Step1 $form })
+    $backBtn.Add_Click({ $script:step = 1; Show-Step1 $form }.GetNewClosure())
     $form.Controls.Add($backBtn)
     
     # Next Button
@@ -439,7 +439,7 @@ function Show-Step2 {
         
         $script:step = 3
         Show-Step3 $form
-    })
+    }.GetNewClosure())
     $form.Controls.Add($nextBtn)
     
     # Progress
@@ -517,7 +517,7 @@ function Show-Step3 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 2; Show-Step2 $form })
+    $backBtn.Add_Click({ $script:step = 2; Show-Step2 $form }.GetNewClosure())
     $form.Controls.Add($backBtn)
     
     # Next Button
@@ -540,7 +540,7 @@ function Show-Step3 {
         
         $script:step = 4
         Show-Step4 $form
-    })
+    }.GetNewClosure())
     $form.Controls.Add($nextBtn)
     
     # Progress
@@ -609,7 +609,7 @@ function Show-Step4 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 3; Show-Step3 $form })
+    $backBtn.Add_Click({ $script:step = 3; Show-Step3 $form }.GetNewClosure())
     $form.Controls.Add($backBtn)
     
     # Next Button
@@ -622,7 +622,7 @@ function Show-Step4 {
     $nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
     $nextBtn.Enabled = $false
-    $nextBtn.Add_Click({ $script:step = 5; Show-Step5 $form })
+    $nextBtn.Add_Click({ $script:step = 5; Show-Step5 $form }.GetNewClosure())
     $form.Controls.Add($nextBtn)
     
     # Progress
@@ -685,7 +685,7 @@ Click Next to review, then "Create .env Files".
         $genBtn.Enabled = $false
         $genBtn.Text = "✓ Done"
         $nextBtn.Enabled = $true
-    })
+    }.GetNewClosure())
 }
 
 function Show-Step5 {
@@ -771,7 +771,7 @@ Click "Create .env Files" to proceed
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 4; Show-Step4 $form })
+    $backBtn.Add_Click({ $script:step = 4; Show-Step4 $form }.GetNewClosure())
     $form.Controls.Add($backBtn)
     
     # Create Button
@@ -789,7 +789,7 @@ Click "Create .env Files" to proceed
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
         Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.$emailReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
         $form.Close()
-    })
+    }.GetNewClosure())
     $form.Controls.Add($createBtn)
     
     # Progress
