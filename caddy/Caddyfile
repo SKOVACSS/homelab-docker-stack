@@ -5,11 +5,23 @@
 # image via ./Dockerfile (the stock caddy image does not include it).
 # {$DOMAIN} and {$QBIT_PORT} are substituted from the container's
 # environment (see docker-compose.yml) at config-load time.
+#
+# Behind Cloudflare Tunnel (see the cloudflared service in
+# docker-compose.yml), this server has no inbound port 80/443 access from
+# the internet at all - Starlink's CGNAT makes that impossible anyway.
+# acme_dns switches ALL certificate issuance from the old HTTP-01/TLS-ALPN-01
+# challenges (which need an inbound request) to DNS-01 (proves domain
+# ownership via a DNS TXT record instead) - this one global directive
+# applies to every site block below with no further per-site changes,
+# via the caddy-dns/cloudflare plugin compiled in by ./Dockerfile. The
+# token needs Zone:DNS:Edit permission for this domain only - see
+# SETUP.md for how to create it.
 
 # Global settings
 {
   email {$ACME_EMAIL}
   acme_ca https://acme-v02.api.letsencrypt.org/directory
+  acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
 
   order rate_limit after basic_auth
 }
