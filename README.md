@@ -23,6 +23,7 @@ family and friends.
 | `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
 | `dashboard/` | Homepage - single landing page linking to every service above. |
+| `dns-stack/` | Pi-hole (network-wide ad/tracker blocking) + dnscrypt-proxy (encrypted upstream DNS). |
 
 Each stack is an independent Docker Compose project with its own
 `docker-compose.yml` and `.env`, deployed in dependency order (Caddy first,

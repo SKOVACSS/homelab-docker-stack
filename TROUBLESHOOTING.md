@@ -1,5 +1,23 @@
 # Troubleshooting & Known Limitations
 
+## Pi-hole: port 53 already in use on native Linux
+
+`dns-stack/`'s `pihole` service publishes host port 53 (UDP/TCP) - real
+DNS service for your network, the one port outside Caddy's 80/443 this
+repo publishes directly. On a native Linux host (not Docker Desktop),
+`systemd-resolved` often already binds port 53 itself, and Pi-hole's
+container will fail to start with a port-already-in-use error. Fix:
+disable `systemd-resolved`'s stub listener
+(`DNSStubListener=no` in `/etc/systemd/resolved.conf`, then
+`systemctl restart systemd-resolved`) before deploying this stack.
+
+Also: deploying the container alone does nothing until you actually
+point your router or devices' DNS settings at this machine's IP - that
+step is outside Docker's control and can't be automated by this repo.
+Test with `nslookup <some-ad-domain> <this-machine-ip>` before
+repointing a real device, so a misconfiguration doesn't take down DNS
+for your whole network.
+
 ## Fail2Ban won't actually block anything under Docker Desktop
 
 Fail2Ban bans IPs by inserting iptables rules on the host's network stack.
@@ -37,25 +55,35 @@ These are two different ports and must stay different:
 Giving both the same value breaks qBittorrent - it needs two separate
 sockets (one HTTP, one for BitTorrent) and can't bind the same port twice.
 
-## Mailu is a minimal build, not the full official topology
+## Mailu runs its own `front` for mail protocols only - not for 80/443
 
-`email-stack/` runs Mailu's admin/dovecot/postfix/rspamd/webmail
-components directly, without Mailu's own `front` (nginx) container or
-antivirus (ClamAV) service. This was a deliberate scope decision: Mailu's
-`front` wants to own ports 80/443 for its own ACME/TLS handling, which
-conflicts with Caddy already owning those ports for every other service.
-Reconciling the two would need either a TCP-multiplexing layer in front of
-both or moving mail off Caddy's ports entirely - either is a bigger,
-separately-testable change.
+`email-stack/` runs Mailu's full topology - admin, dovecot, postfix,
+rspamd, webmail, `front` (Mailu's own nginx), `antivirus` (Mailu's own
+ClamAV build), `webdav` (Radicale), and `resolver` (Mailu's own unbound,
+required because Mailu's admin container refuses to start without a
+DNSSEC-*validating* resolver - Docker's built-in one doesn't validate).
+
+The one deliberate deviation from Mailu's stock setup: `front` does
+**not** bind ports 80/443. Caddy already owns those for every other
+service, so `front` only binds the actual mail protocol ports
+(25/465/587/110/143/993/995) and gets its own Let's Encrypt certificate
+via an HTTP-01 challenge that Caddy passes through on
+`http://mail.yourdomain.com` (see `caddy/Caddyfile`) - this is Mailu's
+own documented pattern for running behind an external reverse proxy,
+not something improvised here.
 
 What this means in practice:
 - Webmail and the admin panel are reachable through Caddy
-  (`webmail.yourdomain.com`, `mailadmin.yourdomain.com`) - that part works
-  the same as if Mailu's own front were there.
-- No antivirus scanning on incoming mail (rspamd still does spam filtering).
-- If you want the fully-featured, officially-supported topology instead,
-  generate one at [setup.mailu.io](https://setup.mailu.io) and adapt its
-  networking to sit behind Caddy, or run it standalone on its own IP/ports.
+  (`webmail.yourdomain.com`, `mailadmin.yourdomain.com`), same as before.
+- SMTP/IMAP/POP3 get real TLS from `front`'s own certificate, not the
+  unencrypted/self-signed state this stack shipped with prior to the
+  rebuild in CHANGELOG 1.0.9.
+- Antivirus scanning is active on incoming mail (rspamd + Mailu's own
+  ClamAV build), not just spam filtering.
+- `front`'s certificate issuance needs a real public domain reachable
+  from the internet - untestable locally. If SMTP/IMAP TLS isn't
+  working after a real deployment, check `docker logs mailu-front` for
+  the certbot output first.
 
 **Also:** most residential ISPs block outbound port 25, which breaks direct
 mail delivery regardless of how Mailu is configured. If mail doesn't send,

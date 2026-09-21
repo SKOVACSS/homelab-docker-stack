@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.2.0 - Add Pi-hole: network-wide DNS ad/tracker blocking (2026-09-21)
+
+New `dns-stack/` stack: Pi-hole + a dedicated dnscrypt-proxy for
+encrypted upstream resolution. Self-contained by design - this
+dnscrypt-proxy instance doesn't share anything with any other
+cloudflared/tunnel setup elsewhere in your infrastructure, keeping this
+whole stack removable as one atomic unit.
+
+**Plan changed mid-implementation, based on a live finding:** the
+original plan was cloudflared's own `proxy-dns` mode for encrypted
+upstream, reusing the same tool already used elsewhere for tunneling.
+Actually running it failed outright - `proxy-dns` was removed from
+cloudflared entirely as of version 2026.2.0 ("dns-proxy feature is no
+longer supported"). Switched to `dnscrypt-proxy`
+(`klutchell/dnscrypt-proxy`), the current community-standard replacement
+for exactly this Pi-hole + encrypted-upstream pattern. Pinned to a
+specific `build-<sha>` tag rather than `main`, since this maintainer
+doesn't publish semver releases - reads unusually compared to every
+other image in this repo, but it's still a genuine, reproducible pin.
+
+**Both `pihole` and `dns-resolver` are deliberately excluded from the
+fleet-wide Watchtower auto-update from 1.0.7/1.0.8**, on Pi-hole's own
+documented recommendation: "you should not have a system automatically
+update your Pi-hole container. Especially unattended." DNS for your
+whole network failing at 2am from an unattended update is a worse
+outcome than any of the other exceptions already made (Caddy, Gotify).
+Diun still watches both and notifies when an update is available - you
+apply it by hand, same idea as Caddy/Gotify.
+
+New Caddy route: `pihole.{$DOMAIN}` for the admin UI only - the actual
+DNS service (port 53) is published directly by the container, not
+proxied through Caddy, since DNS isn't an HTTP protocol.
+
+Live-tested end-to-end: brought up both containers together, confirmed
+`pihole`'s resolved config actually points at `dns-resolver` (not a
+silent fallback), confirmed real DNS resolution works through the full
+chain (`nslookup cloudflare.com` via Pi-hole), and confirmed the admin
+web UI responds. One real bug caught immediately by
+`validate-stacks.sh`: the initial healthcheck array was missing the
+required `CMD` prefix.
+
+Added the new stack everywhere this repo tracks its stack list by hand,
+and a new TROUBLESHOOTING.md entry for the port-53-already-in-use
+conflict with `systemd-resolved` on native Linux (not reproducible under
+Docker Desktop, where this was tested).
+
+### Also: `TROUBLESHOOTING.md`'s Mailu entry was stale
+
+Updated the "Mailu is a minimal build" entry, written before the 1.0.9
+rebuild - it described exactly the gap that rebuild closed (missing
+`front`/antivirus, no real TLS). Left uncorrected, it would have told a
+future reader the opposite of what's actually true.
+
 ## 1.1.2 - Add off-site backup via Restic to backup.ps1 (2026-09-21)
 
 Extends `_scripts/backup.ps1` rather than adding a new script or

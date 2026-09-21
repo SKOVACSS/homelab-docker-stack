@@ -19,7 +19,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
-STACKS="caddy authentik media-stack privacy-stack security-stack email-stack monitoring-stack notification-stack utilities immich-app dashboard"
+STACKS="caddy authentik media-stack privacy-stack security-stack email-stack monitoring-stack notification-stack utilities immich-app dashboard dns-stack"
 ENV_EXAMPLE=".env.example"
 
 # Self-heal from a previous run that got interrupted before it could

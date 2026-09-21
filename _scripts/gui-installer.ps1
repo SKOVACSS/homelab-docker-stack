@@ -527,9 +527,10 @@ function Show-Step4 {
         $script:data.GotifyAdminPassword     = Generate-SecurePassword
         $script:data.VaultwardenAdminToken   = Generate-SecurePassword 32
         $script:data.ImmichDbPassword        = Generate-SecurePassword
+        $script:data.PiholeWebPassword       = Generate-SecurePassword
 
         $statusLabel.Text = @"
-✓ Generated 20 unique secrets (one per service/database - no reuse)
+✓ Generated 21 unique secrets (one per service/database - no reuse)
 
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
@@ -783,6 +784,12 @@ DB_DATABASE_NAME=immich
 DOMAIN=$d
 "@
     $dashboardEnv | Out-File "$appRoot\dashboard\.env" -Encoding UTF8 -Force
+
+    $dnsEnv = @"
+PIHOLE_WEBPASSWORD=$($script:data.PiholeWebPassword)
+TZ=$($script:data.Timezone)
+"@
+    $dnsEnv | Out-File "$appRoot\dns-stack\.env" -Encoding UTF8 -Force
 }
 
 $form = Create-Form
