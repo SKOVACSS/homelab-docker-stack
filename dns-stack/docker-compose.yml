@@ -1,0 +1,108 @@
+# DNS Stack - Network-wide ad/tracker blocking
+# Replaces: bookmarking a public ad-blocking DNS provider
+# Services: Pi-hole (DNS sinkhole + blocklists), dnscrypt-proxy (encrypted
+# upstream resolver)
+#
+# Self-contained: this dnscrypt-proxy is a dedicated instance for Pi-hole's
+# upstream resolution only, deliberately not sharing anything with any
+# other cloudflared/tunnel setup elsewhere in your infrastructure - keeps
+# this whole stack removable as one atomic unit.
+#
+# cloudflared's own `proxy-dns` mode (the original plan for this) was
+# removed upstream as of cloudflared 2026.2.0 - confirmed live, running
+# it now fails outright with "dns-proxy feature is no longer supported".
+# dnscrypt-proxy is the current (2026) community-standard replacement for
+# exactly this Pi-hole + encrypted-upstream pattern.
+
+networks:
+  dns-network:
+    driver: bridge
+    name: dns-network
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  # dnscrypt-proxy has no clean semver release tags from this maintainer
+  # (only `main` and per-commit `build-<sha>` tags) - pinned to a specific
+  # build tag rather than the floating `main`, even though it reads
+  # unusually compared to every other image in this repo.
+  dns-resolver:
+    image: klutchell/dnscrypt-proxy:build-e1f3bde2724d8f7759e8817420dc3bdba75e56c8
+    restart: unless-stopped
+    container_name: dns-resolver
+    networks:
+      - dns-network
+    # Pi-hole's own docs explicitly recommend against unattended
+    # auto-update (see pihole service below) - same reasoning applies to
+    # its upstream resolver, since a bad update here breaks DNS the same
+    # way. Diun still watches it for update notifications.
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/dnsprobe", "cloudflare.com", "127.0.0.1:5053"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  pihole:
+    image: pihole/pihole:2026.09.0
+    restart: unless-stopped
+    container_name: pihole
+    # Real DNS service for the whole network - the one place this repo
+    # publishes a port to the host outside Caddy's 80/443. The admin web
+    # UI deliberately does NOT publish 80/443 here; it's reached only
+    # through Caddy's pihole.{$DOMAIN} route below, same firewall model
+    # as every other admin UI in this repo.
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      - TZ=${TZ:-UTC}
+      - FTLCONF_webserver_api_password=${PIHOLE_WEBPASSWORD}
+      # Required when not using host networking (we aren't) - without
+      # this, Pi-hole only answers queries from localhost inside its own
+      # container, not from other devices on your network.
+      - FTLCONF_dns_listeningMode=ALL
+      - FTLCONF_dns_upstreams=dns-resolver#5053
+    volumes:
+      - pihole-data:/etc/pihole
+    depends_on:
+      - dns-resolver
+    networks:
+      - dns-network
+      - caddy-network
+    # Pi-hole's own docs explicitly discourage unattended auto-update:
+    # "you should not have a system automatically update your Pi-hole
+    # container. Especially unattended" - it's DNS for your whole network,
+    # not a service you want silently restarting overnight. Diun still
+    # watches it and notifies when an update is available; you apply it
+    # by hand, on your own schedule.
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    healthcheck:
+      test: ["CMD", "dig", "@127.0.0.1", "pi.hole"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  pihole-data:
+    driver: local
