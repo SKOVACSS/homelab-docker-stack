@@ -20,8 +20,9 @@ family and friends.
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |
 | `email-stack/` | Mailu (self-hosted email). |
 | `monitoring-stack/` | InfluxDB + Telegraf (host/container metrics - feeds the Grafana in `utilities/`). |
-| `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower. |
+| `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
+| `dashboard/` | Homepage - single landing page linking to every service above. |
 
 Each stack is an independent Docker Compose project with its own
 `docker-compose.yml` and `.env`, deployed in dependency order (Caddy first,

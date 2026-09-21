@@ -1,0 +1,48 @@
+# Dashboard - single landing page linking to every service in this repo
+# Replaces: bookmarking ~40 separate URLs
+# Features: live status widgets for a few key services, everything else as
+# a plain link. Config lives in ./config (services.yaml, settings.yaml,
+# docker.yaml) - checked into git like the rest of this repo, not edited
+# through a UI.
+
+networks:
+  caddy-network:
+    driver: bridge
+    name: caddy-network
+    external: true
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v2.4.0
+    restart: unless-stopped
+    container_name: homepage
+    volumes:
+      - ./config:/app/config
+      # Read-only, used only for the Docker widget's container stats/health
+      # on the tiles below that opt into it (see config/docker.yaml).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Required by Homepage itself (Host-header validation) - must match
+      # every hostname it's actually reachable on.
+      - HOMEPAGE_ALLOWED_HOSTS=home.${DOMAIN}
+      # Read in services.yaml as {{HOMEPAGE_VAR_DOMAIN}} so every tile's
+      # link works for whatever domain this was actually installed with,
+      # rather than a hardcoded placeholder.
+      - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M

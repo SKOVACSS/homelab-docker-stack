@@ -292,6 +292,16 @@ http://mail.{$DOMAIN} {
   reverse_proxy mailu-front:80
 }
 
+# ========== DASHBOARD ==========
+
+# Homepage - single landing page linking to every service in this repo
+home.{$DOMAIN} {
+  import security_headers
+  reverse_proxy homepage:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # ========== STATIC PAGES (OPTIONAL) ==========
 
 # Dashboard (optional: simple status page)
