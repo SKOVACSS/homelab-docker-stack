@@ -406,7 +406,10 @@ function Show-Step2 {
     $script:countryBox.Height = 30
     $script:countryBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $script:countryBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    @("US", "UK", "CA", "AU", "DE", "NL", "FR", "CH") | ForEach-Object { $script:countryBox.Items.Add($_) | Out-Null }
+    # gluetun's ProtonVPN provider validates SERVER_COUNTRIES against full
+    # country names, not ISO codes - "US" fails with "the country specified
+    # is not valid", confirmed live against a real deploy.
+    @("United States", "United Kingdom", "Canada", "Australia", "Germany", "Netherlands", "France", "Switzerland") | ForEach-Object { $script:countryBox.Items.Add($_) | Out-Null }
     $script:countryBox.SelectedIndex = 0
     $script:form.Controls.Add($script:countryBox)
 
@@ -957,9 +960,12 @@ RADICALE_AUTH_HASH=$radicaleAuthHashEscaped
     $mediaEnv = @"
 PROTON_OPENVPN_USERNAME=$($script:data.ProtonUsername)
 PROTON_OPENVPN_PASSWORD=$($script:data.ProtonPassword)
-# Only needed if you set VPN_TYPE=wireguard below.
-PROTON_WIREGUARD_KEY=your-wireguard-private-key
-PROTON_WIREGUARD_ADDRESSES=your-wireguard-addresses
+# Only needed if you set VPN_TYPE=wireguard below - leave blank for
+# openvpn. gluetun tries to parse WIREGUARD_ADDRESSES as an IP whenever
+# it's non-empty regardless of VPN_TYPE, so a placeholder string here
+# (rather than genuinely blank) makes gluetun crash-loop even on openvpn.
+PROTON_WIREGUARD_KEY=
+PROTON_WIREGUARD_ADDRESSES=
 PROTON_COUNTRIES=$($script:data.ProtonCountry)
 VPN_TYPE=openvpn
 
