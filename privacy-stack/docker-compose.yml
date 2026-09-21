@@ -155,7 +155,7 @@ services:
 
   # ========== DOCUMENT SCANNING (Replace Evernote) ==========
   paperless-ngx:
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.1.3
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
@@ -201,7 +201,7 @@ services:
 
   # ========== PAPERLESS DATABASE ==========
   paperless-db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     volumes:
       - paperless-postgres:/var/lib/postgresql/data
@@ -227,7 +227,7 @@ services:
 
   # ========== PAPERLESS REDIS CACHE ==========
   paperless-redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     volumes:
       - paperless-redis:/data
@@ -290,7 +290,7 @@ services:
 
   # ========== WALLABAG DATABASE ==========
   wallabag-db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     volumes:
       - wallabag-postgres:/var/lib/postgresql/data
@@ -347,7 +347,7 @@ services:
 
   # ========== PROJECT MANAGEMENT (Replace Asana/Trello) ==========
   focalboard:
-    image: mattermost/focalboard:7.10.0
+    image: mattermost/focalboard:7.11.4
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

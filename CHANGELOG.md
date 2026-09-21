@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.0.8 - Version-currency pass: bring every image to latest (2026-09-21)
+
+One-time audit against actual current tags (Docker Hub API + GitHub
+releases, not memory - several of these projects release too often to
+trust anything older than a live lookup), done now specifically because
+nothing in this deployment is live yet, so there's no data-migration risk
+on the major-version bumps below.
+
+**Real version bumps found and applied:**
+| Image | Old | New |
+|---|---|---|
+| `prom/node-exporter` | v1.9.1 | v1.12.1 |
+| `paperless-ngx/paperless-ngx` | 3.1.3 | 3.2.1 |
+| `mattermost/focalboard` | 7.10.0 | 7.11.4 |
+| `ghcr.io/mailu/*` (all 5 services) | 2024.06.10 | 2024.06.58 |
+| `telegraf` | 1.38.1 | 1.40.0 |
+| `postgres` (authentik, mailu-database, paperless-db, wallabag-db) | 16-alpine / 17-alpine | 18-alpine |
+| `redis` (mailu-redis, paperless-redis) | 7-alpine | 8-alpine |
+| `valkey/valkey` (immich) | same tag, stale digest | digest updated to match Immich's own current `v3.2.2` reference compose |
+
+**Live-verified before landing**, given this project's history of
+"looked configured, wasn't" bugs (Telegraf's original crash-loop,
+Watchtower's inert labels):
+- `telegraf:1.40.0 --test` against the existing `telegraf.conf` - loads
+  and runs every plugin cleanly, no repeat of the 1.38 plugin-schema
+  breakage. One new deprecation warning worth knowing: 1.40.0 changes the
+  default for `skip_processors_after_aggregators` - not an error, not
+  acted on here, just flagged for whoever next touches this config.
+- `postgres:18-alpine` and `redis:8-alpine` both start and accept
+  connections cleanly in isolation.
+
+**Confirmed already current** (checked, not assumed): fail2ban,
+Navidrome, Gotify, Grafana, Loki, Jellyfin, Nextcloud, Uptime Kuma,
+Watchtower, OnlyOffice, Plex, Portainer, Prometheus, Gluetun, Syncthing,
+Radicale, Trilium, Vaultwarden, Wallabag, Wireguard, Authentik, the
+Immich postgres companion image's digest, and the hotio arr-suite images
+(already floating on `:release`).
+
+**Deliberately not bumped:**
+- `mariadb:11.4.13` - this is already the latest patch on its LTS
+  branch. Newer branches exist (12.x, 13.x) but that's a support-tier
+  choice, not a patch bump, so left for a deliberate decision rather
+  than changed silently here.
+- `influxdb:2-alpine` - InfluxDB 3.x is an architecturally different
+  product (different config format and storage engine, not a drop-in
+  replacement), so out of scope for a version-currency pass.
+
 ## 1.0.7 - Enable Watchtower auto-update fleet-wide, notify-only for Gotify (2026-09-21)
 
 Found while wiring up Watchtower notifications: `SECURITY.md` documented
