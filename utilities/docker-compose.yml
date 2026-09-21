@@ -187,7 +187,7 @@ services:
   # `pid: host` and `network_mode: host` (dropping the `networks:` list
   # below) for accurate bare-metal numbers.
   node-exporter:
-    image: prom/node-exporter:v1.9.1
+    image: prom/node-exporter:v1.12.1
     restart: unless-stopped
     volumes:
       - /proc:/host/proc:ro

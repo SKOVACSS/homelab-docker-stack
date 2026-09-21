@@ -15,7 +15,7 @@ networks:
 services:
   # ========== MAILU: All-in-One Email Server ==========
   mailu-redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     container_name: mailu-redis
     volumes:
@@ -37,7 +37,7 @@ services:
           memory: 256M
 
   mailu-database:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     container_name: mailu-database
     volumes:
@@ -63,7 +63,7 @@ services:
           memory: 512M
 
   mailu-admin:
-    image: ghcr.io/mailu/admin:2024.06.10
+    image: ghcr.io/mailu/admin:2024.06.58
     restart: unless-stopped
     container_name: mailu-admin
     labels:
@@ -108,7 +108,7 @@ services:
           memory: 512M
 
   mailu-imap:
-    image: ghcr.io/mailu/dovecot:2024.06.10
+    image: ghcr.io/mailu/dovecot:2024.06.58
     restart: unless-stopped
     container_name: mailu-imap
     labels:
@@ -147,7 +147,7 @@ services:
           memory: 512M
 
   mailu-smtp:
-    image: ghcr.io/mailu/postfix:2024.06.10
+    image: ghcr.io/mailu/postfix:2024.06.58
     restart: unless-stopped
     container_name: mailu-smtp
     labels:
@@ -185,7 +185,7 @@ services:
           memory: 512M
 
   mailu-rspamd:
-    image: ghcr.io/mailu/rspamd:2024.06.10
+    image: ghcr.io/mailu/rspamd:2024.06.58
     restart: unless-stopped
     container_name: mailu-rspamd
     labels:
@@ -218,7 +218,7 @@ services:
           memory: 256M
 
   mailu-webmail:
-    image: ghcr.io/mailu/webmail:2024.06.10
+    image: ghcr.io/mailu/webmail:2024.06.58
     restart: unless-stopped
     container_name: mailu-webmail
     labels:
