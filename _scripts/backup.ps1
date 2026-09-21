@@ -20,7 +20,7 @@ offsite-check - Verify off-site repository integrity
 
 #>
 
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'ResticPassword', Justification='Passed straight through to `docker run -e` as a plain env var either way - SecureString would need decrypting back to plain text before use here, adding friction with no real security benefit. Matches how every other credential in this repo (GOTIFY_TOKEN, MAILU_DB_PASSWORD, etc.) already flows through plain .env files and script parameters.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'ResticPassword', Justification='Passed straight through to `docker run -e` as a plain env var either way - SecureString would need decrypting back to plain text before use here, adding friction with no real security benefit. Matches how every other credential in this repo (GOTIFY_TOKEN, MAIL_ADMIN_PASSWORD, etc.) already flows through plain .env files and script parameters.')]
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("backup", "restore", "list", "clean", "offsite-snapshots", "offsite-check")]

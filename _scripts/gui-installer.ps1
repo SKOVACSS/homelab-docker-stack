@@ -1,5 +1,4 @@
 ﻿#Requires -Version 5.0
-#Requires -RunAsAdministrator
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -160,21 +159,16 @@ function Show-Step1 {
     $nextBtn.Add_Click({
         $domain = $domainBox.Text.Trim()
         $email = $emailBox.Text.Trim()
-        
-        Write-Host "DEBUG: domain = '$domain'" -ForegroundColor Yellow
-        Write-Host "DEBUG: email = '$email'" -ForegroundColor Yellow
-        
+
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
         if (-not (Validate-Domain $domain)) { Show-Error "Invalid domain format"; return }
         if ([string]::IsNullOrEmpty($email)) { Show-Error "Email is required"; return }
         if (-not (Validate-Email $email)) { Show-Error "Invalid email format"; return }
-        
+
         $script:data.Domain = $domain
         $script:data.Email = $email
         $script:data.Timezone = $tzBox.SelectedItem
-        
-        Write-Host "DEBUG: Saved domain=$($script:data.Domain), email=$($script:data.Email)" -ForegroundColor Green
-        
+
         $script:step = 2
         Show-Step2 $form
     })
@@ -519,7 +513,6 @@ function Show-Step4 {
         $script:data.PaperlessDbPassword     = Generate-SecurePassword
         $script:data.WallabagDbPassword      = Generate-SecurePassword
         $script:data.MailuSecretKey          = Generate-SecurePassword 24
-        $script:data.MailuDbPassword         = Generate-SecurePassword
         $script:data.MailAdminPassword       = Generate-SecurePassword
         $script:data.InfluxdbAdminPassword   = Generate-SecurePassword
         $script:data.InfluxdbAdminToken      = Generate-SecurePassword 32
@@ -530,7 +523,7 @@ function Show-Step4 {
         $script:data.PiholeWebPassword       = Generate-SecurePassword
 
         $statusLabel.Text = @"
-✓ Generated 21 unique secrets (one per service/database - no reuse)
+✓ Generated 20 unique secrets (one per service/database - no reuse)
 
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
@@ -724,7 +717,6 @@ MAILER_PORT=587
     $emailEnv = @"
 DOMAIN=$d
 MAILU_SECRET_KEY=$($script:data.MailuSecretKey)
-MAILU_DB_PASSWORD=$($script:data.MailuDbPassword)
 MAIL_ADMIN_USER=admin
 MAIL_ADMIN_PASSWORD=$($script:data.MailAdminPassword)
 TZ=$($script:data.Timezone)

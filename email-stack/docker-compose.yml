@@ -74,32 +74,6 @@ services:
           cpus: '0.5'
           memory: 256M
 
-  mailu-database:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    container_name: mailu-database
-    volumes:
-      - mailu-database:/var/lib/postgresql
-    environment:
-      - POSTGRES_DB=mailu
-      - POSTGRES_USER=mailu
-      - POSTGRES_PASSWORD=${MAILU_DB_PASSWORD}
-    networks:
-      - email-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mailu"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 1G
-        reservations:
-          cpus: '1.0'
-          memory: 512M
-
   # mailu-front: Mailu's own nginx gateway. This is what was missing before.
   # It does NOT bind 80/443 - Caddy stays the only thing owning those ports
   # (see caddy/Caddyfile's "http://mail.{$DOMAIN}" block, which lets Caddy
@@ -179,10 +153,29 @@ services:
       - HOSTNAMES=mail.${DOMAIN}
       - POSTMASTER=admin
       - ADMIN=true
-      - MAIL_ADMIN=admin
+      # Confirmed against Mailu's own docs: the initial-admin bootstrap vars
+      # are INITIAL_ADMIN_ACCOUNT/_DOMAIN/_PW (not _PASSWORD - that name is
+      # silently ignored, so this account was never actually being created
+      # on a real deploy) and INITIAL_ADMIN_DOMAIN is required to build the
+      # admin@domain address. "MAIL_ADMIN" was never a real Mailu variable -
+      # dead config left over from before the rebuild, removed. MODE=update
+      # is Mailu's own recommendation, so this doesn't error out on restart
+      # once the account already exists.
       - INITIAL_ADMIN_ACCOUNT=${MAIL_ADMIN_USER}
-      - INITIAL_ADMIN_PASSWORD=${MAIL_ADMIN_PASSWORD}
-      - DATABASE_URL=postgresql://mailu:${MAILU_DB_PASSWORD}@mailu-database/mailu
+      - INITIAL_ADMIN_DOMAIN=${DOMAIN}
+      - INITIAL_ADMIN_PW=${MAIL_ADMIN_PASSWORD}
+      - INITIAL_ADMIN_MODE=update
+      # No SQLALCHEMY_DATABASE_URI override: admin's own default
+      # (sqlite:////data/main.db, in the mailu-data volume already mounted
+      # above) is what Mailu's own docs recommend - "there is currently very
+      # little data to be stored [and] SQLite is deemed both sufficient,
+      # simpler and more reliable overall" than a separate Postgres. This
+      # stack used to run a mailu-database Postgres container here, but it
+      # was set via a variable named DATABASE_URL - not a real Mailu config
+      # key, silently ignored - so admin had been running on SQLite the
+      # whole time regardless, and that Postgres container was dead weight.
+      # Removed rather than fixed the variable name, in line with Mailu's
+      # own recommendation.
       - REDIS_URL=redis://mailu-redis:6379
       - REDIS_ADDRESS=mailu-redis
       - SQLALCHEMY_TRACK_MODIFICATIONS=false
@@ -193,14 +186,17 @@ services:
       - WEBMAIL=roundcube
       - RESOLVER=mailu-resolver
     depends_on:
-      - mailu-database
       - mailu-redis
     networks:
       - email-network
       - caddy-network
     healthcheck:
-      # Confirmed live: admin's gunicorn binds :8080 internally, not :80.
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      # Confirmed live: admin's gunicorn binds :8080 internally, not :80,
+      # AND "/" itself 404s unconditionally (not a routed path) - this
+      # healthcheck was passing the wrong URL, so the container could never
+      # actually report healthy. /admin/ redirects (302) to /sso/login,
+      # which is the first real page and returns 200 without needing auth.
+      test: ["CMD", "curl", "-f", "http://localhost:8080/sso/login"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -418,8 +414,6 @@ services:
 
 volumes:
   mailu-redis:
-    driver: local
-  mailu-database:
     driver: local
   mailu-data:
     driver: local
