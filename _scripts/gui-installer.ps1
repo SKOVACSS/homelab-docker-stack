@@ -831,7 +831,7 @@ Click "Create .env Files" to proceed
         Create-EnvFiles
         $credPath = Export-Credentials
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
-        $credReminder = "`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk."
+        $credReminder = "`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it as Bitwarden JSON - in Vaultwarden: Tools -> Import Data -> Bitwarden (json). In Proton Pass: Settings -> Import -> Bitwarden -> select this file (Proton Pass's Bitwarden importer only accepts JSON/ZIP, not CSV - confirmed live). Then delete that file - it's plaintext and not safe to leave sitting on disk."
 
         if ($script:autoDeployCheckbox.Checked) {
             # Runs on this same UI thread - the wizard window won't repaint
@@ -1095,32 +1095,60 @@ TZ=$($script:data.Timezone)
 
 function Export-Credentials {
     # Writes every credential this wizard just generated (or collected) to
-    # one CSV in Bitwarden's import format - Vaultwarden speaks it
-    # natively, and Proton Pass explicitly supports "Bitwarden (csv)" as
-    # an import source, so this one file drops into either without any
-    # reformatting. This is the file SECURITY.md means by "back up your
-    # secrets" - it's plaintext, gitignored, and meant to be imported and
-    # then deleted, not kept sitting on disk.
+    # one Bitwarden-format JSON file - Vaultwarden speaks it natively, and
+    # it's the only Bitwarden format Proton Pass's "Bitwarden" importer
+    # actually accepts (its CSV path only takes Proton Pass's own CSV
+    # schema, confirmed live - a Bitwarden-schema CSV silently imports
+    # names with no username/password, since Proton Pass's *generic* CSV
+    # importer has no idea those columns mean anything). This is the file
+    # SECURITY.md means by "back up your secrets" - it's plaintext,
+    # gitignored, and meant to be imported and then deleted, not kept
+    # sitting on disk.
     $d = $script:data.Domain
     $md = $script:data.MailDomain
-    $rows = [System.Collections.Generic.List[PSCustomObject]]::new()
+    # Not List[PSCustomObject]: New-CredRow below returns an [ordered]
+    # hashtable (needed for ConvertTo-Json's key ordering), which a
+    # strictly-typed PSCustomObject list would reject.
+    $rows = [System.Collections.Generic.List[object]]::new()
 
     function New-CredRow {
-        param([string]$Name, [string]$Uri = "", [string]$Login = "", [string]$Secret = "", [string]$Notes = "")
-        [PSCustomObject]@{
-            folder         = "Homelab"
-            favorite       = ""
-            type           = "login"
+        # $Uri accepts either one URL or an array of them - a shared login
+        # (the Arr stack's basic-auth, for example) works across several
+        # subdomains, and listing all of them here is what lets Bitwarden/
+        # Proton Pass autofill on every one of those sites, not just the
+        # first.
+        param([string]$Name, $Uri = @(), [string]$Login = "", [string]$Secret = "", [string]$Notes = "")
+        # uris MUST be built as an ArrayList, not a bare @() array literal
+        # assigned through an if/else - PowerShell's if/else statement
+        # unwraps a single-element array result down to its bare element
+        # during assignment (confirmed live: $x = if(...){@()}else{@(one
+        # item)} left $x as a plain Hashtable, not an array), which
+        # ConvertTo-Json then serializes as a JSON object instead of a
+        # one-element array - silently violating Bitwarden's schema.
+        $uris = [System.Collections.ArrayList]::new()
+        foreach ($u in @($Uri)) {
+            if (-not [string]::IsNullOrEmpty($u)) { [void]$uris.Add(@{ match = $null; uri = $u }) }
+        }
+        [ordered]@{
+            id             = [guid]::NewGuid().ToString()
+            organizationId = $null
+            folderId       = $script:credFolderId
+            type           = 1
+            reprompt       = 0
             name           = $Name
-            notes          = $Notes
-            fields         = ""
-            reprompt       = ""
-            login_uri      = $Uri
-            login_username = $Login
-            login_password = $Secret
-            login_totp     = ""
+            notes          = if ([string]::IsNullOrEmpty($Notes)) { $null } else { $Notes }
+            favorite       = $false
+            login          = [ordered]@{
+                username = if ([string]::IsNullOrEmpty($Login)) { $null } else { $Login }
+                password = if ([string]::IsNullOrEmpty($Secret)) { $null } else { $Secret }
+                totp     = $null
+                uris     = $uris
+            }
+            collectionIds  = $null
         }
     }
+
+    $script:credFolderId = [guid]::NewGuid().ToString()
 
     $rows.Add((New-CredRow "Cloudflare API Token" "https://dash.cloudflare.com/profile/api-tokens" "" $script:data.CloudflareApiToken "Zone:DNS:Edit token - used by Caddy for certificate issuance (caddy/.env)"))
     $rows.Add((New-CredRow "Cloudflare Tunnel Token" "https://one.dash.cloudflare.com" "" $script:data.CloudflareTunnelToken "Used by the cloudflared container (caddy/.env)"))
@@ -1145,7 +1173,7 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Vaultwarden Admin Panel" "https://vault.$d/admin" "" $script:data.VaultwardenAdminToken "Token-based admin panel login, no username"))
     $rows.Add((New-CredRow "Immich Database" "" "postgres" $script:data.ImmichDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Pi-hole" "https://pihole.$d" "" $script:data.PiholeWebPassword "Password-only login, no username"))
-    $rows.Add((New-CredRow "Sonarr / Radarr / Prowlarr / Lidarr" "https://sonarr.$d" "admin" $script:data.ArrAuthPassword "Shared Caddy basic-auth login - same credential works at radarr./prowlarr./lidarr.$d too"))
+    $rows.Add((New-CredRow "Sonarr / Radarr / Prowlarr / Lidarr" @("https://sonarr.$d", "https://radarr.$d", "https://prowlarr.$d", "https://lidarr.$d") "admin" $script:data.ArrAuthPassword "Shared Caddy basic-auth login - autofills on all four sites"))
     $rows.Add((New-CredRow "Radicale (Calendar/Contacts)" "https://cal.$d" "family" $script:data.RadicaleAuthPassword "Caddy basic-auth in front of Radicale, which has no auth of its own"))
     $rows.Add((New-CredRow "ProtonVPN" "https://account.protonvpn.com" $script:data.ProtonUsername $script:data.ProtonPassword "Used by media-stack's gluetun VPN routing"))
     $rows.Add((New-CredRow "Portainer" "https://portainer.$d" "" "" "Set your own password on first visit, then fill in here"))
@@ -1153,9 +1181,14 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Focalboard" "https://boards.$d" "" "" "Set your own password on first visit, then fill in here"))
     $rows.Add((New-CredRow "Jellyfin" "https://jellyfin.$d" "" "" "Set your own admin account on first visit, then fill in here"))
 
-    $exportPath = "$appRoot\credentials-export.csv"
-    $rows | Select-Object folder, favorite, type, name, notes, fields, reprompt, login_uri, login_username, login_password, login_totp |
-        Export-Csv -Path $exportPath -NoTypeInformation -Encoding UTF8
+    $export = [ordered]@{
+        encrypted = $false
+        folders   = @($([ordered]@{ id = $script:credFolderId; name = "Homelab" }))
+        items     = $rows
+    }
+
+    $exportPath = "$appRoot\credentials-export.json"
+    $export | ConvertTo-Json -Depth 6 | Out-File $exportPath -Encoding UTF8 -Force
     return $exportPath
 }
 
