@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.0.5 - Fix all 5 PowerShell scripts failing under the default Windows PowerShell (2026-09-20)
+
+Found while doing a visual/UX review of the GUI installer: none of the
+five scripts in `_scripts/` would actually run under stock **Windows
+PowerShell 5.1** - the version that ships by default on every Windows
+10/11 machine, and what a typical user gets from "Run with PowerShell" or
+opening a plain "Windows PowerShell" shortcut. Every parse-check run
+throughout this whole project (including in this repo's own CI) had been
+done with PowerShell 7 (`pwsh`), which handles this correctly by default -
+so the bug was invisible until the actual target runtime was tested.
+
+**Root cause:** all five files contain emoji/box-drawing characters
+(✅❌⚠️🔐 etc.) encoded as UTF-8 with no byte-order-mark (BOM). PowerShell 7
+assumes UTF-8 for BOM-less script files; Windows PowerShell 5.1 assumes
+the system's legacy ANSI codepage instead. Reading UTF-8 multi-byte
+sequences as CP1252 corrupts them into byte patterns that broke
+tokenization outright in 4 of the 5 files - confirmed live, each with a
+different parser error:
+
+| File | PS 5.1 result before fix |
+|---|---|
+| `gui-installer.ps1` | `Unexpected token '' in expression or statement.` |
+| `deploy.ps1` | `The string is missing the terminator: '.` |
+| `health-check.ps1` | `You must provide a value expression following the '%' operator.` |
+| `backup.ps1` | `The '<' operator is reserved for future use.` |
+| `setup-directories.ps1` | Parsed (by luck - its specific corrupted bytes happened to stay syntactically valid), but would have rendered garbled boxes/emoji instead of the intended output. |
+
+**Fix:** added a UTF-8 BOM to all five files (raw byte-level fix - existing
+content otherwise untouched). Verified every file now parses cleanly under
+*both* Windows PowerShell 5.1 and PowerShell 7, and re-ran
+`setup-directories.ps1` for real under PS 5.1 to confirm its emoji now
+render correctly instead of as mojibake.
+
+Also un-excluded `PSUseBOMForUnicodeEncodedFile` from
+`_scripts/PSScriptAnalyzerSettings.psd1`, where it had been incorrectly
+lumped in with genuinely stylistic rules (Write-Host usage, verb naming) -
+it was flagging this exact bug the whole time. CI will now catch a BOM
+regression instead of staying silent about it.
+
+### Two more real bugs found doing an actual visual pass of the GUI
+
+Rendered every wizard step with a real screenshot (not just read the
+source) and found two more display bugs, both fixed:
+
+- `🔐 Generate Passwords` and `⚠️ WARNING: ...` rendered as an empty "tofu"
+  box where the emoji should be - Segoe UI's default (non-emoji) rendering
+  has no glyph for these specific compound/supplementary-plane characters.
+  Removed the emoji from both; the surrounding text already made the
+  meaning clear ("WARNING:" in red italic, a green "Generate Passwords"
+  button).
+- `"Step 5 of 5: Review & Create"` rendered as `"Step 5 of 5: Review
+  Create"` - a single `&` in a WinForms Label's Text is a mnemonic marker
+  and gets silently swallowed unless doubled (`&&`) or escaped. Reworded
+  to "Review and Create" rather than relying on an easy-to-reintroduce
+  escaping convention.
+
 ## 1.0.4 - Fix Telegraf crash-loop (2026-09-20)
 
 Follow-up to the bug flagged (but not fixed) in 1.0.3. Turned out to be

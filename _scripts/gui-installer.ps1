@@ -1,4 +1,4 @@
-#Requires -Version 5.0
+﻿#Requires -Version 5.0
 #Requires -RunAsAdministrator
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -347,7 +347,10 @@ function Show-Step3 {
     $form.Controls.Add($descLabel)
     
     $warnLabel = New-Object System.Windows.Forms.Label
-    $warnLabel.Text = "⚠️ WARNING: Token expires in 4 minutes! Go to https://plex.tv/claim, copy token (starts with 'claim-'), paste here immediately."
+    # Plain WARNING: prefix, not the emoji - a compound/supplementary-plane
+    # emoji like this one has no glyph in Segoe UI's default (non-emoji)
+    # rendering here and shows as a tofu box instead - confirmed live.
+    $warnLabel.Text = "WARNING: Token expires in 4 minutes! Go to https://plex.tv/claim, copy token (starts with 'claim-'), paste here immediately."
     $warnLabel.Top = 100
     $warnLabel.Left = 20
     $warnLabel.Width = 600
@@ -445,8 +448,10 @@ function Show-Step4 {
     $form.Controls.Add($descLabel)
     
     # Generate Button
+    # Plain text, not a lock emoji - confirmed live it renders as an empty
+    # tofu box in Segoe UI's default (non-emoji) rendering here.
     $genBtn = New-Object System.Windows.Forms.Button
-    $genBtn.Text = "🔐 Generate Passwords"
+    $genBtn.Text = "Generate Passwords"
     $genBtn.Top = 120
     $genBtn.Left = 125
     $genBtn.Width = 400
@@ -540,8 +545,12 @@ function Show-Step5 {
     
     $form.Controls.Clear()
     
+    # "and", not "&": WinForms Label text treats a single & as a mnemonic
+    # marker (it gets silently swallowed rather than displayed) unless
+    # doubled as && or UseMnemonic is turned off - confirmed live it
+    # rendered as "Review  Create" with the & just missing.
     $titleLabel = New-Object System.Windows.Forms.Label
-    $titleLabel.Text = "Step 5 of 5: Review & Create"
+    $titleLabel.Text = "Step 5 of 5: Review and Create"
     $titleLabel.Top = 20
     $titleLabel.Left = 20
     $titleLabel.Width = 600
