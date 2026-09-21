@@ -175,6 +175,25 @@ function Show-Step1 {
     $cfTunnelBox.UseSystemPasswordChar = $true
     $form.Controls.Add($cfTunnelBox)
 
+    # Mail Domain Label
+    $mailDomainLabelCtrl = New-Object System.Windows.Forms.Label
+    $mailDomainLabelCtrl.Text = "Mail Domain (optional - only if Mailu needs a DIFFERENT domain than above, e.g. main domain already has real email elsewhere)"
+    $mailDomainLabelCtrl.Top = 425
+    $mailDomainLabelCtrl.Left = 20
+    $mailDomainLabelCtrl.Width = 600
+    $mailDomainLabelCtrl.Height = 20
+    $mailDomainLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $form.Controls.Add($mailDomainLabelCtrl)
+
+    # Mail Domain TextBox
+    $mailDomainBox = New-Object System.Windows.Forms.TextBox
+    $mailDomainBox.Top = 445
+    $mailDomainBox.Left = 20
+    $mailDomainBox.Width = 600
+    $mailDomainBox.Height = 30
+    $mailDomainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $form.Controls.Add($mailDomainBox)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -212,6 +231,7 @@ function Show-Step1 {
         $email = $emailBox.Text.Trim()
         $cfApiToken = $cfApiBox.Text.Trim()
         $cfTunnelToken = $cfTunnelBox.Text.Trim()
+        $mailDomain = $mailDomainBox.Text.Trim()
 
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
         if (-not (Validate-Domain $domain)) { Show-Error "Invalid domain format"; return }
@@ -224,12 +244,18 @@ function Show-Step1 {
         # certificate for anything.
         if ([string]::IsNullOrEmpty($cfApiToken)) { Show-Error "Cloudflare API Token is required - see SETUP.md"; return }
         if ([string]::IsNullOrEmpty($cfTunnelToken)) { Show-Error "Cloudflare Tunnel Token is required - see SETUP.md"; return }
+        # Mail Domain is the one genuinely optional field on this step -
+        # only validate its format if something was actually typed in.
+        if (-not [string]::IsNullOrEmpty($mailDomain) -and -not (Validate-Domain $mailDomain)) { Show-Error "Invalid Mail Domain format"; return }
 
         $script:data.Domain = $domain
         $script:data.Email = $email
         $script:data.Timezone = $tzBox.SelectedItem
         $script:data.CloudflareApiToken = $cfApiToken
         $script:data.CloudflareTunnelToken = $cfTunnelToken
+        # Falls back to the main domain when left blank - see caddy/.env's
+        # MAIL_DOMAIN and email-stack/.env's DOMAIN.
+        $script:data.MailDomain = if ([string]::IsNullOrEmpty($mailDomain)) { $domain } else { $mailDomain }
 
         $script:step = 2
         Show-Step2 $form
@@ -639,13 +665,16 @@ CONFIGURATION SUMMARY
 ═════════════════════════════════════════════
 
 Domain: $($script:data.Domain)
+Mail Domain: $($script:data.MailDomain)$(if ($script:data.MailDomain -eq $script:data.Domain) { " (same as Domain)" } else { " (separate from Domain)" })
 Email: $($script:data.Email)
 Timezone: $($script:data.Timezone)
 
 Cloudflare API Token: ✓ Set
 Cloudflare Tunnel Token: ✓ Set
 (Reminder: the tunnel and its Public Hostname rules must already exist
-in your Cloudflare dashboard - see SETUP.md if you haven't done that yet)
+in your Cloudflare dashboard - see SETUP.md if you haven't done that yet.
+If Mail Domain is separate from Domain, that needs its own Public
+Hostname rules and DNS-edit permission on the Cloudflare API token too.)
 
 ProtonVPN Username: $($script:data.ProtonUsername)
 ProtonVPN Country: $($script:data.ProtonCountry)
@@ -727,6 +756,9 @@ ACME_EMAIL=$($script:data.Email)
 QBIT_PORT=8080
 CLOUDFLARE_API_TOKEN=$($script:data.CloudflareApiToken)
 CLOUDFLARE_TUNNEL_TOKEN=$($script:data.CloudflareTunnelToken)
+# Same as DOMAIN unless you entered a separate Mail Domain in step 1 -
+# must match DOMAIN in email-stack\.env exactly either way.
+MAIL_DOMAIN=$($script:data.MailDomain)
 "@
     $caddyEnv | Out-File "$appRoot\caddy\.env" -Encoding UTF8 -Force
 
@@ -785,7 +817,8 @@ MAILER_PORT=587
     $privacyEnv | Out-File "$appRoot\privacy-stack\.env" -Encoding UTF8 -Force
 
     $emailEnv = @"
-DOMAIN=$d
+# Same as caddy\.env's MAIL_DOMAIN - must match exactly.
+DOMAIN=$($script:data.MailDomain)
 MAILU_SECRET_KEY=$($script:data.MailuSecretKey)
 MAIL_ADMIN_USER=admin
 MAIL_ADMIN_PASSWORD=$($script:data.MailAdminPassword)
@@ -863,6 +896,7 @@ function Export-Credentials {
     # secrets" - it's plaintext, gitignored, and meant to be imported and
     # then deleted, not kept sitting on disk.
     $d = $script:data.Domain
+    $md = $script:data.MailDomain
     $rows = [System.Collections.Generic.List[PSCustomObject]]::new()
 
     function New-CredRow {
@@ -894,7 +928,7 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Paperless-ngx Database" "" "paperless" $script:data.PaperlessDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Wallabag Database" "" "wallabag" $script:data.WallabagDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Wallabag App Login" "https://read.$d" "wallabag" "" "Ships with default password 'wallabag' - change on first login, then fill in here"))
-    $rows.Add((New-CredRow "Mailu Admin / Webmail" "https://mailadmin.$d" "admin" $script:data.MailAdminPassword "Same login also works at webmail.$d"))
+    $rows.Add((New-CredRow "Mailu Admin / Webmail" "https://mailadmin.$md" "admin" $script:data.MailAdminPassword "Same login also works at webmail.$md"))
     $rows.Add((New-CredRow "Mailu Secret Key" "" "" $script:data.MailuSecretKey "Internal session-signing key, not a login password"))
     $rows.Add((New-CredRow "InfluxDB Admin" "" "admin" $script:data.InfluxdbAdminPassword "No direct web route published - reached via Grafana"))
     $rows.Add((New-CredRow "InfluxDB API Token" "" "" $script:data.InfluxdbAdminToken "API token, not a login password"))

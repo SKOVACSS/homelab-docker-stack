@@ -2,6 +2,13 @@
 
 This guide explains how to set up your Docker setup on different operating systems and how paths differ.
 
+**One thing that's identical on every OS below**: remote access and HTTPS
+certificates go through Cloudflare Tunnel and Cloudflare's DNS API (see
+[SETUP.md](SETUP.md) step 1), not host networking or port forwarding.
+That setup - creating the tunnel, the two dashboard rules, the API token -
+is the same regardless of which platform `caddy/` and `cloudflared` run
+on; nothing below is platform-specific to it.
+
 ---
 
 ## Windows Setup

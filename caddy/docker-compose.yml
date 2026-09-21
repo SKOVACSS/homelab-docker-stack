@@ -15,13 +15,19 @@ services:
       - caddy-config:/config
     environment:
       ACME_EMAIL: ${ACME_EMAIL}
-      # DOMAIN, QBIT_PORT and CLOUDFLARE_API_TOKEN are read directly by the
-      # Caddyfile (via {$VAR} substitution at config-load time), not by
-      # docker compose variable interpolation, so they must be passed
-      # through here explicitly.
+      # DOMAIN, QBIT_PORT, CLOUDFLARE_API_TOKEN and MAIL_DOMAIN are read
+      # directly by the Caddyfile (via {$VAR} substitution at config-load
+      # time), not by docker compose variable interpolation, so they must
+      # be passed through here explicitly.
       DOMAIN: ${DOMAIN}
       QBIT_PORT: ${QBIT_PORT}
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      # Only set MAIL_DOMAIN in caddy/.env if Mailu needs to live on a
+      # *different* domain than everything else (e.g. your main domain
+      # already has real email through another provider) - defaults to
+      # DOMAIN otherwise, so leaving it unset is the same as before this
+      # existed. See the EMAIL section of ./Caddyfile and SETUP.md.
+      MAIL_DOMAIN: ${MAIL_DOMAIN:-${DOMAIN}}
     networks:
       - caddy-network
     healthcheck:

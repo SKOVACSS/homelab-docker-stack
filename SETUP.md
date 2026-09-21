@@ -14,32 +14,48 @@ with zero port forwarding, which matters if you're behind CGNAT (Starlink,
 many mobile carriers) where there's no public IP to forward a port on in
 the first place - but it's the same setup either way, CGNAT or not.
 
+**Already have real email on this domain through another provider (Proton
+Mail, Google Workspace, etc.)?** Don't point Mailu at it - a domain can
+only have one real mail provider, and Mailu taking over would break your
+existing inbox. Use a second domain for Mailu instead (the "Mail Domain"
+field in step 2's wizard) - it can be a domain you already own or a new
+one, and needs to be added to the same Cloudflare account (a free account
+holds many domains). Steps 1 and 3 below both need doing for that second
+domain too if so; steps 2 and 4 are shared across every domain on one
+tunnel.
+
 1. **Create a scoped API token** for Caddy's certificate issuance: [Cloudflare
    dashboard -> My Profile -> API Tokens -> Create Token](https://dash.cloudflare.com/profile/api-tokens),
-   using the "Edit zone DNS" template, scoped to your one domain (not "All
-   zones"). This becomes `CLOUDFLARE_API_TOKEN`.
+   using the "Edit zone DNS" template. Add every domain you're actually
+   using to the same token's zone list (just your one domain if Mailu
+   isn't using a separate one) rather than "All zones". This becomes
+   `CLOUDFLARE_API_TOKEN`.
 2. **Create the tunnel**: Cloudflare dashboard -> Zero Trust -> Networks ->
    Tunnels -> Create a tunnel -> Cloudflared connector -> give it a name
    (e.g. `homelab`). The setup page shows an install command containing a
    long token after `--token` - that whole token is `CLOUDFLARE_TUNNEL_TOKEN`.
-3. **Add two Public Hostname rules** on that same tunnel (still in the
+   One tunnel serves every domain - no need for more than one even with a
+   separate Mail Domain.
+3. **Add Public Hostname rules** on that same tunnel (still in the
    Cloudflare dashboard - this repo's `cloudflared` container reads its
-   routing from there, not a local file):
-   - Subdomain `*`, your domain, type **HTTPS**, URL `caddy:443`. Under
+   routing from there, not a local file). Two rules per domain you're
+   using - repeat both for your Mail Domain too if it's separate from your
+   main domain:
+   - Subdomain `*`, the domain, type **HTTPS**, URL `caddy:443`. Under
      "Additional application settings -> TLS", turn on **No TLS Verify**
      (Caddy presents a different real certificate per hostname behind this
      one rule, which the tunnel can't pre-validate against a single
      hostname - the connection itself is still fully encrypted end-to-end,
      this only skips a redundant internal check).
-   - Subdomain `mail`, your domain, type **HTTP**, URL `caddy:80`. This one
+   - Subdomain `mail`, the domain, type **HTTP**, URL `caddy:80`. This one
      needs to exist separately from the wildcard above - it's the one
      hostname Caddy deliberately serves over plain HTTP (see the
-     `http://mail.{$DOMAIN}` block in `caddy/Caddyfile`), so Mailu's own
-     Let's Encrypt certificate renewal can complete. Cloudflare matches the
-     more specific exact hostname over the wildcard automatically, so rule
-     order doesn't matter.
+     `http://mail.{$MAIL_DOMAIN}` block in `caddy/Caddyfile`), so Mailu's
+     own Let's Encrypt certificate renewal can complete. Cloudflare matches
+     the more specific exact hostname over the wildcard automatically, so
+     rule order doesn't matter.
 4. **Add a cache rule** so Cloudflare doesn't try to cache streaming
-   responses: Rules -> Cache Rules -> Create rule, matching your domain's
+   responses: Rules -> Cache Rules -> Create rule, matching each domain's
    subdomains, set to Bypass cache.
 5. **If you're using Plex**, one more setting once it's deployed (step 5
    below): Plex Settings -> Network -> Custom server access URLs ->
@@ -60,10 +76,11 @@ cd _scripts
 ```
 
 The wizard collects your domain, email, the two Cloudflare tokens from
-step 1, ProtonVPN credentials, and Plex token, generates a unique
-cryptographically-random secret for every database/service that needs one
-(20 in total - no password is reused across services), and writes a
-correct `.env` file into every stack directory.
+step 1, an optional separate Mail Domain (leave blank to use your main
+domain for Mailu too), ProtonVPN credentials, and Plex token, generates a
+unique cryptographically-random secret for every database/service that
+needs one (20 in total - no password is reused across services), and
+writes a correct `.env` file into every stack directory.
 
 It also writes `credentials-export.csv` in the repo root - every login,
 token, and internal database password it just generated or collected, in
@@ -119,8 +136,14 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
 
 - **Authentik**: visit `auth.yourdomain.com`, log in as `akadmin` with the
   `BOOTSTRAP_PASSWORD` from `authentik/.env`.
-- **Portainer**: visit `portainer.yourdomain.com`, set the admin account on
-  first visit (there's no pre-set password - see TROUBLESHOOTING.md).
+- **Portainer, Trilium, Focalboard, Jellyfin**: each sets its own admin
+  account through its own first-visit web UI (no pre-set password to
+  change) - do this for all four promptly after deploying, same reasoning
+  as Wallabag below.
+- **Wallabag**: ships with a fixed default login (`admin`/`wallabag`, not
+  something only you know) - log in and change it immediately, this one's
+  more urgent than the first-visit group above since the default is
+  public knowledge, not just unset.
 - **qBittorrent**: check `docker compose -f media-stack/docker-compose.yml
   logs gluetun` for the port ProtonVPN forwarded you, then update `BT_PORT`
   in `media-stack/.env` and redeploy that stack (`.\deploy.ps1 -Action

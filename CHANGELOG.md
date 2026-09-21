@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.4.3 - Documentation accuracy pass (2026-09-21)
+
+Ran a systematic documentation audit (every top-level `.md` file and
+`.env.example`, cross-referenced against actual current compose/script
+behavior) rather than relying on catching drift opportunistically as
+each feature landed. Found and fixed, all in `_scripts/README.md` unless
+noted:
+
+- Understated which stacks `gui-installer.ps1` writes a `.env` for (said
+  10, actually 12 - missing `dashboard` and `dns-stack`, both added back
+  in 1.1.1/1.2.0 without this doc catching up).
+- Missing `check-versions.ps1` from the script table entirely, despite it
+  existing and being referenced correctly from the top-level `README.md`.
+- Stale secret count ("21", correct value is 20 as of 1.2.2's Mailu
+  Postgres removal).
+- `backup.ps1`'s documented usage line was missing the `offsite-snapshots`/
+  `offsite-check` actions and `-ResticRepository`/`-ResticPassword`
+  params added in 1.1.2 - present in the top-level README's Quick
+  Reference but never brought into this file.
+- Also fixed a real "Needs Admin?" inaccuracy in the script table itself:
+  still said `gui-installer.ps1` needs admin rights, which stopped being
+  true when 1.2.2 removed its `RunAsAdministrator` requirement.
+- **`SECURITY.md`**: its first-run-admin-account list was itself wrong in
+  a different way than the one 1.4.1 already fixed - it named Wallabag as
+  a "sets its own account on first visit" service, but Wallabag actually
+  ships with a fixed, publicly-documented default login (`admin`/
+  `wallabag`), which is a more urgent problem than an unset password, not
+  the same category. Jellyfin (genuinely first-visit setup) was missing
+  from the list entirely. Corrected in both `SECURITY.md` and `SETUP.md`.
+- **`PLATFORM.md`**: didn't mention Cloudflare Tunnel/DNS-01 anywhere,
+  despite being the doc a cross-platform reader would check for exactly
+  this kind of "does this differ by OS" question. Added a short note that
+  the Cloudflare setup is identical regardless of platform.
+
+## 1.4.2 - Let Mailu live on a separate domain from everything else (2026-09-21)
+
+**The problem**: this deployment's main domain already has real email
+through Proton Mail. Mailu can't also serve `@maindomain` addresses
+without taking the MX records away from Proton, breaking the working
+inbox - a domain only has one real mail provider at a time. Every
+Mailu-related hostname (`mail.`, `mailadmin.`, `webmail.`) was hardcoded
+to `{$DOMAIN}`, the same domain as everything else, with no way around it.
+
+**The fix**: added a new `MAIL_DOMAIN` variable (`caddy/.env`), separate
+from `DOMAIN`, that the three Mailu routes in `caddy/Caddyfile` now use
+instead. It defaults to the same value as `DOMAIN` via Compose's own
+`${MAIL_DOMAIN:-${DOMAIN}}` interpolation if never set, so this is
+backward compatible with every existing single-domain deployment -
+nothing changes unless you deliberately point Mailu elsewhere.
+`email-stack/.env`'s own `DOMAIN` (already an independent variable, since
+every stack has its own `.env`) is what actually gets set to the second
+domain. `gui-installer.ps1` gained an optional "Mail Domain" field in
+step 1 (leave blank to keep the old single-domain behavior), and both the
+review screen and `credentials-export.csv` reflect whichever domain
+Mailu's admin/webmail routes actually live on. Cloudflare Tunnel doesn't
+care how many domains it serves - the same tunnel just needs Public
+Hostname rules and cache rules added for the second domain too (SETUP.md
+step 1 now covers this), and the API token needs DNS-edit permission
+scoped to both zones instead of one.
+
+Live-tested: confirmed via `docker compose config` that Compose's
+`${VAR:-${VAR2}}` nested-default syntax actually resolves both ways
+(falls back correctly when unset, uses the override when set - not
+something to assume without checking); confirmed via `caddy adapt`
+against the real built image that `mail`/`mailadmin`/`webmail` route to
+the mail domain while every other route stays on the main domain; ran
+`Create-EnvFiles` standalone against both a same-domain and a
+separate-domain scenario and confirmed `caddy/.env` and
+`email-stack/.env` end up with matching values in both cases.
+
 ## 1.4.1 - Export every generated credential to a password-manager-ready CSV (2026-09-21)
 
 `gui-installer.ps1` now writes `credentials-export.csv` (repo root,
