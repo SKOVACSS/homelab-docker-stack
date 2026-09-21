@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1.0 - Add Diun: notify about new image tags Watchtower won't catch (2026-09-21)
+
+Adds `diun` to `utilities/docker-compose.yml`. Complements Watchtower
+rather than duplicating it: Watchtower only re-triggers when the digest
+behind an *already-pinned* tag changes, so for the many exact-pinned
+images in this repo it never notices a genuinely new version being
+published upstream (see the tag-floating-vs-exact caveat in 1.0.7). Diun
+watches every image for new tags/digests and only notifies - it never
+applies anything.
+
+Configured to watch every container by default
+(`DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT=true`) rather than requiring a
+`diun.enable=true` label on ~40 services individually - safe to default
+to broad here since it's read-only, unlike Watchtower's actual
+auto-update behavior which does need that per-service opt-in.
+Notifications go to Gotify, same opt-in pattern as Watchtower: unset by
+default, starts working the moment `GOTIFY_TOKEN` is set in
+`utilities/.env`.
+
+Live-tested against the real Docker daemon (read-only socket mount):
+correctly discovered and analyzed real running containers with no
+errors, scheduled its next run correctly.
+
 ## 1.0.9 - Rebuild email-stack against Mailu's own reference architecture (2026-09-21)
 
 Follow-up to the "Mailu front gap" flagged earlier: rebuilt `email-stack`
