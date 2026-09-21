@@ -55,7 +55,17 @@ function Deploy-Stack {
         Write-Status "${StackName}: docker-compose.yml not found" "warning"
         return $false
     }
-    
+
+    # A stack with no .env is a deliberate "installed but not configured"
+    # state, not a mistake - gui-installer.ps1 lets you skip email-stack
+    # this way (see _scripts/enable-email.ps1). Deploying it anyway would
+    # start containers with every ${VAR} resolving to an empty string
+    # instead of cleanly doing nothing, which is worse than skipping.
+    if (-not (Test-Path "$stackPath\.env")) {
+        Write-Status "${StackName}: no .env found, skipping (not configured yet)" "info"
+        return $true
+    }
+
     Write-Status "Starting $StackName..." "step"
 
     $composeArgs = @("compose", "-f", "$stackPath\docker-compose.yml", "up")
@@ -217,30 +227,41 @@ Write-Host ""
 
 switch ($Action) {
     "deploy" {
+        # -Stack targets one stack directly, skipping the full ordered
+        # sequence below - for bringing up a stack on its own after the
+        # rest is already running (e.g. _scripts/enable-email.ps1 right
+        # after writing email-stack's .env for the first time). caddy
+        # and authentik must already be up for this to make sense, same
+        # as any other single-stack operation.
+        if (-not [string]::IsNullOrEmpty($Stack)) {
+            Deploy-Stack $Stack $true
+            break
+        }
+
         Write-Status "Starting deployment sequence..." "step"
         Write-Status "CRITICAL: Deploy in this exact order!" "warning"
         Write-Host ""
-        
+
         # 1. Caddy (creates network)
         if (-not (Deploy-Stack "caddy" $true)) {
             Write-Status "Caddy deployment failed. Aborting." "error"
             exit 1
         }
         Start-Sleep -Seconds 5
-        
+
         # 2. Authentik
         if (-not (Deploy-Stack "authentik" $true)) {
             Write-Status "Authentik deployment failed. Aborting." "error"
             exit 1
         }
         Start-Sleep -Seconds 5
-        
+
         # 3. All others
         foreach ($s in $stacks | Where-Object {$_ -ne "caddy" -and $_ -ne "authentik"}) {
             Deploy-Stack $s $false
             Start-Sleep -Seconds 3
         }
-        
+
         Write-Host ""
         Write-Status "Deployment complete!" "success"
         Write-Status "Run: .\deploy.ps1 -Action status" "info"
