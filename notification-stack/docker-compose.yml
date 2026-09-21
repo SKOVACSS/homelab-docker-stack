@@ -24,8 +24,9 @@ services:
       # channel every other alert in this stack depends on.
       - "com.centurylinklabs.watchtower.enable=true"
     container_name: gotify
-    ports:
-      - "8765:80"
+    # No published host port: reachable through Caddy at gotify.{$DOMAIN}
+    # (see caddy/Caddyfile), same as every other admin UI in this repo -
+    # a mobile Gotify app should point at that URL, not a host:port.
     volumes:
       - gotify-data:/app/data
     environment:

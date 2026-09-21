@@ -18,6 +18,9 @@ layout:
   Calendar & Contacts:
     style: row
     columns: 2
+  Network:
+    style: row
+    columns: 1
   Utilities:
     style: row
     columns: 4
