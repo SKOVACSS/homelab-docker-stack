@@ -199,6 +199,36 @@ whatever HTTP client happens to be bundled in a given image version.
 `docker compose -f media-stack/docker-compose.yml up -d gluetun` - no
 need to redeploy the whole stack.
 
+## Several other containers showed "unhealthy" too - same underlying cause
+
+A full real deploy (not just `docker compose config`, which can't catch
+any of this) turned up eight more healthchecks broken the same way as
+gluetun above - a check written against an assumption about the image
+that didn't hold for the actual pinned version. All fixed as of 1.6.7;
+if you're on an older `.env`/checkout and see one of these, the fix is
+just redeploying that one service, same as gluetun above:
+
+| Service | What was wrong | Fix |
+|---|---|---|
+| `authentik-server` | Image doesn't ship `wget` | Use `/lifecycle/ak healthcheck` (authentik's own binary) |
+| `caddy` | `/health` doesn't exist on Caddy's admin API (404) | Use `/config/` instead - see the warning below |
+| `nextcloud-db` | `mysqladmin` doesn't exist in this MariaDB image | Use the image's own `healthcheck.sh --connect` |
+| `trilium` | No `curl`, and `localhost` resolves to `::1` where nothing listens (Trilium only binds IPv4) | Use `wget` against `127.0.0.1` |
+| `prometheus` | Image doesn't ship `curl` | Use `wget` (bundled) against `127.0.0.1` |
+| `wireguard` | Checked `/config/wg0.conf`; the image actually writes `/config/wg_confs/wg0.conf` | Fixed the path |
+| `focalboard`, `portainer`, `loki` | No shell, curl, wget, *or* busybox in the image at all | No exec-based healthcheck is possible - disabled (`healthcheck: disable: true`); Docker's own running/crash-looping state is the only available signal |
+
+**If you're hand-editing `caddy/docker-compose.yml`'s healthcheck**:
+don't drop the `-o /dev/null`. Caddy's admin API has no authentication by
+default, and `/config/` echoes back the *entire live config* - including
+`CLOUDFLARE_API_TOKEN` and every basic-auth password hash - in the
+response body. `-o /dev/null` discards that body so curl only reports the
+HTTP status; without it, that full config (secrets included) gets written
+into this healthcheck's log on every single successful check
+(`docker inspect caddy-caddy-1` under `.State.Health.Log`), which is a
+far easier way to leak it than the admin API itself (that's already
+`localhost:2019`-only, not published to the host).
+
 ## qBittorrent: QBIT_PORT vs BT_PORT
 
 These are two different ports and must stay different:

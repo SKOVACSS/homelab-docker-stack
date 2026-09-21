@@ -41,7 +41,16 @@ services:
     networks:
       - caddy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:2019/health"]
+      # Not /health: Caddy's admin API has no such route by default (404,
+      # confirmed live) - /config/ is the lightweight always-200-if-alive
+      # endpoint instead. -s -o /dev/null is deliberate, not just tidiness:
+      # /config/ echoes back Caddy's full live config, including the
+      # Cloudflare API token and every basic-auth hash - letting curl print
+      # that body would put it in this healthcheck's log
+      # (`docker inspect`/`docker events`) on every single successful
+      # check, forever. Discarding it keeps only the HTTP status, which is
+      # all a healthcheck needs.
+      test: ["CMD", "curl", "-sf", "-o", "/dev/null", "http://localhost:2019/config/"]
       interval: 30s
       timeout: 5s
       retries: 3
