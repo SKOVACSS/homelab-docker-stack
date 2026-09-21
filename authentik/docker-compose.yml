@@ -21,7 +21,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - database:/var/lib/postgresql/data
+      - database:/var/lib/postgresql
     environment:
       POSTGRES_PASSWORD: ${PG_PASS}
       POSTGRES_USER: ${PG_USER}
