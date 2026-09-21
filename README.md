@@ -18,7 +18,7 @@ family and friends.
 | `privacy-stack/` | Nextcloud, Navidrome, Syncthing, Paperless-ngx, Wallabag, Trilium, Focalboard, OnlyOffice, Radicale. |
 | `immich-app/` | Google Photos replacement. |
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |
-| `email-stack/` | Mailu (self-hosted email). |
+| `email-stack/` | Mailu (self-hosted email) - optional, off by default in the installer. Run `_scripts/enable-email.ps1` any time to turn it on. |
 | `monitoring-stack/` | InfluxDB + Telegraf (host/container metrics - feeds the Grafana in `utilities/`). |
 | `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
@@ -82,4 +82,7 @@ cd _scripts
 # Optional: also push backups off-site (unset = local-only, unchanged)
 .\backup.ps1 -Action backup -ResticRepository "s3:s3.us-west-002.backblazeb2.com/mybucket" -ResticPassword "..."
 .\backup.ps1 -Action offsite-snapshots -ResticRepository "..." -ResticPassword "..."
+
+# Optional: turn on the email server later if you skipped it above
+.\enable-email.ps1
 ```

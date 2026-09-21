@@ -8,6 +8,7 @@
 | `health-check.ps1` | Reports each container's health status | No |
 | `backup.ps1` | Backs up every stack's `.env` (and, with `-Full`, every Docker volume; optionally off-site via Restic) | No |
 | `check-versions.ps1` | Lists every stack's pinned image version, registry, and tag | No |
+| `enable-email.ps1` | Turns on the email server (Mailu) later, if you skipped it in the wizard | No |
 
 See [../SETUP.md](../SETUP.md) for the full first-time walkthrough. This
 file just documents each script's options.
@@ -18,15 +19,18 @@ file just documents each script's options.
 .\gui-installer.ps1
 ```
 
-Walks through: domain/email/timezone/Cloudflare tokens -> ProtonVPN
-credentials -> Plex claim token -> generate secrets -> review & write (see
-SETUP.md step 1 for how to get the two Cloudflare tokens - they need to
-exist before this wizard can use them). Generates 22 distinct
-cryptographically-random secrets (never reuses one across services) and
-writes a `.env` into every stack directory: `authentik`, `caddy`,
-`media-stack`, `privacy-stack`, `security-stack`, `email-stack`,
-`monitoring-stack`, `notification-stack`, `utilities`, `immich-app`,
-`dashboard`, `dns-stack`.
+Walks through: domain/email/timezone/Cloudflare tokens/email-server
+toggle -> ProtonVPN credentials -> Plex claim token -> generate secrets ->
+review & write (see SETUP.md step 1 for how to get the two Cloudflare
+tokens - they need to exist before this wizard can use them). Generates
+22 distinct cryptographically-random secrets when email setup is on, 20
+when it's off (never reuses one across services) and writes a `.env` into
+every stack directory: `authentik`, `caddy`, `media-stack`,
+`privacy-stack`, `security-stack`, `monitoring-stack`,
+`notification-stack`, `utilities`, `immich-app`, `dashboard`, `dns-stack`,
+and `email-stack` too if you left the "Set up email server" checkbox on
+(unchecked by default - see `enable-email.ps1` below to turn it on later
+instead).
 
 Also writes `credentials-export.csv` (repo root, gitignored) - every
 credential above in Bitwarden's CSV import format, ready to import into
@@ -35,6 +39,26 @@ Vaultwarden or Proton Pass and then delete.
 You can also skip this and edit any stack's `.env` by hand - the variable
 *names* just need to match what that stack's `docker-compose.yml` reads.
 
+## enable-email.ps1
+
+```powershell
+.\enable-email.ps1
+.\enable-email.ps1 -MailDomain mail-only-domain.com
+```
+
+Mailu is the most complex, fragile stack in this repo (see CHANGELOG.md's
+1.0.9, 1.2.2, and 1.5.0 entries for the real bugs found in it), so
+`gui-installer.ps1` leaves it unconfigured by default - this script fills
+that gap in whenever you're actually ready for it, without re-running the
+whole wizard. Interactive: asks whether to use the same domain as
+everything else or a separate one (pass `-MailDomain` to skip that
+prompt), confirms you've already done the Cloudflare-dashboard steps a
+second domain needs if that applies, generates `MAILU_SECRET_KEY` and
+`MAIL_ADMIN_PASSWORD`, writes `email-stack\.env`, and sets `MAIL_DOMAIN`
+in `caddy\.env`. Safe to re-run against an already-configured
+`email-stack` too (asks to confirm first) - useful for rotating the admin
+password or moving Mailu to a different domain later.
+
 ## deploy.ps1
 
 ```powershell
@@ -42,13 +66,19 @@ You can also skip this and edit any stack's `.env` by hand - the variable
 ```
 
 `-Action` defaults to `deploy`, so bare `.\deploy.ps1` does a full deploy.
-`deploy` brings every stack up in dependency order: **caddy** first (it
-owns the shared `caddy-network`), then **authentik**, then everything else.
-Deploying stacks individually and out of order will fail unless `caddy` is
-already up.
+`deploy` with no `-Stack` brings every stack up in dependency order:
+**caddy** first (it owns the shared `caddy-network`), then **authentik**,
+then everything else - a stack with no `.env` (e.g. `email-stack` if you
+skipped setting it up) is skipped with a message rather than started with
+broken empty variables. `deploy -Stack <name>` targets just that one
+stack instead of the full sequence, for bringing up a stack on its own
+after the rest is already running (caddy/authentik still need to already
+be up). Deploying stacks individually and out of order otherwise will
+fail unless `caddy` is already up.
 
 ```powershell
 .\deploy.ps1 -Action deploy                          # everything, in order
+.\deploy.ps1 -Action deploy -Stack email-stack        # just one stack, e.g. after enable-email.ps1
 .\deploy.ps1 -Action status                          # per-stack up/down summary
 .\deploy.ps1 -Action logs -Stack media-stack          # follow logs for one stack
 .\deploy.ps1 -Action restart -Stack authentik         # restart one stack

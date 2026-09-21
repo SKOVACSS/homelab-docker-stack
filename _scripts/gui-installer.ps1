@@ -41,7 +41,7 @@ function Create-Form {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = "Docker Home Lab - Configuration Wizard"
     $f.Width = 650
-    $f.Height = 620
+    $f.Height = 680
     $f.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
     $f.BackColor = [System.Drawing.Color]::White
     $f.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
@@ -189,29 +189,58 @@ function Show-Step1 {
     $cfTunnelBox.UseSystemPasswordChar = $true
     $form.Controls.Add($cfTunnelBox)
 
+    # Set Up Email Server checkbox - unchecked by default. Mailu is by far
+    # the most complex, fragile stack in this repo (see CHANGELOG's 1.0.9,
+    # 1.2.2, and 1.5.0 entries for the real bugs found in it) - someone
+    # using this installer to help set up a homelab for family/friends, or
+    # setting up new hardware later, may well not want an email server at
+    # all. Leaving it unchecked writes no email-stack/.env at all: the
+    # stack stays fully present in the repo, just not configured or
+    # deployed - see _scripts/enable-email.ps1 for turning it on later
+    # without re-running this whole wizard.
+    $emailSetupCheckbox = New-Object System.Windows.Forms.CheckBox
+    $emailSetupCheckbox.Text = "Set up email server (Mailu) now"
+    $emailSetupCheckbox.Top = 425
+    $emailSetupCheckbox.Left = 20
+    $emailSetupCheckbox.Width = 400
+    $emailSetupCheckbox.Height = 24
+    $emailSetupCheckbox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $emailSetupCheckbox.Checked = $false
+    $form.Controls.Add($emailSetupCheckbox)
+
     # Mail Domain Label
     $mailDomainLabelCtrl = New-Object System.Windows.Forms.Label
     $mailDomainLabelCtrl.Text = "Mail Domain (optional - only if Mailu needs a DIFFERENT domain than above, e.g. main domain already has real email elsewhere)"
-    $mailDomainLabelCtrl.Top = 425
+    $mailDomainLabelCtrl.Top = 453
     $mailDomainLabelCtrl.Left = 20
     $mailDomainLabelCtrl.Width = 600
     $mailDomainLabelCtrl.Height = 20
     $mailDomainLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $mailDomainLabelCtrl.Enabled = $false
     $form.Controls.Add($mailDomainLabelCtrl)
 
     # Mail Domain TextBox
     $mailDomainBox = New-Object System.Windows.Forms.TextBox
-    $mailDomainBox.Top = 445
+    $mailDomainBox.Top = 473
     $mailDomainBox.Left = 20
     $mailDomainBox.Width = 600
     $mailDomainBox.Height = 30
     $mailDomainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $mailDomainBox.Enabled = $false
     $form.Controls.Add($mailDomainBox)
+
+    # Mail Domain only means anything if email is actually being set up
+    # now - greyed out otherwise rather than removed, so it's obvious the
+    # option exists and why it's currently unavailable.
+    $emailSetupCheckbox.Add_CheckedChanged({
+        $mailDomainLabelCtrl.Enabled = $emailSetupCheckbox.Checked
+        $mailDomainBox.Enabled = $emailSetupCheckbox.Checked
+    })
 
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 530
+    $backBtn.Top = 590
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -222,7 +251,7 @@ function Show-Step1 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 530
+    $nextBtn.Top = 590
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -233,7 +262,7 @@ function Show-Step1 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 1 of 5"
-    $progLabel.Top = 535
+    $progLabel.Top = 595
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -245,6 +274,7 @@ function Show-Step1 {
         $email = $emailBox.Text.Trim()
         $cfApiToken = $cfApiBox.Text.Trim()
         $cfTunnelToken = $cfTunnelBox.Text.Trim()
+        $setupEmail = $emailSetupCheckbox.Checked
         $mailDomain = $mailDomainBox.Text.Trim()
 
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
@@ -258,18 +288,23 @@ function Show-Step1 {
         # certificate for anything.
         if ([string]::IsNullOrEmpty($cfApiToken)) { Show-Error "Cloudflare API Token is required - see SETUP.md"; return }
         if ([string]::IsNullOrEmpty($cfTunnelToken)) { Show-Error "Cloudflare Tunnel Token is required - see SETUP.md"; return }
-        # Mail Domain is the one genuinely optional field on this step -
-        # only validate its format if something was actually typed in.
-        if (-not [string]::IsNullOrEmpty($mailDomain) -and -not (Validate-Domain $mailDomain)) { Show-Error "Invalid Mail Domain format"; return }
+        # Mail Domain's format only matters if email is actually being set
+        # up now (the box is disabled otherwise, but its old text could
+        # still be sitting there if the checkbox was unchecked after typing).
+        if ($setupEmail -and -not [string]::IsNullOrEmpty($mailDomain) -and -not (Validate-Domain $mailDomain)) { Show-Error "Invalid Mail Domain format"; return }
 
         $script:data.Domain = $domain
         $script:data.Email = $email
         $script:data.Timezone = $tzBox.SelectedItem
         $script:data.CloudflareApiToken = $cfApiToken
         $script:data.CloudflareTunnelToken = $cfTunnelToken
+        $script:data.SetupEmail = $setupEmail
         # Falls back to the main domain when left blank - see caddy/.env's
-        # MAIL_DOMAIN and email-stack/.env's DOMAIN.
-        $script:data.MailDomain = if ([string]::IsNullOrEmpty($mailDomain)) { $domain } else { $mailDomain }
+        # MAIL_DOMAIN and email-stack/.env's DOMAIN. Meaningless (and left
+        # unset) when email isn't being set up at all.
+        if ($setupEmail) {
+            $script:data.MailDomain = if ([string]::IsNullOrEmpty($mailDomain)) { $domain } else { $mailDomain }
+        }
 
         $script:step = 2
         Show-Step2 $form
@@ -374,7 +409,7 @@ function Show-Step2 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 530
+    $backBtn.Top = 590
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -385,7 +420,7 @@ function Show-Step2 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 530
+    $nextBtn.Top = 590
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -410,7 +445,7 @@ function Show-Step2 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 2 of 5"
-    $progLabel.Top = 535
+    $progLabel.Top = 595
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -477,7 +512,7 @@ function Show-Step3 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 530
+    $backBtn.Top = 590
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -488,7 +523,7 @@ function Show-Step3 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 530
+    $nextBtn.Top = 590
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -511,7 +546,7 @@ function Show-Step3 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 3 of 5"
-    $progLabel.Top = 535
+    $progLabel.Top = 595
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -569,7 +604,7 @@ function Show-Step4 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 530
+    $backBtn.Top = 590
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -580,7 +615,7 @@ function Show-Step4 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 530
+    $nextBtn.Top = 590
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -593,7 +628,7 @@ function Show-Step4 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 4 of 5"
-    $progLabel.Top = 535
+    $progLabel.Top = 595
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -614,8 +649,10 @@ function Show-Step4 {
         $script:data.PaperlessSecretKey      = Generate-SecurePassword 50
         $script:data.PaperlessDbPassword     = Generate-SecurePassword
         $script:data.WallabagDbPassword      = Generate-SecurePassword
-        $script:data.MailuSecretKey          = Generate-SecurePassword 24
-        $script:data.MailAdminPassword       = Generate-SecurePassword
+        if ($script:data.SetupEmail) {
+            $script:data.MailuSecretKey      = Generate-SecurePassword 24
+            $script:data.MailAdminPassword   = Generate-SecurePassword
+        }
         $script:data.InfluxdbAdminPassword   = Generate-SecurePassword
         $script:data.InfluxdbAdminToken      = Generate-SecurePassword 32
         $script:data.GrafanaMainPassword     = Generate-SecurePassword
@@ -637,9 +674,11 @@ function Show-Step4 {
             return
         }
 
+        $secretCount = if ($script:data.SetupEmail) { 22 } else { 20 }
+        $emailNote = if ($script:data.SetupEmail) { "" } else { "`n(Email server setup skipped - run _scripts\enable-email.ps1 later if that changes.)" }
         $statusLabel.Text = @"
-✓ Generated 22 unique secrets (one per service/database - no reuse)
-
+✓ Generated $secretCount unique secrets (one per service/database - no reuse)
+$emailNote
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
 "@
@@ -687,21 +726,29 @@ function Show-Step5 {
     $reviewBox.Width = 600
     $reviewBox.Height = 280
     $reviewBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+
+    $emailStatusText = if (-not $script:data.SetupEmail) {
+        "Email server (Mailu): NOT set up now - email-stack\.env will not`nbe written. Run _scripts\enable-email.ps1 any time later to turn it on."
+    } elseif ($script:data.MailDomain -eq $script:data.Domain) {
+        "Mail Domain: $($script:data.MailDomain) (same as Domain)"
+    } else {
+        "Mail Domain: $($script:data.MailDomain) (separate from Domain - needs`nits own Cloudflare Public Hostname rules and DNS-edit permission too)"
+    }
+    $secretCountText = if ($script:data.SetupEmail) { "22 unique secure secrets" } else { "20 unique secure secrets" }
+
     $reviewBox.Text = @"
 CONFIGURATION SUMMARY
 ═════════════════════════════════════════════
 
 Domain: $($script:data.Domain)
-Mail Domain: $($script:data.MailDomain)$(if ($script:data.MailDomain -eq $script:data.Domain) { " (same as Domain)" } else { " (separate from Domain)" })
+$emailStatusText
 Email: $($script:data.Email)
 Timezone: $($script:data.Timezone)
 
 Cloudflare API Token: ✓ Set
 Cloudflare Tunnel Token: ✓ Set
 (Reminder: the tunnel and its Public Hostname rules must already exist
-in your Cloudflare dashboard - see SETUP.md if you haven't done that yet.
-If Mail Domain is separate from Domain, that needs its own Public
-Hostname rules and DNS-edit permission on the Cloudflare API token too.)
+in your Cloudflare dashboard - see SETUP.md if you haven't done that yet.)
 
 ProtonVPN Username: $($script:data.ProtonUsername)
 ProtonVPN Country: $($script:data.ProtonCountry)
@@ -709,7 +756,7 @@ ProtonVPN Country: $($script:data.ProtonCountry)
 Plex Domain: $($script:data.PlexDomain)
 Jellyfin Domain: $($script:data.JellyfinDomain)
 
-Passwords: ✓ Generated (22 unique secure secrets)
+Passwords: ✓ Generated ($secretCountText)
 
 ═════════════════════════════════════════════
 Click "Create .env Files" to proceed
@@ -719,7 +766,7 @@ Click "Create .env Files" to proceed
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 530
+    $backBtn.Top = 590
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -730,7 +777,7 @@ Click "Create .env Files" to proceed
     # Create Button
     $createBtn = New-Object System.Windows.Forms.Button
     $createBtn.Text = "✓ Create .env Files"
-    $createBtn.Top = 530
+    $createBtn.Top = 590
     $createBtn.Left = 560
     $createBtn.Width = 80
     $createBtn.Height = 35
@@ -739,7 +786,8 @@ Click "Create .env Files" to proceed
     $createBtn.Add_Click({
         Create-EnvFiles
         $credPath = Export-Credentials
-        Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
+        $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
+        Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.$emailReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
         $form.Close()
     })
     $form.Controls.Add($createBtn)
@@ -747,7 +795,7 @@ Click "Create .env Files" to proceed
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 5 of 5"
-    $progLabel.Top = 535
+    $progLabel.Top = 595
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -784,6 +832,12 @@ BOOTSTRAP_TOKEN=$($script:data.AuthentikBootstrapToken)
     $arrAuthHashEscaped = $script:data.ArrAuthHash -replace '\$', '$$'
     $radicaleAuthHashEscaped = $script:data.RadicaleAuthHash -replace '\$', '$$'
 
+    $mailDomainLine = if ($script:data.SetupEmail) {
+        "# Same as DOMAIN unless you entered a separate Mail Domain in step 1 -`n# must match DOMAIN in email-stack\.env exactly either way.`nMAIL_DOMAIN=$($script:data.MailDomain)"
+    } else {
+        "# Email server setup was skipped - no email-stack\.env, so this has`n# nothing to match. Falls back to DOMAIN automatically if ever needed;`n# run _scripts\enable-email.ps1 to actually set Mailu up later."
+    }
+
     $caddyEnv = @"
 DOMAIN=$d
 ACME_EMAIL=$($script:data.Email)
@@ -791,9 +845,7 @@ ACME_EMAIL=$($script:data.Email)
 QBIT_PORT=8080
 CLOUDFLARE_API_TOKEN=$($script:data.CloudflareApiToken)
 CLOUDFLARE_TUNNEL_TOKEN=$($script:data.CloudflareTunnelToken)
-# Same as DOMAIN unless you entered a separate Mail Domain in step 1 -
-# must match DOMAIN in email-stack\.env exactly either way.
-MAIL_DOMAIN=$($script:data.MailDomain)
+$mailDomainLine
 # Shared login for Sonarr/Radarr/Prowlarr/Lidarr - see arr_auth in
 # caddy/Caddyfile. Every `$` below is doubled deliberately - see comment
 # above, don't "clean up" this into a single $.
@@ -858,7 +910,14 @@ MAILER_PORT=587
 "@
     $privacyEnv | Out-File "$appRoot\privacy-stack\.env" -Encoding UTF8 -Force
 
-    $emailEnv = @"
+    # No email-stack\.env at all when email setup was skipped: the stack
+    # stays fully present in the repo (nothing removed, nothing to undo),
+    # just unconfigured - deploy.ps1 skips any stack with no .env rather
+    # than starting containers against empty variables. Run
+    # _scripts\enable-email.ps1 to write this file later without
+    # re-running the whole wizard.
+    if ($script:data.SetupEmail) {
+        $emailEnv = @"
 # Same as caddy\.env's MAIL_DOMAIN - must match exactly.
 DOMAIN=$($script:data.MailDomain)
 MAILU_SECRET_KEY=$($script:data.MailuSecretKey)
@@ -866,7 +925,8 @@ MAIL_ADMIN_USER=admin
 MAIL_ADMIN_PASSWORD=$($script:data.MailAdminPassword)
 TZ=$($script:data.Timezone)
 "@
-    $emailEnv | Out-File "$appRoot\email-stack\.env" -Encoding UTF8 -Force
+        $emailEnv | Out-File "$appRoot\email-stack\.env" -Encoding UTF8 -Force
+    }
 
     $securityEnv = @"
 DOMAIN=$d
@@ -970,8 +1030,10 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Paperless-ngx Database" "" "paperless" $script:data.PaperlessDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Wallabag Database" "" "wallabag" $script:data.WallabagDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Wallabag App Login" "https://read.$d" "wallabag" "" "Ships with default password 'wallabag' - change on first login, then fill in here"))
-    $rows.Add((New-CredRow "Mailu Admin / Webmail" "https://mailadmin.$md" "admin" $script:data.MailAdminPassword "Same login also works at webmail.$md"))
-    $rows.Add((New-CredRow "Mailu Secret Key" "" "" $script:data.MailuSecretKey "Internal session-signing key, not a login password"))
+    if ($script:data.SetupEmail) {
+        $rows.Add((New-CredRow "Mailu Admin / Webmail" "https://mailadmin.$md" "admin" $script:data.MailAdminPassword "Same login also works at webmail.$md"))
+        $rows.Add((New-CredRow "Mailu Secret Key" "" "" $script:data.MailuSecretKey "Internal session-signing key, not a login password"))
+    }
     $rows.Add((New-CredRow "InfluxDB Admin" "" "admin" $script:data.InfluxdbAdminPassword "No direct web route published - reached via Grafana"))
     $rows.Add((New-CredRow "InfluxDB API Token" "" "" $script:data.InfluxdbAdminToken "API token, not a login password"))
     $rows.Add((New-CredRow "Grafana" "https://grafana.$d" "admin" $script:data.GrafanaMainPassword ""))
