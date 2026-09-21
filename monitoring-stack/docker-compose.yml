@@ -53,7 +53,7 @@ services:
 
   # ========== TELEGRAF: Metrics Collection ==========
   telegraf:
-    image: telegraf:1.38.1
+    image: telegraf:1.40.0
     restart: unless-stopped
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
