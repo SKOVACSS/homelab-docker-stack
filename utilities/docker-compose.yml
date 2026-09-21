@@ -85,6 +85,51 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # Diun - notifies about new image tags/digests without applying them.
+  # Complements Watchtower rather than duplicating it: Watchtower only
+  # re-triggers when the digest behind an already-pinned tag changes, so
+  # for the many exact-pinned images in this repo (see CHANGELOG 1.0.7)
+  # it never notices a genuinely new version tag being published upstream.
+  # Diun's job is specifically that - watch every image for new tags, not
+  # just changes to the one you already have pinned.
+  diun:
+    image: crazymax/diun:4.33.0
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - diun-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - TZ=${TZ:-UTC}
+      - LOG_LEVEL=info
+      - DIUN_WATCH_WORKERS=10
+      - DIUN_WATCH_SCHEDULE=0 6 * * *
+      - DIUN_WATCH_JITTER=30s
+      - DIUN_PROVIDERS_DOCKER=true
+      # Watch every container by default rather than requiring a
+      # diun.enable=true label on ~40 services individually - this is
+      # read-only/notify-only, so the lower-friction default is safe here
+      # in a way it wasn't for Watchtower's actual auto-update behavior.
+      - DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT=true
+      # Off by default, same pattern as Watchtower above: set GOTIFY_TOKEN
+      # in this stack's .env to start getting notified.
+      - DIUN_NOTIF_GOTIFY_ENDPOINT=http://gotify:80
+      - DIUN_NOTIF_GOTIFY_TOKEN=${GOTIFY_TOKEN:-}
+    networks:
+      - utilities
+      # To reach notification-stack's "gotify" service by container name.
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
   # Uptime Kuma - Service monitoring
   # FIX APPLIED: external port changed 3001 -> 3002 to avoid conflict with Grafana (which uses 3000/3001 in some configs)
   uptime-kuma:
@@ -289,6 +334,8 @@ services:
 
 volumes:
   portainer-data:
+    driver: local
+  diun-data:
     driver: local
   uptime-kuma-data:
     driver: local
