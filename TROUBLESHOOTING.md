@@ -381,3 +381,37 @@ docker compose -f <stack>/docker-compose.yml --env-file <stack>/.env config
 This resolves every `${VAR}` and prints the fully-expanded config without
 starting anything - it's the fastest way to spot a missing/misspelled
 environment variable before it turns into a confusing container crash.
+
+## A database container crash-loops with "password authentication failed"
+
+Every Postgres/MariaDB-backed service here (`authentik`, `immich-app`,
+and `privacy-stack`'s Nextcloud/Paperless/Wallabag databases) sets its
+root/app password from a `.env` variable
+(`DB_PASSWORD`/`PG_PASS`/`NEXTCLOUD_DB_PASS`/etc.) - but that variable
+only takes effect the *first* time the database image initializes a
+genuinely empty data directory. If that directory already has data in it
+from an earlier attempt (a previous deploy, an old copy of this repo, or
+re-running `gui-installer.ps1` - which generates a brand new random
+password every single time it runs), the database keeps whatever
+password it was actually initialized with, `.env`'s value silently stops
+matching it, and the app container that connects to it (immich_server,
+authentik-server, Nextcloud, etc.) crash-loops on `password
+authentication failed` forever - confirmed live against a leftover
+`immich-app/postgres` data directory from a much older test of this repo.
+
+Fix without losing any data - update the database's *actual* password to
+match `.env` instead of touching the data directory:
+
+```powershell
+# Postgres (authentik, immich-app, and two of privacy-stack's databases)
+docker exec <postgres-container-name> psql -U <db-username> -c "ALTER USER <db-username> PASSWORD '<value-from-.env>';"
+
+# MariaDB (privacy-stack's Nextcloud database)
+docker exec <mariadb-container-name> mariadb -u root -p<old-root-password> -e "ALTER USER '<db-username>'@'%' IDENTIFIED BY '<value-from-.env>';"
+```
+
+Then restart the app container that depends on it. If you'd rather start
+that one database completely fresh instead (only sensible if you're sure
+there's nothing worth keeping in it), delete its data directory/volume
+before the next `docker compose up` so first-run initialization actually
+runs again.

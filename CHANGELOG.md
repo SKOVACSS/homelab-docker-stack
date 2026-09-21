@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.6 - Document the stale-database-password gotcha (2026-09-21)
+
+Hit live: `immich_server` crash-looped with `password authentication
+failed for user "postgres"` right after a fresh deploy. Root cause
+wasn't a bug in this repo - `immich-app/postgres`'s data directory
+already existed from a much older test of this repo (dated back to
+2025), so Postgres kept whatever password it was actually initialized
+with back then. `gui-installer.ps1` generates a brand new random
+`DB_PASSWORD` every time it runs, and that value only takes effect on a
+genuinely empty data directory - on an already-initialized one, it's
+silently ignored, so the newly-generated password never matches what the
+database actually has.
+
+Fixed the immediate case with `ALTER USER postgres PASSWORD '...'`
+against the running container - no data lost, no redeploy needed - and
+documented the general pattern in TROUBLESHOOTING.md, since it applies
+to every Postgres/MariaDB-backed service in this repo (`authentik`,
+`immich-app`, and privacy-stack's Nextcloud/Paperless/Wallabag
+databases), not just Immich.
+
 ## 1.6.5 - Fix gluetun's healthcheck reporting false "unhealthy" (2026-09-21)
 
 Found immediately after fixing 1.6.4's crash-loop and getting gluetun
