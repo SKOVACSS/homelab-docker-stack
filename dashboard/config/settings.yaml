@@ -1,0 +1,26 @@
+title: Homelab
+theme: dark
+color: slate
+headerStyle: boxed
+layout:
+  Media Apps:
+    style: row
+    columns: 4
+  Media Servers:
+    style: row
+    columns: 3
+  Files & Collaboration:
+    style: row
+    columns: 3
+  Documents & Notes:
+    style: row
+    columns: 3
+  Calendar & Contacts:
+    style: row
+    columns: 2
+  Utilities:
+    style: row
+    columns: 4
+  Authentication & Email:
+    style: row
+    columns: 3

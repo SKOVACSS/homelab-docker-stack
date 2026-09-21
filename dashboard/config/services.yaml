@@ -1,0 +1,141 @@
+- Media Apps:
+    - Sonarr:
+        icon: sonarr.png
+        href: "https://sonarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: TV automation
+        server: my-docker
+        container: sonarr
+    - Radarr:
+        icon: radarr.png
+        href: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Movie automation
+        server: my-docker
+        container: radarr
+    - Prowlarr:
+        icon: prowlarr.png
+        href: "https://prowlarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Indexer manager
+        server: my-docker
+        container: prowlarr
+    - Lidarr:
+        icon: lidarr.png
+        href: "https://lidarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Music automation
+        server: my-docker
+        container: lidarr
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Torrent client (VPN-routed)
+
+- Media Servers:
+    - Plex:
+        icon: plex.png
+        href: "https://plex.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Media server
+        server: my-docker
+        container: plex
+    - Jellyfin:
+        icon: jellyfin.png
+        href: "https://jellyfin.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Media server (open-source)
+        server: my-docker
+        container: jellyfin
+    - Immich:
+        icon: immich.png
+        href: "https://photos.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Photos - Google Photos replacement
+        server: my-docker
+        container: immich-server
+    - Navidrome:
+        icon: navidrome.png
+        href: "https://music.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Music streaming
+        server: my-docker
+        container: navidrome
+
+- Files & Collaboration:
+    - Nextcloud:
+        icon: nextcloud.png
+        href: "https://nextcloud.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Files, calendar, contacts
+        server: my-docker
+        container: nextcloud
+    - Syncthing:
+        icon: syncthing.png
+        href: "https://sync.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: P2P file sync
+        server: my-docker
+        container: syncthing
+    - Focalboard:
+        icon: focalboard.png
+        href: "https://boards.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Project boards
+
+- Documents & Notes:
+    - Paperless-ngx:
+        icon: paperless-ngx.png
+        href: "https://papers.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Document management
+        server: my-docker
+        container: paperless-ngx
+    - Wallabag:
+        icon: wallabag.png
+        href: "https://read.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Read-it-later
+    - Trilium:
+        icon: trilium.png
+        href: "https://notes.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Notes
+
+- Calendar & Contacts:
+    - Radicale:
+        icon: radicale.png
+        href: "https://cal.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: CalDAV/CardDAV
+
+- Utilities:
+    - Portainer:
+        icon: portainer.png
+        href: "https://portainer.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Container management
+        server: my-docker
+        container: portainer
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: "https://uptime.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Service monitoring
+        server: my-docker
+        container: uptime-kuma
+    - Vaultwarden:
+        icon: vaultwarden.png
+        href: "https://vault.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Password manager
+        server: my-docker
+        container: vaultwarden
+    - Grafana:
+        icon: grafana.png
+        href: "https://grafana.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Dashboards (Prometheus/Loki/InfluxDB)
+        server: my-docker
+        container: grafana
+
+- Authentication & Email:
+    - Authentik:
+        icon: authentik.png
+        href: "https://auth.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Central login portal
+        server: my-docker
+        container: authentik-server
+    - Mailu Admin:
+        icon: mailu.png
+        href: "https://mailadmin.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Mail server admin
+        server: my-docker
+        container: mailu-admin
+    - Webmail:
+        icon: roundcube.png
+        href: "https://webmail.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Mailu webmail
+        server: my-docker
+        container: mailu-webmail
