@@ -71,4 +71,8 @@ cd _scripts
 .\health-check.ps1
 .\backup.ps1 -Action backup
 .\check-versions.ps1         # lists every stack's pinned image versions
+
+# Optional: also push backups off-site (unset = local-only, unchanged)
+.\backup.ps1 -Action backup -ResticRepository "s3:s3.us-west-002.backblazeb2.com/mybucket" -ResticPassword "..."
+.\backup.ps1 -Action offsite-snapshots -ResticRepository "..." -ResticPassword "..."
 ```

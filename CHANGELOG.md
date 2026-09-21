@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.1.2 - Add off-site backup via Restic to backup.ps1 (2026-09-21)
+
+Extends `_scripts/backup.ps1` rather than adding a new script or
+container: `-Action backup` now also pushes the just-created local
+backup off-site via Restic (run through `docker run`, same pattern this
+script already uses for volume backups) whenever `-ResticRepository` and
+`-ResticPassword` are both supplied - unset (the default) means exactly
+the same local-only behavior as before this existed. Two new actions,
+`offsite-snapshots` and `offsite-check`, list off-site snapshots and
+verify repository integrity on demand.
+
+`RESTIC_REPOSITORY` can be any backend Restic supports (S3, B2, SFTP,
+etc.) - backend-specific credentials (`B2_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID`,
+etc.) are read from the invoking process's own environment rather than
+added as script parameters, since which ones are needed depends entirely
+on the backend chosen. No off-site account was available to test
+against, so this was live-verified against a temporary local REST
+server standing in for a real S3/B2 endpoint - the exact same code path
+a real backend would use (network-accessible repository, no special
+local-path handling), just pointed at a throwaway target. Confirmed:
+first run detects an uninitialized repository and runs `restic init`
+automatically, `restic backup` succeeds and tags the snapshot with the
+local backup's name, a second run correctly skips re-init, and both new
+actions list/verify correctly.
+
+Two real bugs caught by that live test, not written blind:
+- `Invoke-Restic` returned `$LASTEXITCODE` explicitly, putting it into
+  the same output stream as restic's own passthrough text - harmless
+  for callers that pipe to `Out-Null` and check the ambient
+  `$LASTEXITCODE` themselves, but `offsite-snapshots` (whose entire job
+  is showing restic's real output) printed a stray trailing `0` after
+  the snapshot table. No caller actually used the returned value - all
+  of them already checked `$LASTEXITCODE` directly - so the return was
+  dead code causing its own bug. Removed.
+- That same bug initially manifested as `offsite-snapshots` printing
+  nothing at all, from an over-correction (`| Out-Null`) that suppressed
+  restic's real output along with the exit code. Fixed by removing the
+  cause instead of routing around it.
+
+Suppresses `PSAvoidUsingPlainTextForPassword` for `-ResticPassword`
+specifically (not the whole rule) - it's passed straight through to
+`docker run -e` as a plain env var regardless, so a `SecureString` would
+just add friction with no real security benefit here, consistent with
+every other credential in this repo.
+
 ## 1.1.1 - Add Homepage: single dashboard for every service (2026-09-21)
 
 New `dashboard/` stack: [Homepage](https://github.com/gethomepage/homepage),
