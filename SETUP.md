@@ -95,12 +95,19 @@ always generated regardless - see TROUBLESHOOTING.md for why those two
 needed adding), and writes a correct `.env` file into every stack
 directory that's actually being set up.
 
-It also writes `credentials-export.csv` in the repo root - every login,
+It also writes `credentials-export.json` in the repo root - every login,
 token, and internal database password it just generated or collected, in
-one CSV. Both Vaultwarden and Proton Pass accept this directly (Import ->
-Bitwarden (csv) in either one) - import it, confirm everything landed,
-then **delete the file**. It's plaintext and gitignored, but not something
-that should sit on disk longer than it takes to import once.
+Bitwarden's JSON export format, with every login's site URL included so it
+autofills immediately (a shared login used across several subdomains,
+like the Arr stack's, lists all of them). Import it as **Bitwarden**:
+in Vaultwarden, Tools -> Import Data -> Bitwarden (json); in Proton Pass,
+Settings -> Import -> Bitwarden -> select this file. **Not CSV** - Proton
+Pass's Bitwarden importer only accepts JSON/ZIP, and its generic CSV
+importer doesn't know what a `login_username`/`login_password` column
+means, so a CSV import there silently drops every password (confirmed
+live). Once imported and confirmed, **delete the file** - it's plaintext
+and gitignored, but not something that should sit on disk longer than it
+takes to import once.
 
 The last step (review & write) also has a checkbox, **unchecked by
 default**, to run steps 3-5 below (`setup-directories.ps1`, `deploy.ps1
