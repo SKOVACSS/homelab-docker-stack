@@ -344,6 +344,45 @@ services:
           cpus: '2.0'
           memory: 1.5G
 
+  # Seerr - lets family/friends browse and request movies/shows themselves
+  # instead of asking you directly. Successor to Overseerr (archived by its
+  # own maintainers) and Jellyseerr (merged into this project) - the only
+  # one of the three still actively maintained, and the only one that
+  # supports both Plex AND Jellyfin as a backend, which matters since this
+  # stack runs both. Talks to Sonarr/Radarr on media-network to actually
+  # add approved requests, and to Plex/Jellyfin (both on caddy-network) to
+  # import their logins so family members don't need yet another password.
+  # Sonarr/Radarr connections, Plex/Jellyfin sign-in, per-user approval
+  # policy, and Gotify notifications are all first-run/admin-UI setup, not
+  # env vars - see SETUP.md.
+  seerr:
+    image: ghcr.io/seerr-team/seerr:v3.4.1
+    restart: unless-stopped
+    container_name: seerr
+    volumes:
+      - seerr-config:/app/config
+    environment:
+      - TZ=${TZ:-UTC}
+      - LOG_LEVEL=info
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5055/api/v1/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
 volumes:
   gluetun:
     driver: local
@@ -356,6 +395,8 @@ volumes:
   prowlarr-config:
     driver: local
   lidarr-config:
+    driver: local
+  seerr-config:
     driver: local
   plex-config:
     driver: local

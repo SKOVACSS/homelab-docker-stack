@@ -101,6 +101,15 @@ qbit.{$DOMAIN} {
   }
 }
 
+# Seerr - lets family/friends request movies/shows without asking directly
+requests.{$DOMAIN} {
+  import security_headers
+  import rate_limit requests
+  reverse_proxy seerr:5055 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # ========== MEDIA SERVERS ==========
 
 # Plex - Commercial media server
