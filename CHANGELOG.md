@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.2.2 - Fix Mailu admin bootstrap, dead Postgres container, GUI installer cleanup (2026-09-21)
+
+Reviewed `_scripts/gui-installer.ps1` end to end (unmodified since before the
+Mailu rebuild, Diun, Homepage, Restic, and Pi-hole all landed) to check that
+what it generates still actually matches every stack's `.env` requirements.
+The installer itself was fine on that front - Pi-hole and dashboard `.env`
+blocks were both already present and correct. Found three real, unrelated
+bugs while verifying the Mailu credentials it writes actually produce a
+working admin login, each confirmed live rather than by inspection alone:
+
+**Mailu's initial-admin account was never actually being created.** The
+bootstrap variable name was `INITIAL_ADMIN_PASSWORD` - not a real Mailu
+config key (the correct name is `INITIAL_ADMIN_PW`) - and `INITIAL_ADMIN_DOMAIN`
+was missing entirely (required to build the `admin@domain` address). Also
+removed `MAIL_ADMIN=admin`, which was never a real Mailu variable either.
+Added `INITIAL_ADMIN_MODE=update` per Mailu's own docs, so this doesn't
+error out the next time the stack restarts. Confirmed live: before the fix,
+admin's logs never mentioned account creation; after, `created admin user`
+appears on every boot.
+
+**The `mailu-database` Postgres container has been dead weight this whole
+time.** It was wired up via `DATABASE_URL`, which is not a real Mailu
+config variable (the actual key is `SQLALCHEMY_DATABASE_URI`) - so admin
+had silently been running on its own default SQLite database
+(`sqlite:////data/main.db`, inside the already-mounted `mailu-data` volume)
+regardless, confirmed live via the migration log reporting `SQLiteImpl`.
+Rather than fix the variable name, removed the Postgres container, its
+volume, and `MAILU_DB_PASSWORD` entirely - Mailu's own docs recommend
+against bothering with an external database for admin specifically because
+there's so little data to store that SQLite is "sufficient, simpler and
+more reliable." One less service, one less secret, one less thing that can
+break, and it matches upstream's own recommended default rather than
+fighting it.
+
+**Mailu admin's healthcheck could never pass.** It curled `/`, which
+404s unconditionally - not a bug introduced by anything in this repo, just
+never actually verified end-to-end before now. The real app lives at
+`/admin/` (redirects to `/sso/login`, which returns 200 without needing
+auth first). Confirmed live: the container sat at `starting` indefinitely
+under the old healthcheck and reached `healthy` within one interval under
+the new one. This one mattered beyond cosmetics - `health-check.ps1` and
+its Gotify alerting depend on this signal being real.
+
+**`_scripts/gui-installer.ps1` cleanup**: removed two leftover `Write-Host
+"DEBUG: ..."` lines that shouldn't have shipped, removed the unnecessary
+`#Requires -RunAsAdministrator` (the script only writes plain-text `.env`
+files inside the repo directory itself - nothing it does needs elevation,
+and the requirement was pure UAC-prompt friction), and fixed the review
+screen's hardcoded secret count, which had already drifted to "20" when
+Pi-hole's password brought the real count to 21 in 1.2.0 - now correctly
+20 again after removing `MailuDbPassword` from the generated set.
+
 ## 1.2.1 - Fix Homepage dashboard: missing container names, missing tiles (2026-09-21)
 
 Post-implementation GUI audit of the Homepage dashboard added in 1.1.1,
