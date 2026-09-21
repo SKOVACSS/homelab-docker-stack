@@ -11,14 +11,14 @@ had been fully configured (schedule, cleanup, notification wiring) but
 was completely inert - nothing was ever eligible to update. Same class
 of bug as the Telegraf crash-loop: looked configured, never exercised.
 
-**Decision:** auto-update everything, deliberately excepting Gotify.
-Flipped every `enable=false` label to `true` except:
-- **Gotify** - set to `enable=true` + `monitor-only=true`. It's watched
-  and Watchtower will notify when an update is available, but never
-  auto-applies one. It's the notification channel every other alert in
-  this stack (backups, health checks, Watchtower itself) depends on, so
-  its own updates stay a deliberate, manual action rather than risking
-  that channel going dark silently mid-auto-update.
+**Decision:** auto-update everything. Flipped every `enable=false` label
+to `true`, including Gotify - initially carved out as `monitor-only`
+(notified, never auto-applied) since it's the notification channel every
+other alert in this stack depends on, but revisited: Gotify is small,
+mature, single-binary software with a conservative release history and
+no pattern of breaking changes, so the realistic failure risk is low.
+Folded in as a deliberate call made with that blast-radius tradeoff
+explicit, not because the risk was reassessed as zero.
 - **Caddy** - left `false`. It's a local build (`build: .`), not pulled
   from a registry, so there's no upstream tag for Watchtower to check;
   enabling it would be a no-op that only adds log noise.
