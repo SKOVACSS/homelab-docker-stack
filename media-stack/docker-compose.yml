@@ -73,7 +73,13 @@ services:
       # qBittorrent's WebUI - see caddy/Caddyfile's qbit.{$DOMAIN} block.
       - caddy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/openvpn/status"]
+      # Not curl: this image doesn't ship it (confirmed live - "curl:
+      # executable file not found in $PATH"), which silently made this
+      # healthcheck report "unhealthy" forever regardless of the VPN
+      # actually working. gluetun's own entrypoint ships a dedicated
+      # healthcheck subcommand instead of depending on whatever HTTP
+      # client happens to be bundled in a given image version.
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 5
