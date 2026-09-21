@@ -778,6 +778,11 @@ DB_USERNAME=postgres
 DB_DATABASE_NAME=immich
 "@
     $immichEnv | Out-File "$appRoot\immich-app\.env" -Encoding UTF8 -Force
+
+    $dashboardEnv = @"
+DOMAIN=$d
+"@
+    $dashboardEnv | Out-File "$appRoot\dashboard\.env" -Encoding UTF8 -Force
 }
 
 $form = Create-Form

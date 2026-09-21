@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.1 - Add Homepage: single dashboard for every service (2026-09-21)
+
+New `dashboard/` stack: [Homepage](https://github.com/gethomepage/homepage),
+a single landing page linking to every service in this repo instead of
+bookmarking ~40 separate URLs. Config lives in `dashboard/config/`
+(`services.yaml`, `settings.yaml`, `docker.yaml`) as plain files checked
+into git, matching this repo's config-as-code pattern - not something
+edited through a UI. Several tiles use the Docker socket (read-only) for
+live container status; the rest are plain links.
+
+Service links use Homepage's `{{HOMEPAGE_VAR_DOMAIN}}` templating (backed
+by `HOMEPAGE_VAR_DOMAIN` in `dashboard/.env`) rather than a hardcoded
+domain, so the same config works regardless of what domain this was
+actually installed with.
+
+New route: `home.{$DOMAIN}` in `caddy/Caddyfile`.
+
+Added `dashboard` to every place this repo tracks its stack list by hand
+(`_scripts/validate-stacks.sh`, `_scripts/health-check.ps1`,
+`_scripts/deploy.ps1`, `_scripts/gui-installer.ps1`, `.env.example`) -
+none of these auto-discover stacks the way `check-versions.ps1` does.
+
+Live-tested with the real config files mounted: confirmed via Homepage's
+own `/api/services` endpoint that `services.yaml` parses correctly and
+the `{{HOMEPAGE_VAR_DOMAIN}}` substitution resolves as expected.
+
 ## 1.1.0 - Add Diun: notify about new image tags Watchtower won't catch (2026-09-21)
 
 Adds `diun` to `utilities/docker-compose.yml`. Complements Watchtower
