@@ -733,7 +733,7 @@ function Show-Step5 {
     $reviewBox.Top = 100
     $reviewBox.Left = 20
     $reviewBox.Width = 600
-    $reviewBox.Height = 280
+    $reviewBox.Height = 250
     $reviewBox.Font = New-Object System.Drawing.Font("Consolas", 9)
 
     $emailStatusText = if (-not $script:data.SetupEmail) {
@@ -778,6 +778,32 @@ Click "Create .env Files" to proceed
 "@
     $script:form.Controls.Add($reviewBox)
 
+    # Auto-deploy checkbox - unchecked by default. This runs real,
+    # consequential actions (creates host directories, pulls/builds Docker
+    # images, starts every configured stack with real credentials), so it
+    # stays opt-in rather than happening silently just because you clicked
+    # "Create .env Files" - same reasoning as the email setup checkbox in
+    # step 1.
+    $script:autoDeployCheckbox = New-Object System.Windows.Forms.CheckBox
+    $script:autoDeployCheckbox.Text = "Also run setup-directories.ps1, deploy.ps1, and health-check.ps1 now"
+    $script:autoDeployCheckbox.Top = 360
+    $script:autoDeployCheckbox.Left = 20
+    $script:autoDeployCheckbox.Width = 560
+    $script:autoDeployCheckbox.Height = 24
+    $script:autoDeployCheckbox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:autoDeployCheckbox.Checked = $false
+    $script:form.Controls.Add($script:autoDeployCheckbox)
+
+    $autoDeployInfoLabel = New-Object System.Windows.Forms.Label
+    $autoDeployInfoLabel.Text = "Docker Desktop must already be running. Output prints in the PowerShell window this wizard was launched from - the first deploy takes a few minutes (builds a custom Caddy image), plus a short wait before checking health so containers have time to finish starting. Leave unchecked to review the .env files first and run those scripts yourself."
+    $autoDeployInfoLabel.Top = 384
+    $autoDeployInfoLabel.Left = 20
+    $autoDeployInfoLabel.Width = 600
+    $autoDeployInfoLabel.Height = 55
+    $autoDeployInfoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
+    $autoDeployInfoLabel.ForeColor = [System.Drawing.Color]::Gray
+    $script:form.Controls.Add($autoDeployInfoLabel)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -802,7 +828,64 @@ Click "Create .env Files" to proceed
         Create-EnvFiles
         $credPath = Export-Credentials
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
-        Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.$emailReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
+        $credReminder = "`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk."
+
+        if ($script:autoDeployCheckbox.Checked) {
+            # Runs on this same UI thread - the wizard window won't repaint
+            # until these finish, same tradeoff Step 4's password generation
+            # already makes for its own Docker calls. Their Write-Host
+            # output goes to the console this wizard was launched from,
+            # not this window, since neither script's output is designed
+            # to be captured (deploy.ps1 also prints color-coded progress
+            # that only makes sense as live console output).
+            $createBtn.Enabled = $false
+            $createBtn.Text = "Working..."
+            $script:autoDeployCheckbox.Enabled = $false
+            $script:form.Refresh()
+
+            $deployFailed = $false
+            $deployErrorDetail = ""
+            $healthResultText = ""
+            try {
+                & "$appRoot\_scripts\setup-directories.ps1"
+                & "$appRoot\_scripts\deploy.ps1" -Action deploy
+                if ($LASTEXITCODE -ne 0) {
+                    $deployFailed = $true
+                    $deployErrorDetail = "deploy.ps1 exited with code $LASTEXITCODE - see the console window for which stack failed."
+                } else {
+                    # Most stacks deploy without waiting for a healthy state
+                    # (see deploy.ps1's Deploy-Stack) - a short pause here
+                    # before checking gives slower-starting containers
+                    # (database init, first-run migrations, etc.) a chance
+                    # to actually get there instead of reporting a false
+                    # "unhealthy"/"starting" a few seconds after they began.
+                    $createBtn.Text = "Waiting before health check..."
+                    $script:form.Refresh()
+                    Start-Sleep -Seconds 20
+
+                    $createBtn.Text = "Checking health..."
+                    $script:form.Refresh()
+                    & "$appRoot\_scripts\health-check.ps1"
+                    $healthResultText = if ($LASTEXITCODE -eq 0) {
+                        "`n`nhealth-check.ps1: ✓ everything reported healthy."
+                    } else {
+                        "`n`nhealth-check.ps1 flagged something not yet healthy - see the console window for which service. Often just needs another minute or two (first-run database migrations, etc.) - re-run .\health-check.ps1 to check again."
+                    }
+                }
+            } catch {
+                $deployFailed = $true
+                $deployErrorDetail = "$_"
+            }
+
+            if ($deployFailed) {
+                Show-Error "The .env files were created fine, but deployment hit a problem:`n`n$deployErrorDetail`n`nFix the issue (check the console window this wizard was launched from for details), then run:`n.\deploy.ps1 -Action deploy`nyourself once it's resolved.$credReminder"
+            } else {
+                Show-Success "Success!`n`nAll .env files created, host directories set up, and every configured stack deployed.$healthResultText$emailReminder$credReminder"
+            }
+        } else {
+            Show-Success "Success!`n`nAll .env files created.$emailReminder$credReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
+        }
+
         $script:form.Close()
     })
     $script:form.Controls.Add($createBtn)

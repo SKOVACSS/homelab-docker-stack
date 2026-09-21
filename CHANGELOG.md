@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.6.3 - Let the wizard deploy and health-check itself (2026-09-21)
+
+Added an unchecked-by-default checkbox to the wizard's final step:
+"Also run setup-directories.ps1, deploy.ps1, and health-check.ps1 now".
+Previously the wizard only ever wrote `.env` files and told you to run
+those three commands yourself.
+
+Left unchecked, nothing changes. Checked, after writing the `.env` files
+it also creates the host directories, deploys every configured stack in
+order, waits 20 seconds for slower-starting containers (database
+init, first-run migrations) to settle, then runs a health check - all
+three via a direct call to the real scripts, so their own output (color-
+coded progress, per-stack status) prints to the console the wizard was
+launched from exactly as if you'd run them by hand. A failed deploy is
+reported without running the health check or claiming success, and
+points at the console for which stack failed.
+
+Left unchecked deliberately: this runs real, consequential actions
+(pulls/builds Docker images, starts every stack with real credentials),
+so it stays opt-in the same way the email-server checkbox is, rather
+than happening automatically just because you clicked "Create .env
+Files".
+
 ## 1.6.2 - Make the Plex Claim Token field optional (2026-09-21)
 
 The wizard's step 3 required a Plex claim token before letting you

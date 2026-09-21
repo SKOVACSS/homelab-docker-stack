@@ -102,6 +102,14 @@ Bitwarden (csv) in either one) - import it, confirm everything landed,
 then **delete the file**. It's plaintext and gitignored, but not something
 that should sit on disk longer than it takes to import once.
 
+The last step (review & write) also has a checkbox, **unchecked by
+default**, to run steps 3-5 below (`setup-directories.ps1`, `deploy.ps1
+-Action deploy`, `health-check.ps1`) itself right after writing the `.env`
+files - Docker Desktop needs to already be running for that. Their output
+prints to the PowerShell console the wizard was launched from, not the
+wizard window itself. Leave it unchecked to review the generated `.env`
+files first and run those three yourself instead.
+
 Don't want to use the wizard? Every stack's `.env` file is plain text -
 open any of them and edit directly. Just keep the variable *names* as they
 are; the compose files reference them by name.
