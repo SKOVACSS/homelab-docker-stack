@@ -80,7 +80,11 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
     healthcheck:
-      test: ["CMD", "test", "-f", "/config/wg0.conf"]
+      # Not /config/wg0.conf: this image actually writes it to
+      # /config/wg_confs/wg0.conf (confirmed live) - the old path never
+      # existed, so this reported "unhealthy" forever regardless of
+      # WireGuard actually working.
+      test: ["CMD", "test", "-f", "/config/wg_confs/wg0.conf"]
       interval: 30s
       timeout: 5s
       retries: 3

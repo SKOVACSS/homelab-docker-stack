@@ -1,5 +1,52 @@
 # Changelog
 
+## 1.6.7 - Fix nine more broken healthchecks found by an actual full deploy (2026-09-21)
+
+After fixing gluetun's healthcheck (1.6.5), audited every other container
+reporting "unhealthy" across a real, fully-deployed homelab instead of
+assuming they were fine. Found the same underlying pattern repeatedly:
+a healthcheck written against an assumption about the image (it has
+curl/wget, `localhost` means what you think, the file is where you'd
+guess) that didn't hold for the actual pinned image version. None of
+these were caught by `docker compose config` or CI, which can't run a
+container to find out - only an actual deploy surfaces them:
+
+- **authentik-server**: image doesn't ship `wget`. Switched to
+  authentik's own `/lifecycle/ak healthcheck` subcommand.
+- **caddy**: `/health` doesn't exist on Caddy's admin API (404) - `/config/`
+  does, but echoes back the *entire live config including the Cloudflare
+  API token and every basic-auth hash*. Fixed to hit `/config/` with
+  `-o /dev/null` so curl never prints that body anywhere (including into
+  Docker's own healthcheck log) - confirmed by deliberately fetching it
+  once to find the right endpoint, then locking down how it's checked
+  from then on. Also fixed to use the correct endpoint after the fact.
+  (If a Cloudflare token you use with this repo may have been printed to
+  an untrusted console/log while diagnosing this, rotate it as a
+  precaution.)
+- **nextcloud-db**: `mysqladmin` doesn't exist in this MariaDB image
+  (renamed/removed upstream). Switched to the image's own bundled
+  `healthcheck.sh --connect`.
+- **trilium**: image doesn't ship `curl`, and `localhost` resolves to
+  `::1` in the container while Trilium only binds `0.0.0.0` (IPv4) -
+  "Connection refused" forever. Switched to `wget` against `127.0.0.1`.
+- **prometheus**: image doesn't ship `curl`. Switched to `wget` (bundled)
+  against `127.0.0.1` (same IPv6 trap as trilium, avoided pre-emptively).
+- **wireguard**: healthcheck checked `/config/wg0.conf`, but this image
+  actually writes it to `/config/wg_confs/wg0.conf` - the checked path
+  never existed. Fixed the path.
+- **focalboard, portainer, loki**: none of these three images ship a
+  shell, curl, wget, *or* busybox - there is no executable left inside
+  them capable of running any Docker healthcheck at all. Disabled their
+  healthchecks explicitly rather than leave a check that can only ever
+  fail; Docker's own "is the container running" state is the only signal
+  actually available for these three.
+
+Every fix was confirmed live: reproduced the original failure inside the
+running container first, then confirmed the replacement command actually
+exits 0 before touching the compose file, then redeployed each affected
+service and confirmed it reports `healthy` (or cleanly `Up` for the three
+that no longer have a check at all).
+
 ## 1.6.6 - Document the stale-database-password gotcha (2026-09-21)
 
 Hit live: `immich_server` crash-looped with `password authentication
