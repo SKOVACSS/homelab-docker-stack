@@ -44,7 +44,7 @@ function Send-GotifyNotification {
 }
 
 # Configuration
-$stacks = @("authentik", "caddy", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard")
+$stacks = @("authentik", "caddy", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard", "dns-stack")
 $results = @{
     Healthy = @()
     Unhealthy = @()

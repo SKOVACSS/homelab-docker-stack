@@ -30,7 +30,7 @@ param(
 )
 
 $appRoot = Split-Path -Parent $PSScriptRoot
-$stacks = @("caddy", "authentik", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard")
+$stacks = @("caddy", "authentik", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard", "dns-stack")
 
 function Write-Status {
     param([string]$Message, [string]$Type = "info")
