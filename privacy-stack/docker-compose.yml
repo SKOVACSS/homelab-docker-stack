@@ -53,10 +53,28 @@ services:
           memory: 512M
 
   # ========== FILE SYNC (Replace Dropbox/Google Drive) ==========
+  # A brand new named volume is always created owned by root, but this
+  # image's entrypoint only chowns its own $HOME (not a separately
+  # mounted subdirectory like config below) before dropping to PUID/PGID
+  # (1000:1000 by default) - so on a fresh volume, syncthing crash-loops
+  # forever on "chmod: operation not permitted" / "permission denied"
+  # opening its lock file, confirmed live. This one-shot container fixes
+  # ownership before syncthing ever starts, so a fresh deploy just works.
+  syncthing-permissions-fix:
+    image: alpine:3.22
+    container_name: syncthing-permissions-fix
+    command: chown -R 1000:1000 /var/syncthing/config
+    volumes:
+      - syncthing-config:/var/syncthing/config
+    restart: "no"
+
   syncthing:
     image: syncthing/syncthing:2.1.5
     restart: unless-stopped
     container_name: syncthing
+    depends_on:
+      syncthing-permissions-fix:
+        condition: service_completed_successfully
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     ports:
@@ -150,7 +168,12 @@ services:
     networks:
       - privacy-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      # Not mysqladmin: this MariaDB image doesn't ship it (renamed/removed
+      # upstream) - confirmed live ("executable file not found in $PATH"),
+      # which silently made this healthcheck report "unhealthy" forever
+      # regardless of the database actually working. healthcheck.sh is the
+      # image's own bundled, documented replacement.
+      test: ["CMD", "healthcheck.sh", "--connect"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -272,7 +295,14 @@ services:
     # for Wallabag's default-login issue, which this is unrelated to).
     volumes:
       - wallabag-data:/var/www/wallabag/web/uploads
-      - wallabag-cache:/var/www/wallabag/var/cache
+      # Deliberately NOT a persistent volume: wallabag's own entrypoint
+      # unconditionally runs `rm -f -r /var/www/wallabag/var/cache` on
+      # every single startup regardless, so persisting it across restarts
+      # has no benefit - and actively breaks startup, since `rm` can't
+      # remove a directory that's itself a volume mount point ("Resource
+      # busy"), which combined with the entrypoint's `set -e` made this
+      # container crash-loop forever. Confirmed live against the actual
+      # entrypoint script. Left as the image's own ephemeral layer instead.
     environment:
       - SYMFONY__ENV__DATABASE_HOST=wallabag-db
       - SYMFONY__ENV__DATABASE_PORT=5432
@@ -349,7 +379,11 @@ services:
       - privacy-network
       - caddy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      # Not curl (this image doesn't ship it) and not "localhost" (resolves
+      # to ::1 in this container, which nothing listens on - Trilium only
+      # binds 0.0.0.0:8080/IPv4, so that combination silently
+      # "Connection refused"d forever) - both confirmed live.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -379,10 +413,12 @@ services:
       - privacy-network
       - caddy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      # No healthcheck: this image ships no shell, curl, wget, or busybox
+      # at all (confirmed live) - there is no executable left to run one
+      # with. Docker's own container-running state (no crash-loop) is the
+      # only signal available; rely on that instead of a perpetually
+      # "unhealthy" false negative.
+      disable: true
     deploy:
       resources:
         limits:
@@ -518,8 +554,6 @@ volumes:
 
   # Wallabag
   wallabag-data:
-    driver: local
-  wallabag-cache:
     driver: local
   wallabag-postgres:
     driver: local

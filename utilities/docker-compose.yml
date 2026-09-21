@@ -38,10 +38,13 @@ services:
     # you open portainer.DOMAIN - Portainer prompts for this automatically
     # and locks the setup page after the first account is created.
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      # No healthcheck: this image ships no shell, curl, or wget at all
+      # (confirmed live - "exec: \"curl\": executable file not found") -
+      # Portainer's own image has been effectively distroless for a while
+      # now. Docker's own container-running state (no crash-loop) is the
+      # only signal available; rely on that instead of a perpetually
+      # "unhealthy" false negative.
+      disable: true
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
@@ -72,8 +75,17 @@ services:
       # Off by default. To get a Gotify notification whenever Watchtower
       # updates something: create an Application in Gotify's web UI, then
       # set GOTIFY_TOKEN in this stack's .env (see .env.example) - that
-      # alone flips these on via the defaults below.
-      - WATCHTOWER_NOTIFICATIONS=${WATCHTOWER_NOTIFICATIONS:-off}
+      # alone is enough, since WATCHTOWER_NOTIFICATION_URL's presence is
+      # what turns notifications on, not a separate toggle.
+      #
+      # Deliberately no WATCHTOWER_NOTIFICATIONS here: that flag is
+      # deprecated and only accepts a fixed set of legacy type names
+      # (email/slack/msteams/gotify) - "off" is not one of them and made
+      # this container fatally exit on every single startup ("Unknown
+      # notification type ... type=off"), confirmed live. Leaving it unset
+      # entirely (not even blank) is the actual "notifications off" state;
+      # WATCHTOWER_NOTIFICATION_URL alone correctly auto-detects the
+      # gotify:// scheme when GOTIFY_TOKEN is set, confirmed live too.
       - WATCHTOWER_NOTIFICATION_URL=gotify://gotify:80/${GOTIFY_TOKEN:-}?disabletls=yes
       # Only update images with these labels
       - WATCHTOWER_LABEL_ENABLE=true
@@ -224,10 +236,14 @@ services:
     networks:
       - utilities
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3100/loki/api/v1/status"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      # No healthcheck: this image ships no shell, curl, or wget at all
+      # (confirmed live - "exec: \"curl\": executable file not found") -
+      # its own `loki` binary works fine when invoked directly (e.g.
+      # `loki -version`), but has no self-check subcommand to exec as a
+      # healthcheck either. Docker's own container-running state (no
+      # crash-loop) is the only signal available; rely on that instead of
+      # a perpetually "unhealthy" false negative.
+      disable: true
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
@@ -289,7 +305,12 @@ services:
     networks:
       - utilities
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      # Not curl (this image doesn't ship it, confirmed live) and not
+      # "localhost" (resolves to ::1 in some of these minimal images,
+      # which nothing listens on - seen with the same pattern elsewhere in
+      # this repo) - wget is bundled here, and 127.0.0.1 avoids the IPv6
+      # trap regardless of whether it'd actually bite on this image.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
       interval: 30s
       timeout: 5s
       retries: 3
