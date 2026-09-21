@@ -1,5 +1,48 @@
 # Troubleshooting & Known Limitations
 
+## Cloudflare Tunnel: certificates, Plex relay, and the wildcard dashboard warning
+
+This repo's remote-access model changed from "port-forward 80/443 to
+Caddy" to "Cloudflare Tunnel, no ports forwarded at all" - see SETUP.md
+step 1. A few things specific to that setup that couldn't be verified
+without a real Cloudflare account and domain:
+
+- **Caddy won't issue any certificate at all if `CLOUDFLARE_API_TOKEN` is
+  wrong or under-scoped.** Check `docker compose -f caddy/docker-compose.yml
+  logs caddy` for `dns.providers.cloudflare` errors - the most common cause
+  is a token that isn't scoped to "Edit zone DNS" for the right zone, or a
+  token that's expired.
+- **The wildcard Public Hostname rule (`*.yourdomain.com`) sometimes shows
+  a red/warning indicator in the Cloudflare dashboard.** Multiple reports
+  in Cloudflare's own community forums describe this as a display quirk
+  of the dashboard, not a functional failure - the rule still works. If
+  subdomains genuinely aren't resolving, check the actual DNS record
+  Cloudflare created for it (should be a CNAME to
+  `<tunnel-id>.cfargotunnel.com`) rather than trusting the warning icon.
+- **"No TLS Verify" on the wildcard rule is intentional, not a mistake.**
+  Cloudflare Tunnel can't pre-validate a certificate against a wildcard
+  target that actually serves a different real certificate per hostname
+  (that's Caddy's job). The hop this affects is only cloudflared-to-Caddy,
+  which happens inside the tunnel's own encrypted connection anyway - the
+  browser-to-Cloudflare hop is unaffected and fully verified as normal.
+- **Plex still using relay instead of a direct connection?** Confirm
+  Settings -> Network -> Custom server access URLs is actually saved as
+  `https://plex.yourdomain.com:443` (must include the port), and that
+  Settings -> Network -> "Relay" isn't forced on. This is a per-server
+  setting Plex broadcasts to every client (phone, web, smart TVs) via
+  plex.tv, so it only needs to be set once, not per device.
+- **Mailu's own certificate needs its own Public Hostname rule.**
+  `mail.yourdomain.com` is deliberately excluded from the wildcard rule
+  (see SETUP.md step 1.3) because Caddy serves it over plain HTTP
+  specifically so Mailu's own Let's Encrypt client can complete its
+  challenge - if that rule is missing, `mailu-front`'s certificate will
+  never renew. Check `docker logs mailu-front` for certbot output.
+- **Very high-bitrate 4K remux Plex streams are the one case with mixed
+  reports** of stalling/buffering through Cloudflare's edge. Ordinary 4K
+  or 1080p direct play/transcode is consistently reported as fine. If this
+  turns out to matter in practice, WireGuard (already in `security-stack/`)
+  remains available as a direct alternative for that specific device/use.
+
 ## Pi-hole: port 53 already in use on native Linux
 
 `dns-stack/`'s `pihole` service publishes host port 53 (UDP/TCP) - real
@@ -89,6 +132,22 @@ What this means in practice:
 mail delivery regardless of how Mailu is configured. If mail doesn't send,
 check that first - the fix is a smart-host relay (e.g. SendGrid, AWS SES),
 not anything in this repo.
+
+**If you're behind CGNAT (Starlink, many mobile carriers) - a bigger
+problem: receiving mail from the outside world doesn't work at all, and
+there is no fix within this repo.** Cloudflare Tunnel (see SETUP.md step 1)
+solves remote access for every *HTTP(S)* service in this stack, but its
+free tier only proxies HTTP(S) traffic (and private WARP-routed TCP for
+your own enrolled devices) - it cannot accept arbitrary inbound SMTP
+connections from random mail servers on the internet trying to deliver you
+mail. That needs either a real public IP (not available under CGNAT) or
+Cloudflare Spectrum, a separate paid product for raw TCP/UDP proxying.
+Realistic options if this matters: run `email-stack/` for outbound
+sending (via a smart-host relay) and webmail/internal use only, and keep a
+regular hosted provider (Gmail, Proton, Fastmail, etc.) as your actual
+address for receiving mail from the outside world - or ask your ISP about
+a non-CGNAT plan / static IP add-on if owning your inbound mail matters
+enough to you.
 
 ## One Grafana, two stacks
 

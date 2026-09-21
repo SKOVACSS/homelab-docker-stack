@@ -2,6 +2,10 @@ services:
   caddy:
     build: .
     restart: unless-stopped
+    # Kept for LAN-direct access (faster than round-tripping through
+    # Cloudflare when you're already on the home network) - not required
+    # for remote access, which goes through cloudflared below instead.
+    # Safe to remove if you never need to reach anything by local IP.
     ports:
       - "80:80"
       - "443:443"
@@ -11,11 +15,13 @@ services:
       - caddy-config:/config
     environment:
       ACME_EMAIL: ${ACME_EMAIL}
-      # DOMAIN and QBIT_PORT are read directly by the Caddyfile (via {$VAR}
-      # substitution at config-load time), not by docker compose variable
-      # interpolation, so they must be passed through here explicitly.
+      # DOMAIN, QBIT_PORT and CLOUDFLARE_API_TOKEN are read directly by the
+      # Caddyfile (via {$VAR} substitution at config-load time), not by
+      # docker compose variable interpolation, so they must be passed
+      # through here explicitly.
       DOMAIN: ${DOMAIN}
       QBIT_PORT: ${QBIT_PORT}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
     networks:
       - caddy-network
     healthcheck:
@@ -37,6 +43,39 @@ services:
         reservations:
           cpus: '0.25'
           memory: 256M
+
+  # cloudflared - the actual answer to "server is behind Starlink's CGNAT":
+  # makes an outbound-only connection to Cloudflare's network, so nothing
+  # needs to be port-forwarded (impossible under CGNAT anyway, since you
+  # don't control a real public IP to forward to). Uses a *token-based*
+  # (remotely-managed) tunnel deliberately, not a local config.yml +
+  # credentials.json - the ingress rules live in the Cloudflare dashboard
+  # instead of a file this repo would have to template per-deployment,
+  # and the only secret this needs is one token, matching how every other
+  # user-obtained credential in this repo (Plex claim token, ProtonVPN
+  # password) already works. See SETUP.md for the one-time tunnel setup:
+  # creating the tunnel, getting this token, and the two Public Hostname
+  # rules to add (a wildcard covering every service, plus one exception
+  # for Mailu's own certificate challenge).
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    restart: unless-stopped
+    container_name: cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
 volumes:
   caddy-data:
