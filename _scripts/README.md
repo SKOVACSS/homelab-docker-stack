@@ -40,6 +40,13 @@ Also writes `credentials-export.csv` (repo root, gitignored) - every
 credential above in Bitwarden's CSV import format, ready to import into
 Vaultwarden or Proton Pass and then delete.
 
+The final step also has an unchecked-by-default checkbox to run
+`setup-directories.ps1`, `deploy.ps1 -Action deploy`, and
+`health-check.ps1` itself immediately after writing the `.env` files
+(Docker Desktop must already be running) - their output goes to the
+console the wizard was launched from, not the wizard window. Leave it
+unchecked to review the `.env` files and run those three by hand instead.
+
 You can also skip this and edit any stack's `.env` by hand - the variable
 *names* just need to match what that stack's `docker-compose.yml` reads.
 
