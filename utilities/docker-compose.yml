@@ -18,6 +18,7 @@ services:
   portainer:
     image: portainer/portainer-ce:2.45.1
     restart: unless-stopped
+    container_name: portainer
     ports:
       - "9001:9000"
       - "8001:8000"
@@ -55,6 +56,7 @@ services:
   watchtower:
     image: nickfedor/watchtower:1.22.2
     restart: unless-stopped
+    container_name: watchtower
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
@@ -95,6 +97,7 @@ services:
   diun:
     image: crazymax/diun:4.33.0
     restart: unless-stopped
+    container_name: diun
     command: serve
     volumes:
       - diun-data:/data
@@ -135,6 +138,7 @@ services:
   uptime-kuma:
     image: louislam/uptime-kuma:2.5.5
     restart: unless-stopped
+    container_name: uptime-kuma
     ports:
       - "3002:3001"
     volumes:
@@ -163,6 +167,7 @@ services:
   vaultwarden:
     image: vaultwarden/server:1.37.3
     restart: unless-stopped
+    container_name: vaultwarden
     ports:
       - "8077:80"
     volumes:
@@ -200,6 +205,7 @@ services:
   loki:
     image: grafana/loki:3.7.8
     restart: unless-stopped
+    container_name: loki
     ports:
       - "3100:3100"
     volumes:
@@ -234,6 +240,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.12.1
     restart: unless-stopped
+    container_name: node-exporter
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -260,6 +267,7 @@ services:
   prometheus:
     image: prom/prometheus:v3.14.0
     restart: unless-stopped
+    container_name: prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -293,6 +301,7 @@ services:
   grafana:
     image: grafana/grafana:13.2.2
     restart: unless-stopped
+    container_name: grafana
     ports:
       - "3000:3000"
     volumes:

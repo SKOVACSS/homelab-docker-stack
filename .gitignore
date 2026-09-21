@@ -13,6 +13,12 @@
 immich-app/library/
 immich-app/postgres/
 
+# Homepage bind-mounts ./config directly and writes these itself at
+# runtime (a sample kubernetes.yaml stub and its own log file) - not
+# checked-in config, just generated state that lands in the same folder.
+dashboard/config/kubernetes.yaml
+dashboard/config/logs/
+
 # Backups (these can be large and contain the same secrets as .env)
 _scripts/backups/
 
