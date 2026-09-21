@@ -1,5 +1,55 @@
 # Changelog
 
+## 1.2.1 - Fix Homepage dashboard: missing container names, missing tiles (2026-09-21)
+
+Post-implementation GUI audit of the Homepage dashboard added in 1.1.1,
+done before starting on remote-access work. Found and fixed:
+
+**Live status widgets were silently broken for ~20 services.**
+`media-stack`, `privacy-stack`, `authentik`, and `utilities` never set an
+explicit `container_name` on their services, so Docker Compose's default
+naming (`<project>-<service>-1`) meant the actual container names never
+matched the bare names `dashboard/config/services.yaml` references (e.g.
+`sonarr`, `nextcloud`, `authentik-server`). The link tiles still worked
+(hrefs don't depend on container name), but every live CPU/memory/status
+widget on those tiles had nothing to attach to. Fixed by adding an
+explicit `container_name` to every affected service, matching the name
+already used as its DNS hostname elsewhere in each stack (Caddyfile,
+inter-service env vars) - purely additive, no behavior change to
+networking. Confirmed live: brought up a subset of previously-unnamed
+containers (`vaultwarden`, `portainer`, `gotify`) after the fix and
+verified `docker ps` reports the bare names Homepage expects.
+
+**Immich's dashboard tile referenced the wrong container name** -
+`immich-server` (hyphen) in `services.yaml` vs. the real
+`immich_server` (underscore), Immich's own official-compose convention.
+Fixed the reference rather than renaming Immich's containers.
+
+**Two running services had no dashboard presence at all**: Pi-hole
+(added in 1.2.0) and Gotify. Added a Pi-hole tile under a new "Network"
+category, and added Gotify to the Authentication & Email category, plus
+a `gotify.{$DOMAIN}` Caddy route (security headers, rate limiting) so
+it's reachable the same way as every other admin UI in this repo.
+Removed Gotify's direct host port publish (`8765:80`) as part of that -
+it was the only admin UI in this stack bypassing Caddy's TLS/rate-
+limiting/security-header path via a raw published port, which
+SECURITY.md already documents as against this repo's policy ("only 80,
+443, and WireGuard's UDP port should ever be reachable from the
+internet"). No other script or doc referenced port 8765.
+
+Also added missing live-status `container:` references to Focalboard,
+Wallabag, Trilium, and Radicale tiles, which had links but no widget
+data despite the underlying containers already existing and being
+reachable.
+
+Live-tested: validated every stack's compose config
+(`_scripts/validate-stacks.sh`), rebuilt and syntax-validated the custom
+Caddy image against the updated Caddyfile (`caddy validate`, including
+the new `gotify.{$DOMAIN}` block), and brought up Homepage + Gotify +
+Vaultwarden + Portainer together to confirm the dashboard's
+`/api/services` endpoint parses the new "Network" section and Gotify
+tile correctly and that container names now match on the wire.
+
 ## 1.2.0 - Add Pi-hole: network-wide DNS ad/tracker blocking (2026-09-21)
 
 New `dns-stack/` stack: Pi-hole + a dedicated dnscrypt-proxy for

@@ -247,6 +247,21 @@ grafana.{$DOMAIN} {
   }
 }
 
+# ========== NOTIFICATIONS ==========
+
+# Gotify - push notification server. Joins caddy-network already (other
+# services reach it as gotify:80 for Watchtower/Diun/health-check alerts);
+# this route is only for browsing/managing messages and apps through the
+# same TLS+rate-limit+security-header path every other admin UI gets,
+# rather than the container's own directly-published host port.
+gotify.{$DOMAIN} {
+  import security_headers
+  import rate_limit gotify
+  reverse_proxy gotify:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # ========== AUTHENTICATION ==========
 
 # Authentik - central login portal (also used for OIDC integrations)

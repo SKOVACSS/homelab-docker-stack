@@ -36,6 +36,7 @@ services:
   gluetun:
     image: qmcgaw/gluetun:v3.41.3
     restart: unless-stopped
+    container_name: gluetun
     cap_add:
       - NET_ADMIN
     devices:
@@ -98,6 +99,7 @@ services:
   qbittorrent:
     image: ghcr.io/hotio/qbittorrent:release
     restart: unless-stopped
+    container_name: qbittorrent
     depends_on:
       gluetun:
         condition: service_started
@@ -129,6 +131,7 @@ services:
   sonarr:
     image: ghcr.io/hotio/sonarr:release
     restart: unless-stopped
+    container_name: sonarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -161,6 +164,7 @@ services:
   radarr:
     image: ghcr.io/hotio/radarr:release
     restart: unless-stopped
+    container_name: radarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -193,6 +197,7 @@ services:
   prowlarr:
     image: ghcr.io/hotio/prowlarr:release
     restart: unless-stopped
+    container_name: prowlarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -228,6 +233,7 @@ services:
   lidarr:
     image: ghcr.io/hotio/lidarr:release
     restart: unless-stopped
+    container_name: lidarr
     environment:
       - PUID=1000
       - PGID=1000
@@ -260,6 +266,7 @@ services:
   plex:
     image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
     restart: unless-stopped
+    container_name: plex
     environment:
       - PLEX_UID=1000
       - PLEX_GID=1000
@@ -303,6 +310,7 @@ services:
   jellyfin:
     image: jellyfin/jellyfin:12.1
     restart: unless-stopped
+    container_name: jellyfin
     environment:
       - PUID=1000
       - PGID=1000

@@ -46,7 +46,7 @@
         href: "https://photos.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Photos - Google Photos replacement
         server: my-docker
-        container: immich-server
+        container: immich_server
     - Navidrome:
         icon: navidrome.png
         href: "https://music.{{HOMEPAGE_VAR_DOMAIN}}"
@@ -71,6 +71,8 @@
         icon: focalboard.png
         href: "https://boards.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Project boards
+        server: my-docker
+        container: focalboard
 
 - Documents & Notes:
     - Paperless-ngx:
@@ -83,16 +85,30 @@
         icon: wallabag.png
         href: "https://read.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Read-it-later
+        server: my-docker
+        container: wallabag
     - Trilium:
         icon: trilium.png
         href: "https://notes.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Notes
+        server: my-docker
+        container: trilium
 
 - Calendar & Contacts:
     - Radicale:
         icon: radicale.png
         href: "https://cal.{{HOMEPAGE_VAR_DOMAIN}}"
         description: CalDAV/CardDAV
+        server: my-docker
+        container: radicale
+
+- Network:
+    - Pi-hole:
+        icon: pi-hole.png
+        href: "https://pihole.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Network-wide DNS ad/tracker blocking
+        server: my-docker
+        container: pihole
 
 - Utilities:
     - Portainer:
@@ -139,3 +155,9 @@
         description: Mailu webmail
         server: my-docker
         container: mailu-webmail
+    - Gotify:
+        icon: gotify.png
+        href: "https://gotify.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Push notifications
+        server: my-docker
+        container: gotify
