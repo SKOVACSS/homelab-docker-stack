@@ -54,9 +54,14 @@ What's actually implemented, and what you still have to do yourself.
   before your first commit (it does, unless you've changed it).
 - **Set first-run admin passwords promptly** for the services that create
   their admin account on first web UI visit rather than from an env var:
-  Portainer, Wallabag, Trilium, and Focalboard - see SETUP.md step 5.
-  (Nextcloud and Paperless-ngx look similar but aren't in this category -
-  both auto-create their admin account straight from
+  Portainer, Trilium, Focalboard, and Jellyfin - see SETUP.md step 5.
+  **Wallabag is a different, more urgent case**: it ships with a fixed
+  default login (`admin`/`wallabag`), not a first-visit setup wizard -
+  change that password immediately after deploying, since it's a real,
+  publicly-documented default rather than something only you know until
+  you set it. (Nextcloud and Paperless-ngx look similar to the first
+  group but aren't in either category - both auto-create their admin
+  account straight from
   `NEXTCLOUD_ADMIN_USER`/`PASSWORD` and `PAPERLESS_ADMIN_USER`/`PASSWORD`
   in their `.env`, confirmed against each project's own docs, so
   `gui-installer.ps1`'s generated passwords already take effect with no

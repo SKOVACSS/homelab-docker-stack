@@ -32,11 +32,26 @@ without a real Cloudflare account and domain:
   setting Plex broadcasts to every client (phone, web, smart TVs) via
   plex.tv, so it only needs to be set once, not per device.
 - **Mailu's own certificate needs its own Public Hostname rule.**
-  `mail.yourdomain.com` is deliberately excluded from the wildcard rule
-  (see SETUP.md step 1.3) because Caddy serves it over plain HTTP
-  specifically so Mailu's own Let's Encrypt client can complete its
-  challenge - if that rule is missing, `mailu-front`'s certificate will
-  never renew. Check `docker logs mailu-front` for certbot output.
+  `mail.{$MAIL_DOMAIN}` (same as `mail.{$DOMAIN}` unless you set a
+  separate Mail Domain - see the next entry) is deliberately excluded from
+  the wildcard rule (see SETUP.md step 1.3) because Caddy serves it over
+  plain HTTP specifically so Mailu's own Let's Encrypt client can complete
+  its challenge - if that rule is missing, `mailu-front`'s certificate
+  will never renew. Check `docker logs mailu-front` for certbot output.
+- **Using a separate Mail Domain (e.g. because your main domain already
+  has real email through Proton Mail or similar) and Mailu isn't
+  reachable?** Every step in SETUP.md step 1 needs doing for that second
+  domain too, not just the main one: it needs its own wildcard + `mail`
+  Public Hostname rules on the *same* tunnel, its own cache rule, and
+  `CLOUDFLARE_API_TOKEN` needs Zone:DNS:Edit permission scoped to include
+  it (a token scoped to only the main domain will make Caddy fail to
+  issue a certificate for anything on the mail domain, even though
+  everything else keeps working - check `docker compose -f
+  caddy/docker-compose.yml logs caddy` for a DNS-01 error naming the mail
+  domain specifically if this happens). Also confirm `MAIL_DOMAIN` in
+  `caddy/.env` and `DOMAIN` in `email-stack/.env` are set to the exact
+  same value - a mismatch here means Caddy is issuing certificates for one
+  hostname while Mailu is presenting itself as another.
 - **Very high-bitrate 4K remux Plex streams are the one case with mixed
   reports** of stalling/buffering through Cloudflare's edge. Ordinary 4K
   or 1080p direct play/transcode is consistently reported as fine. If this

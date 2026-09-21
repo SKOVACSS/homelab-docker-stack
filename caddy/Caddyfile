@@ -295,12 +295,22 @@ auth.{$DOMAIN} {
 }
 
 # ========== EMAIL ==========
+#
+# All three routes below use {$MAIL_DOMAIN}, not {$DOMAIN} - deliberately
+# a separate variable (defaults to the same value as DOMAIN if you never
+# set it - see docker-compose.yml). This matters if your main domain
+# already has real email service elsewhere (Proton Mail, Google Workspace,
+# etc.): a domain can only have one real mail provider, since Mailu taking
+# over MX records for a domain that's already receiving mail through
+# another provider would break that provider's inbox. Point MAIL_DOMAIN at
+# a second domain you're not already using for email, and Mailu runs
+# there instead with zero conflict - see SETUP.md.
 
 # Mailu admin panel
 # Confirmed live: mailu-admin's gunicorn binds :8080 internally, not :80
 # (this route was pointed at :80 before - a pre-existing bug, not
 # introduced here, only surfaced by actually testing the container).
-mailadmin.{$DOMAIN} {
+mailadmin.{$MAIL_DOMAIN} {
   import security_headers
   import rate_limit mailadmin
   reverse_proxy mailu-admin:8080 {
@@ -309,7 +319,7 @@ mailadmin.{$DOMAIN} {
 }
 
 # Mailu webmail (Roundcube-successor webmail client)
-webmail.{$DOMAIN} {
+webmail.{$MAIL_DOMAIN} {
   import security_headers
   reverse_proxy mailu-webmail:80 {
     header_up X-Real-IP {http.request.remote}
@@ -318,13 +328,13 @@ webmail.{$DOMAIN} {
 
 # Mailu front - HTTP only, deliberately no TLS block on this site. Caddy
 # must NOT obtain its own certificate for this hostname: mailu-front runs
-# its own certbot for mail.{$DOMAIN} (TLS_FLAVOR=letsencrypt), and Mailu's
-# own docs are explicit that a reverse proxy in front of it should let
-# Mailu keep doing its own cert issuance rather than duplicating it. This
-# block exists only to let front's Let's Encrypt HTTP-01 challenge through;
-# the actual encrypted mail protocols (SMTP/IMAP/POP3) bypass Caddy
-# entirely via mailu-front's own directly-published ports.
-http://mail.{$DOMAIN} {
+# its own certbot for mail.{$MAIL_DOMAIN} (TLS_FLAVOR=letsencrypt), and
+# Mailu's own docs are explicit that a reverse proxy in front of it should
+# let Mailu keep doing its own cert issuance rather than duplicating it.
+# This block exists only to let front's Let's Encrypt HTTP-01 challenge
+# through; the actual encrypted mail protocols (SMTP/IMAP/POP3) bypass
+# Caddy entirely via mailu-front's own directly-published ports.
+http://mail.{$MAIL_DOMAIN} {
   reverse_proxy mailu-front:80
 }
 

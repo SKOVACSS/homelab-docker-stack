@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.4.2 - Let Mailu live on a separate domain from everything else (2026-09-21)
+
+**The problem**: this deployment's main domain already has real email
+through Proton Mail. Mailu can't also serve `@maindomain` addresses
+without taking the MX records away from Proton, breaking the working
+inbox - a domain only has one real mail provider at a time. Every
+Mailu-related hostname (`mail.`, `mailadmin.`, `webmail.`) was hardcoded
+to `{$DOMAIN}`, the same domain as everything else, with no way around it.
+
+**The fix**: added a new `MAIL_DOMAIN` variable (`caddy/.env`), separate
+from `DOMAIN`, that the three Mailu routes in `caddy/Caddyfile` now use
+instead. It defaults to the same value as `DOMAIN` via Compose's own
+`${MAIL_DOMAIN:-${DOMAIN}}` interpolation if never set, so this is
+backward compatible with every existing single-domain deployment -
+nothing changes unless you deliberately point Mailu elsewhere.
+`email-stack/.env`'s own `DOMAIN` (already an independent variable, since
+every stack has its own `.env`) is what actually gets set to the second
+domain. `gui-installer.ps1` gained an optional "Mail Domain" field in
+step 1 (leave blank to keep the old single-domain behavior), and both the
+review screen and `credentials-export.csv` reflect whichever domain
+Mailu's admin/webmail routes actually live on. Cloudflare Tunnel doesn't
+care how many domains it serves - the same tunnel just needs Public
+Hostname rules and cache rules added for the second domain too (SETUP.md
+step 1 now covers this), and the API token needs DNS-edit permission
+scoped to both zones instead of one.
+
+Live-tested: confirmed via `docker compose config` that Compose's
+`${VAR:-${VAR2}}` nested-default syntax actually resolves both ways
+(falls back correctly when unset, uses the override when set - not
+something to assume without checking); confirmed via `caddy adapt`
+against the real built image that `mail`/`mailadmin`/`webmail` route to
+the mail domain while every other route stays on the main domain; ran
+`Create-EnvFiles` standalone against both a same-domain and a
+separate-domain scenario and confirmed `caddy/.env` and
+`email-stack/.env` end up with matching values in both cases.
+
 ## 1.4.1 - Export every generated credential to a password-manager-ready CSV (2026-09-21)
 
 `gui-installer.ps1` now writes `credentials-export.csv` (repo root,

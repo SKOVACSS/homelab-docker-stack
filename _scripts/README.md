@@ -2,11 +2,12 @@
 
 | Script | Purpose | Needs Admin? |
 |---|---|---|
-| `gui-installer.ps1` | 5-step wizard that generates every stack's `.env` | Yes |
+| `gui-installer.ps1` | 5-step wizard that generates every stack's `.env` | No |
 | `setup-directories.ps1` | Creates `D:\Media\*`, `D:\Sync`, `D:\Nextcloud`, `D:\Paperless\*`, `D:\Backups\*` | No |
 | `deploy.ps1` | Deploy/start/stop/restart/status/logs for all stacks, in the right order | No (Docker Desktop handles elevation) |
 | `health-check.ps1` | Reports each container's health status | No |
-| `backup.ps1` | Backs up every stack's `.env` (and, with `-Full`, every Docker volume) | No |
+| `backup.ps1` | Backs up every stack's `.env` (and, with `-Full`, every Docker volume; optionally off-site via Restic) | No |
+| `check-versions.ps1` | Lists every stack's pinned image version, registry, and tag | No |
 
 See [../SETUP.md](../SETUP.md) for the full first-time walkthrough. This
 file just documents each script's options.
@@ -17,12 +18,19 @@ file just documents each script's options.
 .\gui-installer.ps1
 ```
 
-Walks through: domain/email/timezone -> ProtonVPN credentials -> Plex claim
-token -> generate secrets -> review & write. Generates 21 distinct
+Walks through: domain/email/timezone/Cloudflare tokens -> ProtonVPN
+credentials -> Plex claim token -> generate secrets -> review & write (see
+SETUP.md step 1 for how to get the two Cloudflare tokens - they need to
+exist before this wizard can use them). Generates 20 distinct
 cryptographically-random secrets (never reuses one across services) and
 writes a `.env` into every stack directory: `authentik`, `caddy`,
 `media-stack`, `privacy-stack`, `security-stack`, `email-stack`,
-`monitoring-stack`, `notification-stack`, `utilities`, `immich-app`.
+`monitoring-stack`, `notification-stack`, `utilities`, `immich-app`,
+`dashboard`, `dns-stack`.
+
+Also writes `credentials-export.csv` (repo root, gitignored) - every
+credential above in Bitwarden's CSV import format, ready to import into
+Vaultwarden or Proton Pass and then delete.
 
 You can also skip this and edit any stack's `.env` by hand - the variable
 *names* just need to match what that stack's `docker-compose.yml` reads.
@@ -74,7 +82,7 @@ match).
 ## backup.ps1
 
 ```powershell
-.\backup.ps1 -Action <backup|restore|list|clean> [-Full] [-BackupName <name>] [-BackupRoot <path>] [-GotifyUrl <url>] [-GotifyToken <token>]
+.\backup.ps1 -Action <backup|restore|list|clean|offsite-snapshots|offsite-check> [-Full] [-BackupName <name>] [-BackupRoot <path>] [-GotifyUrl <url>] [-GotifyToken <token>] [-ResticRepository <repo>] [-ResticPassword <password>]
 ```
 
 Pass `-GotifyUrl`/`-GotifyToken` to get a push notification when a backup
@@ -91,6 +99,29 @@ opt-in, nothing is sent if you leave these unset).
 
 Defaults to `D:\Backups\docker` - override with `-BackupRoot` if you're
 backing up to a different drive (e.g. a NAS mount).
+
+**Off-site backup (optional, via Restic)**: pass `-ResticRepository`
+and `-ResticPassword` (any Restic-supported backend - S3, B2, Azure, GCS;
+backend-specific credentials like `AWS_ACCESS_KEY_ID` are read from your
+own shell environment, not script parameters, since the needed set varies
+by backend) to push volumes off-site as part of a normal `-Full` backup:
+
+```powershell
+.\backup.ps1 -Action backup -Full -ResticRepository "s3:s3.us-west-002.backblazeb2.com/mybucket" -ResticPassword "..."
+.\backup.ps1 -Action offsite-snapshots -ResticRepository "..." -ResticPassword "..."   # list what's up there
+.\backup.ps1 -Action offsite-check -ResticRepository "..." -ResticPassword "..."       # verify repository integrity
+```
+
+## check-versions.ps1
+
+```powershell
+.\check-versions.ps1 [-JSON]
+```
+
+Lists every stack's pinned image (registry, repository, tag) in one table
+- a quick way to see what's actually running without opening every
+`docker-compose.yml` by hand, or to diff against Diun's notifications when
+deciding whether to bump a pin.
 
 ## Scheduling daily backups
 
