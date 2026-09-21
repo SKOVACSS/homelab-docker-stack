@@ -36,9 +36,13 @@ and `email-stack` too if you left the "Set up email server" checkbox on
 (unchecked by default - see `enable-email.ps1` below to turn it on later
 instead).
 
-Also writes `credentials-export.csv` (repo root, gitignored) - every
-credential above in Bitwarden's CSV import format, ready to import into
-Vaultwarden or Proton Pass and then delete.
+Also writes `credentials-export.json` (repo root, gitignored) - every
+credential above in Bitwarden's JSON export format (not CSV - Proton
+Pass's Bitwarden importer only accepts JSON/ZIP, and its generic CSV
+importer silently drops every username/password, confirmed live), each
+with its site URL included so it autofills right away. Import as
+**Bitwarden** (Vaultwarden: Tools -> Import Data -> Bitwarden (json);
+Proton Pass: Settings -> Import -> Bitwarden) and then delete the file.
 
 The final step also has an unchecked-by-default checkbox to run
 `setup-directories.ps1`, `deploy.ps1 -Action deploy`, and

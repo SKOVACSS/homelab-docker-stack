@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.6.8 - Switch credentials export from CSV to Bitwarden JSON (2026-09-21)
+
+Found live: importing `credentials-export.csv` into Proton Pass via its
+"Bitwarden" import option isn't possible at all - that path only accepts
+Bitwarden's JSON/ZIP export, not CSV. Importing the same file as a
+*generic* CSV instead brought every item's name in, but silently dropped
+every username and password, since a generic importer has no built-in
+knowledge that `login_username`/`login_password` columns mean anything.
+
+Switched `gui-installer.ps1`'s `Export-Credentials` to write
+`credentials-export.json` in Bitwarden's actual JSON export schema
+instead of CSV - Vaultwarden's Bitwarden (json) importer accepts this
+natively, and it's the only Bitwarden-labeled path Proton Pass supports
+at all. Also fixed a real bug hit while building this: PowerShell's
+`if/else` statement unwraps a single-element array result down to its
+bare element during assignment (`$x = if(cond){@()}else{@(one item)}`
+left `$x` as a plain Hashtable, not an array), which made a login's
+`uris` field serialize as a JSON object instead of a one-element array -
+silently invalid against Bitwarden's schema. Fixed by building `uris`
+with an `ArrayList` instead, which isn't subject to that unwrapping.
+
+Also extended `New-CredRow` to accept multiple URLs per entry, and used
+it for the shared Sonarr/Radarr/Prowlarr/Lidarr login so it now autofills
+on all four sites instead of just Sonarr's.
+
+Confirmed live: reproduced the CSV import silently dropping credentials
+in Proton Pass first, then verified the new JSON's schema by round-
+tripping it back through `ConvertFrom-Json` and checking every item's
+`uris` field is a real array, and drove the wizard through all 5 steps
+to confirm the real generated file has correct multi-URL entries and
+every password intact.
+
 ## 1.6.7 - Fix nine more broken healthchecks found by an actual full deploy (2026-09-21)
 
 After fixing gluetun's healthcheck (1.6.5), audited every other container
