@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.5 - Fix gluetun's healthcheck reporting false "unhealthy" (2026-09-21)
+
+Found immediately after fixing 1.6.4's crash-loop and getting gluetun
+actually connected: it stayed reported as "unhealthy" even with a
+confirmed working tunnel (real ProtonVPN IP, port forwarding active,
+`Initialization Sequence Completed` in the logs). The healthcheck
+(`curl -f http://localhost:8000/v1/openvpn/status`) was the problem, not
+the VPN - `qmcgaw/gluetun:v3.41.3` doesn't ship `curl` at all, confirmed
+via `docker exec gluetun curl ...` failing with "executable file not
+found in $PATH". Every healthcheck attempt was failing before it could
+even reach the URL.
+
+Replaced it with gluetun's own dedicated healthcheck command,
+`/gluetun-entrypoint healthcheck`, which doesn't depend on whichever
+HTTP client happens to be bundled in a given image version. Confirmed
+live: gluetun now correctly reports `healthy`.
+
 ## 1.6.4 - Fix gluetun crash-looping on a wizard-generated media-stack/.env (2026-09-21)
 
 Found by actually deploying the stack for the first time, not by static

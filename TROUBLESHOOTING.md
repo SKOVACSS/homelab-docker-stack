@@ -184,6 +184,21 @@ Both are one-line edits to `media-stack/.env` followed by
 `docker compose -f media-stack/docker-compose.yml up -d gluetun` - no
 need to redeploy the whole stack.
 
+## gluetun shows "unhealthy" even though the VPN is actually connected
+
+`qmcgaw/gluetun:v3.41.3` doesn't ship `curl` (confirmed live -
+`docker exec gluetun curl ...` fails with `executable file not found in
+$PATH`), so the original healthcheck
+(`curl -f http://localhost:8000/v1/openvpn/status`) always failed and
+reported "unhealthy" regardless of whether the tunnel actually worked -
+check `docker logs gluetun` for `Initialization Sequence Completed` and a
+real public IP to confirm it was a false negative, not a real problem.
+Fixed as of 1.6.5 to use gluetun's own dedicated healthcheck command
+(`/gluetun-entrypoint healthcheck`) instead, which doesn't depend on
+whatever HTTP client happens to be bundled in a given image version.
+`docker compose -f media-stack/docker-compose.yml up -d gluetun` - no
+need to redeploy the whole stack.
+
 ## qBittorrent: QBIT_PORT vs BT_PORT
 
 These are two different ports and must stay different:
