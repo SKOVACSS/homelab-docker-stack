@@ -19,8 +19,11 @@ services:
     image: influxdb:2-alpine
     restart: unless-stopped
     container_name: influxdb
-    ports:
-      - "8086:8086"
+    # No published port: no Caddy route, and its only consumers (Telegraf,
+    # Grafana) already reach it over monitoring-network. A security audit
+    # found it published to the host anyway. If you want direct `influx`
+    # CLI/API access from the host for debugging, add back
+    # `ports: ["8086:8086"]` here.
     volumes:
       - influxdb-data:/var/lib/influxdb2
       - influxdb-config:/etc/influxdb2

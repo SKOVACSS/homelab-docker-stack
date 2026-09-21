@@ -28,6 +28,16 @@ services:
       # DOMAIN otherwise, so leaving it unset is the same as before this
       # existed. See the EMAIL section of ./Caddyfile and SETUP.md.
       MAIL_DOMAIN: ${MAIL_DOMAIN:-${DOMAIN}}
+      # Basic-auth credentials for apps that ship with no real auth of
+      # their own once reverse-proxied (see arr_auth in ./Caddyfile and
+      # the CALENDAR/CONTACTS section) - gui-installer.ps1 generates both
+      # the plaintext password (in credentials-export.csv) and this
+      # bcrypt hash (via `caddy hash-password`) together, so the hash is
+      # never typed by hand.
+      ARR_AUTH_USER: ${ARR_AUTH_USER}
+      ARR_AUTH_HASH: ${ARR_AUTH_HASH}
+      RADICALE_AUTH_USER: ${RADICALE_AUTH_USER}
+      RADICALE_AUTH_HASH: ${RADICALE_AUTH_HASH}
     networks:
       - caddy-network
     healthcheck:

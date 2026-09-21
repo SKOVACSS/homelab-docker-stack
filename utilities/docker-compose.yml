@@ -19,9 +19,12 @@ services:
     image: portainer/portainer-ce:2.45.1
     restart: unless-stopped
     container_name: portainer
-    ports:
-      - "9001:9000"
-      - "8001:8000"
+    # No published ports: the web UI is reachable only via Caddy's
+    # portainer.{$DOMAIN} route, same firewall model as every other admin
+    # UI - a security audit found this had been left directly published
+    # alongside that route the whole time. 8000 was Portainer's Edge Agent
+    # tunnel port, unused since this repo doesn't use Edge Agents (a
+    # single-host setup manages its own Docker socket directly).
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer-data:/data
@@ -134,13 +137,15 @@ services:
           memory: 128M
 
   # Uptime Kuma - Service monitoring
-  # FIX APPLIED: external port changed 3001 -> 3002 to avoid conflict with Grafana (which uses 3000/3001 in some configs)
   uptime-kuma:
     image: louislam/uptime-kuma:2.5.5
     restart: unless-stopped
     container_name: uptime-kuma
-    ports:
-      - "3002:3001"
+    # No published port: reachable only via Caddy's uptime.{$DOMAIN}
+    # route - a security audit found this directly published too, the
+    # same pattern already fixed elsewhere. The old 3001->3002 host-port
+    # remap (to dodge a collision with Grafana) is moot now that nothing
+    # publishes this port at all.
     volumes:
       - uptime-kuma-data:/app/data
     networks:
@@ -163,13 +168,15 @@ services:
           memory: 256M
 
   # Vaultwarden - Self-hosted Bitwarden password manager
-  # FIX APPLIED: external port changed 80 -> 8077 to avoid conflict with Caddy reverse proxy
   vaultwarden:
     image: vaultwarden/server:1.37.3
     restart: unless-stopped
     container_name: vaultwarden
-    ports:
-      - "8077:80"
+    # No published port: reachable only via Caddy's vault.{$DOMAIN} route -
+    # a security audit found this directly published too, the same
+    # pattern already fixed elsewhere (this is a password manager; there's
+    # no service where bypassing TLS/rate-limiting matters more). The old
+    # 80->8077 host-port remap is moot now that nothing publishes it.
     volumes:
       - vaultwarden-data:/data
     environment:
@@ -206,8 +213,10 @@ services:
     image: grafana/loki:3.7.8
     restart: unless-stopped
     container_name: loki
-    ports:
-      - "3100:3100"
+    # No published port: has no Caddy route at all and isn't meant to -
+    # it's a pure backend data source Grafana queries internally over the
+    # utilities network. A security audit found it published to the host
+    # anyway, serving no purpose but exposure.
     volumes:
       - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
@@ -268,8 +277,8 @@ services:
     image: prom/prometheus:v3.14.0
     restart: unless-stopped
     container_name: prometheus
-    ports:
-      - "9090:9090"
+    # No published port - same as Loki above: a pure backend data source
+    # for Grafana, no Caddy route, no reason to be reachable from the host.
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
@@ -302,8 +311,9 @@ services:
     image: grafana/grafana:13.2.2
     restart: unless-stopped
     container_name: grafana
-    ports:
-      - "3000:3000"
+    # No published port: reachable only via Caddy's grafana.{$DOMAIN}
+    # route - a security audit found this directly published too, the
+    # same pattern already fixed elsewhere.
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana-provisioning/datasources:/etc/grafana/provisioning/datasources:ro

@@ -18,6 +18,20 @@ function Generate-SecurePassword {
     return $password
 }
 
+function Get-CaddyPasswordHash {
+    # Shells out to the same Caddy image the stack itself runs, so the
+    # hash format always matches what Caddy's own basic_auth directive
+    # expects (bcrypt) - never hand-rolled or approximated. Docker is
+    # already a hard prerequisite for this entire repo, so this adds no
+    # new dependency. Passed as a real argument, not string-interpolated
+    # into a command line, so special characters in the password (this
+    # repo's generated passwords include !@#$%^&*) can't be misread as
+    # shell syntax.
+    param([Parameter(Mandatory=$true)][string]$PlainSecret)
+    $hash = & docker run --rm caddy:2.11.4 caddy hash-password --plaintext $PlainSecret
+    return ($hash | Select-Object -Last 1).Trim()
+}
+
 function Validate-Email { param([string]$e) return $e -match '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' }
 function Validate-Domain { param([string]$d) return $d -match '^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$' }
 function Show-Error { param([string]$m) [System.Windows.Forms.MessageBox]::Show($m, "Error", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null }
@@ -609,9 +623,22 @@ function Show-Step4 {
         $script:data.VaultwardenAdminToken   = Generate-SecurePassword 32
         $script:data.ImmichDbPassword        = Generate-SecurePassword
         $script:data.PiholeWebPassword       = Generate-SecurePassword
+        $script:data.ArrAuthPassword         = Generate-SecurePassword
+        $script:data.RadicaleAuthPassword    = Generate-SecurePassword
+
+        $statusLabel.Text = "Generating secrets... hashing two of them via Docker, one moment"
+        $statusLabel.Refresh()
+        try {
+            $script:data.ArrAuthHash      = Get-CaddyPasswordHash -PlainSecret $script:data.ArrAuthPassword
+            $script:data.RadicaleAuthHash = Get-CaddyPasswordHash -PlainSecret $script:data.RadicaleAuthPassword
+        } catch {
+            Show-Error "Failed to hash the Sonarr/Radarr/Radicale passwords via Docker - is Docker Desktop running?`n`n$_"
+            $statusLabel.Text = "Ready to generate"
+            return
+        }
 
         $statusLabel.Text = @"
-✓ Generated 20 unique secrets (one per service/database - no reuse)
+✓ Generated 22 unique secrets (one per service/database - no reuse)
 
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
@@ -682,7 +709,7 @@ ProtonVPN Country: $($script:data.ProtonCountry)
 Plex Domain: $($script:data.PlexDomain)
 Jellyfin Domain: $($script:data.JellyfinDomain)
 
-Passwords: ✓ Generated (20 unique secure secrets)
+Passwords: ✓ Generated (22 unique secure secrets)
 
 ═════════════════════════════════════════════
 Click "Create .env Files" to proceed
@@ -749,6 +776,14 @@ BOOTSTRAP_TOKEN=$($script:data.AuthentikBootstrapToken)
 "@
     $authEnv | Out-File "$appRoot\authentik\.env" -Encoding UTF8 -Force
 
+    # docker compose's own .env-file parser treats a bare $ as the start of
+    # a variable reference (the same issue TROUBLESHOOTING.md documents for
+    # a hand-placed Portainer password hash) - every literal $ in a bcrypt
+    # hash must be doubled to $$ to survive being written into a .env file,
+    # or compose silently mangles it into an empty/wrong value.
+    $arrAuthHashEscaped = $script:data.ArrAuthHash -replace '\$', '$$'
+    $radicaleAuthHashEscaped = $script:data.RadicaleAuthHash -replace '\$', '$$'
+
     $caddyEnv = @"
 DOMAIN=$d
 ACME_EMAIL=$($script:data.Email)
@@ -759,6 +794,13 @@ CLOUDFLARE_TUNNEL_TOKEN=$($script:data.CloudflareTunnelToken)
 # Same as DOMAIN unless you entered a separate Mail Domain in step 1 -
 # must match DOMAIN in email-stack\.env exactly either way.
 MAIL_DOMAIN=$($script:data.MailDomain)
+# Shared login for Sonarr/Radarr/Prowlarr/Lidarr - see arr_auth in
+# caddy/Caddyfile. Every `$` below is doubled deliberately - see comment
+# above, don't "clean up" this into a single $.
+ARR_AUTH_USER=admin
+ARR_AUTH_HASH=$arrAuthHashEscaped
+RADICALE_AUTH_USER=family
+RADICALE_AUTH_HASH=$radicaleAuthHashEscaped
 "@
     $caddyEnv | Out-File "$appRoot\caddy\.env" -Encoding UTF8 -Force
 
@@ -937,6 +979,8 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Vaultwarden Admin Panel" "https://vault.$d/admin" "" $script:data.VaultwardenAdminToken "Token-based admin panel login, no username"))
     $rows.Add((New-CredRow "Immich Database" "" "postgres" $script:data.ImmichDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Pi-hole" "https://pihole.$d" "" $script:data.PiholeWebPassword "Password-only login, no username"))
+    $rows.Add((New-CredRow "Sonarr / Radarr / Prowlarr / Lidarr" "https://sonarr.$d" "admin" $script:data.ArrAuthPassword "Shared Caddy basic-auth login - same credential works at radarr./prowlarr./lidarr.$d too"))
+    $rows.Add((New-CredRow "Radicale (Calendar/Contacts)" "https://cal.$d" "family" $script:data.RadicaleAuthPassword "Caddy basic-auth in front of Radicale, which has no auth of its own"))
     $rows.Add((New-CredRow "ProtonVPN" "https://account.protonvpn.com" $script:data.ProtonUsername $script:data.ProtonPassword "Used by media-stack's gluetun VPN routing"))
     $rows.Add((New-CredRow "Portainer" "https://portainer.$d" "" "" "Set your own password on first visit, then fill in here"))
     $rows.Add((New-CredRow "Trilium" "https://notes.$d" "" "" "Set your own password on first visit, then fill in here"))

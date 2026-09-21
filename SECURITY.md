@@ -26,6 +26,31 @@ What's actually implemented, and what you still have to do yourself.
 - **Network segmentation.** Each stack has its own internal Docker network;
   only the specific services that need to be reachable from outside join
   the shared `caddy-network`. Databases and caches never do.
+- **No service is directly reachable on a host port unless it genuinely
+  needs to be.** A security audit found several services (Portainer,
+  Uptime Kuma, Vaultwarden, Grafana, Sonarr, Radarr, Prowlarr, Lidarr,
+  qBittorrent's WebUI, Loki, Prometheus, InfluxDB, OnlyOffice, and
+  Radicale) directly published to the host despite either already routing
+  through Caddy or having no legitimate reason to be reachable at all -
+  all fixed. What's still published and why: WireGuard (51820/udp - it's
+  the VPN's actual listening port), Pi-hole (53 - real DNS, not HTTP),
+  Plex/Jellyfin/Syncthing's non-HTTP protocol and discovery ports (Caddy
+  can only proxy HTTP), mail's raw SMTP/IMAP ports, and Caddy's own
+  80/443 (kept for LAN-direct access, optional - see its
+  `docker-compose.yml`).
+- **Caddy-level `basic_auth` in front of services with no real
+  authentication of their own.** Sonarr, Radarr, Prowlarr, and Lidarr
+  don't ship with auth enabled by default; Radicale's own default is no
+  auth at all. Confirmed live (a raw request succeeded with zero
+  credentials) before fixing - see `arr_auth`/`cal.{$DOMAIN}` in
+  `caddy/Caddyfile`.
+- **No unnecessary Docker socket access.** `mailu-admin` used to mount
+  `/var/run/docker.sock` read-write for no reason - confirmed against
+  Mailu's own upstream source that nothing in the admin service's runtime
+  code (as opposed to their own test harness) ever uses it. Removed; every
+  remaining `docker.sock` mount in this repo is read-only and belongs to a
+  service that genuinely inspects other containers (Portainer, Watchtower,
+  Diun, Homepage, Telegraf).
 - **No `:latest` tags anywhere** - every image is pinned, so what's running
   is always visible in the compose file. Watchtower auto-updates every
   service except the locally-built Caddy image, which has no upstream tag
