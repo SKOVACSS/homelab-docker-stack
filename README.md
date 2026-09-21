@@ -12,7 +12,7 @@ family and friends.
 
 | Stack | Services |
 |---|---|
-| `caddy/` | Reverse proxy - HTTPS, security headers, rate limiting. Every other stack routes through this one. |
+| `caddy/` | Reverse proxy - HTTPS, security headers, rate limiting - plus Cloudflare Tunnel for remote access with zero port forwarding (works behind CGNAT). Every other stack routes through this one. |
 | `authentik/` | Single sign-on (SSO) for the whole lab. |
 | `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent (VPN-routed via gluetun), Plex, Jellyfin, Seerr (movie/show requests). |
 | `privacy-stack/` | Nextcloud, Navidrome, Syncthing, Paperless-ngx, Wallabag, Trilium, Focalboard, OnlyOffice, Radicale. |
@@ -38,10 +38,15 @@ since it owns the shared `caddy-network` every other stack joins).
 
 ## Design notes
 
-- **One reverse proxy.** Caddy terminates TLS and is the only thing that
-  should ever be exposed on ports 80/443. Everything else stays on internal
-  Docker networks and reaches the outside world only through it (mail's raw
-  SMTP/IMAP ports are the one necessary exception - see TROUBLESHOOTING.md).
+- **One reverse proxy, reached through a tunnel, not open ports.** Caddy
+  terminates TLS for every subdomain; everything else stays on internal
+  Docker networks and reaches the outside world only through it. Nothing
+  needs to be exposed on 80/443 at all - Cloudflare Tunnel (`cloudflared`,
+  in `caddy/docker-compose.yml`) makes an outbound-only connection instead,
+  which is what makes this work behind CGNAT (Starlink, many mobile
+  carriers) with no public IP to forward a port on. Mail's raw SMTP/IMAP
+  ports are the one necessary exception if you run `email-stack/` - and
+  notably don't work under CGNAT regardless - see TROUBLESHOOTING.md.
 - **No `:latest` tags.** Every image is pinned to a specific version, so
   what's actually running is always visible in the compose file itself.
   Watchtower auto-updates everything except the locally-built Caddy image,
@@ -59,7 +64,8 @@ since it owns the shared `caddy-network` every other stack joins).
 ## Quick reference
 
 ```powershell
-# One-time setup
+# One-time setup (see SETUP.md step 1 first - Cloudflare Tunnel needs
+# creating in the Cloudflare dashboard before the wizard below can use it)
 cd _scripts
 .\gui-installer.ps1          # generates every stack's .env
 .\setup-directories.ps1       # creates media/backup folders on D:\

@@ -5,7 +5,15 @@ What's actually implemented, and what you still have to do yourself.
 ## What's in place
 
 - **HTTPS everywhere.** Caddy auto-provisions and renews Let's Encrypt
-  certificates for every subdomain; HTTP requests are redirected to HTTPS.
+  certificates for every subdomain via Cloudflare's DNS API (no inbound
+  port needed to prove domain ownership - see SETUP.md step 1); HTTP
+  requests are redirected to HTTPS.
+- **No inbound ports required for web access at all.** Cloudflare Tunnel
+  (`cloudflared` in `caddy/docker-compose.yml`) makes an outbound-only
+  connection to Cloudflare - every subdomain is reachable without
+  forwarding a single port, which also means the host firewall can block
+  *all* unsolicited inbound WAN traffic to 80/443 and it changes nothing
+  about reachability.
 - **Security headers** (HSTS, X-Content-Type-Options, X-Frame-Options, CSP,
   Referrer-Policy, Permissions-Policy) applied to every route - see the
   `(security_headers)` snippet in `caddy/Caddyfile`.
@@ -48,11 +56,14 @@ What's actually implemented, and what you still have to do yourself.
   Nextcloud, Paperless-ngx, Wallabag, Trilium, Focalboard) create their
   admin account on first web UI visit rather than from an env var - see
   SETUP.md step 5.
-- **Firewall your host.** Only ports 80, 443, and 51820/udp (WireGuard)
-  should ever need to be reachable from the internet - everything else
-  should be internal-only or reached through Caddy. Mail's raw SMTP/IMAP
-  ports (25, 465, 587, 143, 993, 110, 995) are the one exception if you run
-  `email-stack/` - see TROUBLESHOOTING.md.
+- **Firewall your host.** With Cloudflare Tunnel handling web access (see
+  above), nothing needs an inbound port opened at all for 80/443 traffic -
+  block unsolicited inbound WAN traffic entirely if your router/firewall
+  lets you. The exceptions: 51820/udp if you want WireGuard reachable
+  directly (it isn't routed through the tunnel), and mail's raw SMTP/IMAP
+  ports (25, 465, 587, 143, 993, 110, 995) if you run `email-stack/` and
+  have a real public IP - see TROUBLESHOOTING.md for why none of that
+  works under CGNAT regardless of firewall rules.
 - **Rotate secrets if you ever suspect exposure**, and after that, update
   every affected `.env` and redeploy that stack
   (`.\deploy.ps1 -Action restart -Stack <name>`). Changing a database

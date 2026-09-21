@@ -27,7 +27,7 @@ function Create-Form {
     $f = New-Object System.Windows.Forms.Form
     $f.Text = "Docker Home Lab - Configuration Wizard"
     $f.Width = 650
-    $f.Height = 550
+    $f.Height = 620
     $f.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
     $f.BackColor = [System.Drawing.Color]::White
     $f.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
@@ -53,7 +53,7 @@ function Show-Step1 {
     
     # Description
     $descLabel = New-Object System.Windows.Forms.Label
-    $descLabel.Text = "Enter your domain and email for SSL certificates"
+    $descLabel.Text = "Enter your domain, email, and Cloudflare credentials"
     $descLabel.Top = 55
     $descLabel.Left = 20
     $descLabel.Width = 600
@@ -123,11 +123,62 @@ function Show-Step1 {
     @("UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "Europe/London", "Europe/Paris", "Australia/Sydney") | ForEach-Object { $tzBox.Items.Add($_) | Out-Null }
     $tzBox.SelectedIndex = 0
     $form.Controls.Add($tzBox)
-    
+
+    # Cloudflare info label
+    $cfInfoLabel = New-Object System.Windows.Forms.Label
+    $cfInfoLabel.Text = "Cloudflare Tunnel (for remote access behind CGNAT) - see SETUP.md for how to create these"
+    $cfInfoLabel.Top = 280
+    $cfInfoLabel.Left = 20
+    $cfInfoLabel.Width = 600
+    $cfInfoLabel.Height = 20
+    $cfInfoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
+    $cfInfoLabel.ForeColor = [System.Drawing.Color]::Blue
+    $form.Controls.Add($cfInfoLabel)
+
+    # Cloudflare API Token Label
+    $cfApiLabelCtrl = New-Object System.Windows.Forms.Label
+    $cfApiLabelCtrl.Text = "Cloudflare API Token (Zone:DNS:Edit, scoped to your domain)"
+    $cfApiLabelCtrl.Top = 305
+    $cfApiLabelCtrl.Left = 20
+    $cfApiLabelCtrl.Width = 600
+    $cfApiLabelCtrl.Height = 20
+    $cfApiLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $form.Controls.Add($cfApiLabelCtrl)
+
+    # Cloudflare API Token TextBox
+    $cfApiBox = New-Object System.Windows.Forms.TextBox
+    $cfApiBox.Top = 325
+    $cfApiBox.Left = 20
+    $cfApiBox.Width = 600
+    $cfApiBox.Height = 30
+    $cfApiBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $cfApiBox.UseSystemPasswordChar = $true
+    $form.Controls.Add($cfApiBox)
+
+    # Cloudflare Tunnel Token Label
+    $cfTunnelLabelCtrl = New-Object System.Windows.Forms.Label
+    $cfTunnelLabelCtrl.Text = "Cloudflare Tunnel Token (Zero Trust -> Networks -> Tunnels)"
+    $cfTunnelLabelCtrl.Top = 365
+    $cfTunnelLabelCtrl.Left = 20
+    $cfTunnelLabelCtrl.Width = 600
+    $cfTunnelLabelCtrl.Height = 20
+    $cfTunnelLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $form.Controls.Add($cfTunnelLabelCtrl)
+
+    # Cloudflare Tunnel Token TextBox
+    $cfTunnelBox = New-Object System.Windows.Forms.TextBox
+    $cfTunnelBox.Top = 385
+    $cfTunnelBox.Left = 20
+    $cfTunnelBox.Width = 600
+    $cfTunnelBox.Height = 30
+    $cfTunnelBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $cfTunnelBox.UseSystemPasswordChar = $true
+    $form.Controls.Add($cfTunnelBox)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 460
+    $backBtn.Top = 530
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -138,7 +189,7 @@ function Show-Step1 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 460
+    $nextBtn.Top = 530
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -149,7 +200,7 @@ function Show-Step1 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 1 of 5"
-    $progLabel.Top = 465
+    $progLabel.Top = 535
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -159,15 +210,26 @@ function Show-Step1 {
     $nextBtn.Add_Click({
         $domain = $domainBox.Text.Trim()
         $email = $emailBox.Text.Trim()
+        $cfApiToken = $cfApiBox.Text.Trim()
+        $cfTunnelToken = $cfTunnelBox.Text.Trim()
 
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
         if (-not (Validate-Domain $domain)) { Show-Error "Invalid domain format"; return }
         if ([string]::IsNullOrEmpty($email)) { Show-Error "Email is required"; return }
         if (-not (Validate-Email $email)) { Show-Error "Invalid email format"; return }
+        # Required, not optional: Caddy now issues every certificate via
+        # Cloudflare DNS-01 (see caddy/Caddyfile) rather than the old
+        # inbound-port challenge, so there's no working fallback without
+        # this - leaving it blank would mean Caddy can't get a single
+        # certificate for anything.
+        if ([string]::IsNullOrEmpty($cfApiToken)) { Show-Error "Cloudflare API Token is required - see SETUP.md"; return }
+        if ([string]::IsNullOrEmpty($cfTunnelToken)) { Show-Error "Cloudflare Tunnel Token is required - see SETUP.md"; return }
 
         $script:data.Domain = $domain
         $script:data.Email = $email
         $script:data.Timezone = $tzBox.SelectedItem
+        $script:data.CloudflareApiToken = $cfApiToken
+        $script:data.CloudflareTunnelToken = $cfTunnelToken
 
         $script:step = 2
         Show-Step2 $form
@@ -272,7 +334,7 @@ function Show-Step2 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 460
+    $backBtn.Top = 530
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -283,7 +345,7 @@ function Show-Step2 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 460
+    $nextBtn.Top = 530
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -308,7 +370,7 @@ function Show-Step2 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 2 of 5"
-    $progLabel.Top = 465
+    $progLabel.Top = 535
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -375,7 +437,7 @@ function Show-Step3 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 460
+    $backBtn.Top = 530
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -386,7 +448,7 @@ function Show-Step3 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 460
+    $nextBtn.Top = 530
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -409,7 +471,7 @@ function Show-Step3 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 3 of 5"
-    $progLabel.Top = 465
+    $progLabel.Top = 535
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -467,7 +529,7 @@ function Show-Step4 {
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 460
+    $backBtn.Top = 530
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -478,7 +540,7 @@ function Show-Step4 {
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
-    $nextBtn.Top = 460
+    $nextBtn.Top = 530
     $nextBtn.Left = 560
     $nextBtn.Width = 80
     $nextBtn.Height = 35
@@ -491,7 +553,7 @@ function Show-Step4 {
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 4 of 5"
-    $progLabel.Top = 465
+    $progLabel.Top = 535
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -580,6 +642,11 @@ Domain: $($script:data.Domain)
 Email: $($script:data.Email)
 Timezone: $($script:data.Timezone)
 
+Cloudflare API Token: ✓ Set
+Cloudflare Tunnel Token: ✓ Set
+(Reminder: the tunnel and its Public Hostname rules must already exist
+in your Cloudflare dashboard - see SETUP.md if you haven't done that yet)
+
 ProtonVPN Username: $($script:data.ProtonUsername)
 ProtonVPN Country: $($script:data.ProtonCountry)
 
@@ -596,7 +663,7 @@ Click "Create .env Files" to proceed
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
-    $backBtn.Top = 460
+    $backBtn.Top = 530
     $backBtn.Left = 470
     $backBtn.Width = 80
     $backBtn.Height = 35
@@ -607,7 +674,7 @@ Click "Create .env Files" to proceed
     # Create Button
     $createBtn = New-Object System.Windows.Forms.Button
     $createBtn.Text = "✓ Create .env Files"
-    $createBtn.Top = 460
+    $createBtn.Top = 530
     $createBtn.Left = 560
     $createBtn.Width = 80
     $createBtn.Height = 35
@@ -623,7 +690,7 @@ Click "Create .env Files" to proceed
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 5 of 5"
-    $progLabel.Top = 465
+    $progLabel.Top = 535
     $progLabel.Left = 20
     $progLabel.Width = 200
     $progLabel.Height = 25
@@ -657,6 +724,8 @@ DOMAIN=$d
 ACME_EMAIL=$($script:data.Email)
 # Must match QBIT_PORT in media-stack\.env exactly.
 QBIT_PORT=8080
+CLOUDFLARE_API_TOKEN=$($script:data.CloudflareApiToken)
+CLOUDFLARE_TUNNEL_TOKEN=$($script:data.CloudflareTunnelToken)
 "@
     $caddyEnv | Out-File "$appRoot\caddy\.env" -Encoding UTF8 -Force
 

@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.4.0 - Remote access via Cloudflare Tunnel (no port forwarding, works behind CGNAT) (2026-09-21)
+
+**The problem this solves**: this server is on Starlink, which uses CGNAT -
+there's no public IP to forward a port to, so the "point DNS at your
+server's public IP" model this repo used until now was never actually
+going to work for a real deployment here. Evaluated three alternatives
+(Cloudflare Tunnel, Tailscale, staying WireGuard-only) against the actual
+requirement - non-technical family reaching services from their phones and
+work networks, plus friends' smart TV Plex apps working - and chose
+Cloudflare Tunnel: it needs no client install for anyone but the admin,
+unlike Tailscale, and (after actually reading Cloudflare's current Self-
+Serve Subscription Agreement rather than relying on out-of-date community
+lore) neither the free tier's 100MB request-body cap nor its terms of
+service actually restrict video streaming - that cap is upload-only and
+the ToS clause this fear was based on isn't in the current agreement.
+
+**Architecture**: added `cloudflared` (`cloudflare/cloudflared:2026.9.1`)
+to `caddy/docker-compose.yml`, using a token-based (remotely-managed)
+tunnel rather than a local `config.yml` + `credentials.json` - the routing
+lives in the Cloudflare dashboard as two Public Hostname rules (a wildcard
+covering every service, one exact-match exception for Mailu's own
+certificate renewal), so the only secret this repo needs is one token,
+matching how every other user-obtained credential here already works
+(Plex claim token, ProtonVPN password). Caddy itself switched from
+HTTP-01/TLS-ALPN-01 certificate challenges (which need an inbound
+request - impossible under CGNAT) to DNS-01 via a new `caddy-dns/cloudflare`
+plugin compiled into `caddy/Dockerfile`, proving domain ownership via a
+DNS TXT record instead. This is a **required** change, not additive -
+every deployment now needs a Cloudflare-managed domain and API token, since
+Caddy has no fallback certificate path anymore. Updated `gui-installer.ps1`
+to collect both new tokens (widened the wizard window to fit them) and
+`SETUP.md` with the exact one-time Cloudflare-dashboard steps this repo
+can't automate (creating the tunnel, the token, and the two Public Hostname
+rules).
+
+**Real, honest limitation surfaced by this work, not solved by it**:
+receiving mail from the outside world (inbound SMTP) fundamentally does
+not work behind CGNAT + Cloudflare Tunnel's free tier - that needs either
+a real public IP or Cloudflare Spectrum (a separate paid product for raw
+TCP proxying), neither of which this repo provides. `email-stack/` remains
+usable for outbound sending (via a smart-host relay, as already
+documented) and webmail/internal use; receiving real external mail needs
+a regular hosted provider. Documented in TROUBLESHOOTING.md rather than
+glossed over.
+
+**For Plex specifically**: this should be a straight reliability
+improvement over Plex's own relay network, once Settings -> Network ->
+Custom server access URLs is set to `https://plex.yourdomain.com:443` (a
+server-side setting Plex broadcasts to every client, so it covers phone
+apps, the web app, and smart TV apps identically with no per-device setup).
+The one honest caveat found in research: very high-bitrate 4K remux
+streaming has mixed community reports through Cloudflare's edge; ordinary
+4K/1080p direct play or transcode is consistently reported as solid.
+
+Also updated: `.env.example` (two new caddy/.env vars), `SECURITY.md`
+(firewall guidance - nothing needs an inbound port anymore for web access),
+`README.md`, and a new TROUBLESHOOTING.md section covering the specific
+gotchas of this setup (a cosmetic "invalid" warning Cloudflare's own
+dashboard sometimes shows on wildcard rules, why `noTLSVerify` on that
+rule is intentional, and what to check if Plex still prefers relay).
+
+Live-tested as far as possible without a real Cloudflare account/domain:
+rebuilt the Caddy image and confirmed the `caddy-dns/cloudflare` plugin
+loads and validates token format at config-parse time; confirmed
+`cloudflared` reads `TUNNEL_TOKEN` correctly and fails with a clean,
+expected error on a syntactically-invalid token rather than crashing.
+Actually establishing a tunnel and issuing a real certificate needs a real
+account and domain, same untestable-locally category as Mailu's own
+Let's Encrypt issuance.
+
 ## 1.3.0 - Add Seerr: let family/friends request movies and shows (2026-09-21)
 
 New service in `media-stack/`: Seerr (`ghcr.io/seerr-team/seerr:v3.4.1`),
