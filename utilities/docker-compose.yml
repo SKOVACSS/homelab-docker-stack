@@ -39,7 +39,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -103,7 +103,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -141,7 +141,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -169,7 +169,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -201,7 +201,7 @@ services:
     networks:
       - utilities
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -232,7 +232,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -277,7 +277,7 @@ services:
       timeout: 5s
       retries: 3
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:

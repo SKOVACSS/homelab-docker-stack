@@ -27,7 +27,7 @@ services:
     healthcheck:
       disable: false
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -50,7 +50,7 @@ services:
     healthcheck:
       disable: false
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
@@ -91,7 +91,7 @@ services:
     healthcheck:
       disable: false
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
