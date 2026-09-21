@@ -1,5 +1,80 @@
 # Changelog
 
+## 1.0.9 - Rebuild email-stack against Mailu's own reference architecture (2026-09-21)
+
+Follow-up to the "Mailu front gap" flagged earlier: rebuilt `email-stack`
+from Mailu's actual official reference compose instead of continuing to
+patch a hand-built version - the earlier audit found `front`, `antivirus`,
+and `webdav` all missing, plus TLS silently disabled on Dovecot and
+entirely unconfigured on Postfix. All three are now present, using
+Mailu's own images rather than generic third-party ones (same rspamd/
+version-lockstep wiring, no reinventing the integration).
+
+**New services**: `mailu-front` (Mailu's nginx gateway - TLS termination
+for SMTP/IMAP/POP3 only; does **not** bind 80/443, Caddy keeps owning
+those - see `caddy/Caddyfile`'s `http://mail.{$DOMAIN}` passthrough for
+front's own Let's Encrypt HTTP-01 challenge), `mailu-antivirus` (Mailu's
+own ClamAV build - same engine as a standalone ClamAV container would've
+used, but pre-wired for rspamd and version-tracked with the rest of
+Mailu), `mailu-webdav` (CalDAV/CardDAV tied to mail accounts, distinct
+from privacy-stack's general-purpose Radicale), and `mailu-resolver`
+(Mailu's own `unbound` build - required because Mailu's admin container
+refuses to start without a DNSSEC-*validating* resolver, and Docker's
+built-in 127.0.0.11 doesn't validate).
+
+**Every wiring bug below was caught by actually running the containers
+together, not by reading docs** - this stack was originally built by a
+different model, and every one of these is the same failure pattern:
+Mailu's containers default to expecting stock service names (`admin`,
+`redis`, `front`...); since this repo uses `mailu-*` names, every
+cross-service reference needed an explicit override, and several were
+missing entirely:
+- `mailu-smtp`/`mailu-imap`/`mailu-webmail` were all missing `HOSTNAMES` -
+  Postfix/Dovecot/Roundcube's config templating fails outright without it.
+- `mailu-webmail` was missing `SECRET_KEY` and `MESSAGE_SIZE_LIMIT`.
+- `mailu-webmail`'s nginx template hardcodes `set_real_ip_from front`
+  unless `FRONT_ADDRESS` is set - needed `FRONT_ADDRESS=mailu-front`.
+- `mailu-admin`'s session/rate-limit storage silently defaults to a host
+  named `redis`, controlled by `REDIS_ADDRESS` - a **different** variable
+  from `REDIS_URL`, which admin also uses but for something else.
+- `mailu-front` was missing `POSTMASTER` (KeyError at startup).
+- **`mailu-admin`'s healthcheck (and Caddy's `mailadmin.{$DOMAIN}` route)
+  were pointed at port 80 - admin actually listens on 8080.** This was a
+  pre-existing bug, not introduced here; only surfaced because this is
+  the first time anyone actually curl'd the container instead of assuming
+  the port. Both fixed.
+- `mailu/clamav`'s versioning is independent of Mailu's `2024.06.x` train
+  (tracks the ClamAV engine's own release cycle) - confirmed via GHCR's
+  actual tags rather than assumed; pinned to `2.0.43`.
+
+**Known, inherent limitation, not a bug**: `mailu-front`'s TLS certificate
+comes from its own Let's Encrypt HTTP-01 challenge, which needs a real
+public domain reachable from the internet - can't be completed in a local
+test. `mailu-front`, `mailu-imap`'s TLS listener, and `mailu-webmail`'s
+health all depend on that certificate existing, so they show unhealthy in
+isolation. Every wiring/config-rendering piece up to that point was
+verified live (all env vars resolve, `mailu-admin`'s DNSSEC startup gate
+passes, rspamd's rendered config correctly points at `mailu-antivirus:3310`,
+every other container reaches a genuine `healthy` state) - only the final
+"does Let's Encrypt actually issue a cert" step needs a real deployment
+to confirm.
+
+### Unrelated regression found and fixed along the way: Postgres 18 refuses to start with this repo's existing volume convention
+
+While live-testing `mailu-database`, found that **every service already
+bumped to `postgres:18-alpine` in 1.0.8** (`authentik`, `mailu-database`,
+`privacy-stack`'s `paperless-db` and `wallabag-db`) fails to start at all
+- not a warning, a hard `Error:` and crash-loop. Postgres 18's image
+changed its expected volume layout: it now wants a mount at
+`/var/lib/postgresql` (letting it manage a version-specific subdirectory
+itself for `pg_upgrade` compatibility), not `/var/lib/postgresql/data`
+as every prior major version used - confirmed live, the old mount path
+crash-loops with a clear error pointing at the new convention. Fixed by
+changing the mount point on all four affected services. This shipped
+in 1.0.8 without being caught because that testing only ran Postgres 18
+standalone, without a mounted named volume - exactly the condition that
+triggers this.
+
 ## 1.0.8 - Version-currency pass: bring every image to latest (2026-09-21)
 
 One-time audit against actual current tags (Docker Hub API + GitHub
