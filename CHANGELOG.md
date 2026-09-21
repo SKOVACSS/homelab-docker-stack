@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.6 - Version-drift checker: image inventory (2026-09-20)
+
+First piece of the version-drift checker: `_scripts/check-versions.ps1`
+walks every stack directory (any folder with a `docker-compose.yml`,
+auto-discovered rather than hardcoded) and extracts each service's image
+reference into `{Stack, Service, Registry, Repository, Tag, ResolvedTag,
+IsVariable, VariableName, Digest}`. Handles the three image reference
+styles actually used across the ~30 images in this repo: plain
+`repo:tag`, digest-pinned (`repo:tag@sha256:...`), and `.env`-driven
+(`repo:${VAR:-default}`, used by both Immich services).
+
+Caught and fixed one parsing bug before it shipped: a
+`${VAR:-default}` substitution's own `:` was colliding with the
+tag-separator `:`, corrupting `Repository`/`Tag` for both Immich images
+(the console table happened to display the corrupted fields back in the
+right order by coincidence, which would have hidden the bug from a
+visual-only check - caught by inspecting the underlying JSON object
+fields directly instead of trusting the formatted output).
+
+This is inventory only - no registry lookups yet. That's the next,
+costlier phase (querying Docker Hub/GHCR/lscr.io for latest tags/digests
+and live-verifying against real images), planned as a follow-up once
+there's budget for the live-testing it requires.
+
 ## 1.0.5 - Fix all 5 PowerShell scripts failing under the default Windows PowerShell (2026-09-20)
 
 Found while doing a visual/UX review of the GUI installer: none of the
