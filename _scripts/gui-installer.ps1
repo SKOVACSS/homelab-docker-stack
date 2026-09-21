@@ -51,10 +51,9 @@ function Create-Form {
 }
 
 function Show-Step1 {
-    param($form)
-    
-    $form.Controls.Clear()
-    
+
+    $script:form.Controls.Clear()
+
     # Title
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Text = "Step 1 of 5: Basic Configuration"
@@ -63,8 +62,8 @@ function Show-Step1 {
     $titleLabel.Width = 600
     $titleLabel.Height = 30
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($titleLabel)
-    
+    $script:form.Controls.Add($titleLabel)
+
     # Description
     $descLabel = New-Object System.Windows.Forms.Label
     $descLabel.Text = "Enter your domain, email, and Cloudflare credentials"
@@ -74,8 +73,8 @@ function Show-Step1 {
     $descLabel.Height = 30
     $descLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $descLabel.ForeColor = [System.Drawing.Color]::Gray
-    $form.Controls.Add($descLabel)
-    
+    $script:form.Controls.Add($descLabel)
+
     # Domain Label
     $domainLabelCtrl = New-Object System.Windows.Forms.Label
     $domainLabelCtrl.Text = "Domain Name (e.g., yourdomain.com)"
@@ -84,18 +83,22 @@ function Show-Step1 {
     $domainLabelCtrl.Width = 600
     $domainLabelCtrl.Height = 20
     $domainLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($domainLabelCtrl)
-    
-    # Domain TextBox
-    $domainBox = New-Object System.Windows.Forms.TextBox
-    $domainBox.Top = 120
-    $domainBox.Left = 20
-    $domainBox.Width = 600
-    $domainBox.Height = 30
-    $domainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $domainBox.Text = "yourdomain.com"
-    $form.Controls.Add($domainBox)
-    
+    $script:form.Controls.Add($domainLabelCtrl)
+
+    # Domain TextBox - script-scoped: read later from $nextBtn's Add_Click,
+    # which fires from the WinForms message loop long after this function
+    # has returned, so a local variable here would already be out of scope
+    # by then (see CHANGELOG - this whole wizard once silently read every
+    # field as empty because of exactly that).
+    $script:domainBox = New-Object System.Windows.Forms.TextBox
+    $script:domainBox.Top = 120
+    $script:domainBox.Left = 20
+    $script:domainBox.Width = 600
+    $script:domainBox.Height = 30
+    $script:domainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:domainBox.Text = "yourdomain.com"
+    $script:form.Controls.Add($script:domainBox)
+
     # Email Label
     $emailLabelCtrl = New-Object System.Windows.Forms.Label
     $emailLabelCtrl.Text = "Email for SSL (e.g., admin@yourdomain.com)"
@@ -104,18 +107,18 @@ function Show-Step1 {
     $emailLabelCtrl.Width = 600
     $emailLabelCtrl.Height = 20
     $emailLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($emailLabelCtrl)
-    
+    $script:form.Controls.Add($emailLabelCtrl)
+
     # Email TextBox
-    $emailBox = New-Object System.Windows.Forms.TextBox
-    $emailBox.Top = 180
-    $emailBox.Left = 20
-    $emailBox.Width = 600
-    $emailBox.Height = 30
-    $emailBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $emailBox.Text = "admin@yourdomain.com"
-    $form.Controls.Add($emailBox)
-    
+    $script:emailBox = New-Object System.Windows.Forms.TextBox
+    $script:emailBox.Top = 180
+    $script:emailBox.Left = 20
+    $script:emailBox.Width = 600
+    $script:emailBox.Height = 30
+    $script:emailBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:emailBox.Text = "admin@yourdomain.com"
+    $script:form.Controls.Add($script:emailBox)
+
     # Timezone Label
     $tzLabelCtrl = New-Object System.Windows.Forms.Label
     $tzLabelCtrl.Text = "Timezone"
@@ -124,19 +127,19 @@ function Show-Step1 {
     $tzLabelCtrl.Width = 600
     $tzLabelCtrl.Height = 20
     $tzLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($tzLabelCtrl)
-    
+    $script:form.Controls.Add($tzLabelCtrl)
+
     # Timezone ComboBox
-    $tzBox = New-Object System.Windows.Forms.ComboBox
-    $tzBox.Top = 240
-    $tzBox.Left = 20
-    $tzBox.Width = 600
-    $tzBox.Height = 30
-    $tzBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $tzBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    @("UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "Europe/London", "Europe/Paris", "Australia/Sydney") | ForEach-Object { $tzBox.Items.Add($_) | Out-Null }
-    $tzBox.SelectedIndex = 0
-    $form.Controls.Add($tzBox)
+    $script:tzBox = New-Object System.Windows.Forms.ComboBox
+    $script:tzBox.Top = 240
+    $script:tzBox.Left = 20
+    $script:tzBox.Width = 600
+    $script:tzBox.Height = 30
+    $script:tzBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:tzBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    @("UTC", "US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "Europe/London", "Europe/Paris", "Australia/Sydney") | ForEach-Object { $script:tzBox.Items.Add($_) | Out-Null }
+    $script:tzBox.SelectedIndex = 0
+    $script:form.Controls.Add($script:tzBox)
 
     # Cloudflare info label
     $cfInfoLabel = New-Object System.Windows.Forms.Label
@@ -147,7 +150,7 @@ function Show-Step1 {
     $cfInfoLabel.Height = 20
     $cfInfoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
     $cfInfoLabel.ForeColor = [System.Drawing.Color]::Blue
-    $form.Controls.Add($cfInfoLabel)
+    $script:form.Controls.Add($cfInfoLabel)
 
     # Cloudflare API Token Label
     $cfApiLabelCtrl = New-Object System.Windows.Forms.Label
@@ -157,17 +160,17 @@ function Show-Step1 {
     $cfApiLabelCtrl.Width = 600
     $cfApiLabelCtrl.Height = 20
     $cfApiLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($cfApiLabelCtrl)
+    $script:form.Controls.Add($cfApiLabelCtrl)
 
     # Cloudflare API Token TextBox
-    $cfApiBox = New-Object System.Windows.Forms.TextBox
-    $cfApiBox.Top = 325
-    $cfApiBox.Left = 20
-    $cfApiBox.Width = 600
-    $cfApiBox.Height = 30
-    $cfApiBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $cfApiBox.UseSystemPasswordChar = $true
-    $form.Controls.Add($cfApiBox)
+    $script:cfApiBox = New-Object System.Windows.Forms.TextBox
+    $script:cfApiBox.Top = 325
+    $script:cfApiBox.Left = 20
+    $script:cfApiBox.Width = 600
+    $script:cfApiBox.Height = 30
+    $script:cfApiBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:cfApiBox.UseSystemPasswordChar = $true
+    $script:form.Controls.Add($script:cfApiBox)
 
     # Cloudflare Tunnel Token Label
     $cfTunnelLabelCtrl = New-Object System.Windows.Forms.Label
@@ -177,17 +180,17 @@ function Show-Step1 {
     $cfTunnelLabelCtrl.Width = 600
     $cfTunnelLabelCtrl.Height = 20
     $cfTunnelLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($cfTunnelLabelCtrl)
+    $script:form.Controls.Add($cfTunnelLabelCtrl)
 
     # Cloudflare Tunnel Token TextBox
-    $cfTunnelBox = New-Object System.Windows.Forms.TextBox
-    $cfTunnelBox.Top = 385
-    $cfTunnelBox.Left = 20
-    $cfTunnelBox.Width = 600
-    $cfTunnelBox.Height = 30
-    $cfTunnelBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $cfTunnelBox.UseSystemPasswordChar = $true
-    $form.Controls.Add($cfTunnelBox)
+    $script:cfTunnelBox = New-Object System.Windows.Forms.TextBox
+    $script:cfTunnelBox.Top = 385
+    $script:cfTunnelBox.Left = 20
+    $script:cfTunnelBox.Width = 600
+    $script:cfTunnelBox.Height = 30
+    $script:cfTunnelBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:cfTunnelBox.UseSystemPasswordChar = $true
+    $script:form.Controls.Add($script:cfTunnelBox)
 
     # Set Up Email Server checkbox - unchecked by default. Mailu is by far
     # the most complex, fragile stack in this repo (see CHANGELOG's 1.0.9,
@@ -198,44 +201,46 @@ function Show-Step1 {
     # stack stays fully present in the repo, just not configured or
     # deployed - see _scripts/enable-email.ps1 for turning it on later
     # without re-running this whole wizard.
-    $emailSetupCheckbox = New-Object System.Windows.Forms.CheckBox
-    $emailSetupCheckbox.Text = "Set up email server (Mailu) now"
-    $emailSetupCheckbox.Top = 425
-    $emailSetupCheckbox.Left = 20
-    $emailSetupCheckbox.Width = 400
-    $emailSetupCheckbox.Height = 24
-    $emailSetupCheckbox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $emailSetupCheckbox.Checked = $false
-    $form.Controls.Add($emailSetupCheckbox)
+    $script:emailSetupCheckbox = New-Object System.Windows.Forms.CheckBox
+    $script:emailSetupCheckbox.Text = "Set up email server (Mailu) now"
+    $script:emailSetupCheckbox.Top = 425
+    $script:emailSetupCheckbox.Left = 20
+    $script:emailSetupCheckbox.Width = 400
+    $script:emailSetupCheckbox.Height = 24
+    $script:emailSetupCheckbox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:emailSetupCheckbox.Checked = $false
+    $script:form.Controls.Add($script:emailSetupCheckbox)
 
     # Mail Domain Label
-    $mailDomainLabelCtrl = New-Object System.Windows.Forms.Label
-    $mailDomainLabelCtrl.Text = "Mail Domain (optional - only if Mailu needs a DIFFERENT domain than above, e.g. main domain already has real email elsewhere)"
-    $mailDomainLabelCtrl.Top = 453
-    $mailDomainLabelCtrl.Left = 20
-    $mailDomainLabelCtrl.Width = 600
-    $mailDomainLabelCtrl.Height = 20
-    $mailDomainLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 8)
-    $mailDomainLabelCtrl.Enabled = $false
-    $form.Controls.Add($mailDomainLabelCtrl)
+    $script:mailDomainLabelCtrl = New-Object System.Windows.Forms.Label
+    $script:mailDomainLabelCtrl.Text = "Mail Domain (optional - only if Mailu needs a DIFFERENT domain than above, e.g. main domain already has real email elsewhere)"
+    $script:mailDomainLabelCtrl.Top = 453
+    $script:mailDomainLabelCtrl.Left = 20
+    $script:mailDomainLabelCtrl.Width = 600
+    $script:mailDomainLabelCtrl.Height = 20
+    $script:mailDomainLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 8)
+    $script:mailDomainLabelCtrl.Enabled = $false
+    $script:form.Controls.Add($script:mailDomainLabelCtrl)
 
     # Mail Domain TextBox
-    $mailDomainBox = New-Object System.Windows.Forms.TextBox
-    $mailDomainBox.Top = 473
-    $mailDomainBox.Left = 20
-    $mailDomainBox.Width = 600
-    $mailDomainBox.Height = 30
-    $mailDomainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $mailDomainBox.Enabled = $false
-    $form.Controls.Add($mailDomainBox)
+    $script:mailDomainBox = New-Object System.Windows.Forms.TextBox
+    $script:mailDomainBox.Top = 473
+    $script:mailDomainBox.Left = 20
+    $script:mailDomainBox.Width = 600
+    $script:mailDomainBox.Height = 30
+    $script:mailDomainBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:mailDomainBox.Enabled = $false
+    $script:form.Controls.Add($script:mailDomainBox)
 
     # Mail Domain only means anything if email is actually being set up
     # now - greyed out otherwise rather than removed, so it's obvious the
-    # option exists and why it's currently unavailable.
-    $emailSetupCheckbox.Add_CheckedChanged({
-        $mailDomainLabelCtrl.Enabled = $emailSetupCheckbox.Checked
-        $mailDomainBox.Enabled = $emailSetupCheckbox.Checked
-    }.GetNewClosure())
+    # option exists and why it's currently unavailable. Every control here
+    # is $script:-scoped (see note on $domainBox above) since this handler
+    # also fires from outside Show-Step1's own call frame.
+    $script:emailSetupCheckbox.Add_CheckedChanged({
+        $script:mailDomainLabelCtrl.Enabled = $script:emailSetupCheckbox.Checked
+        $script:mailDomainBox.Enabled = $script:emailSetupCheckbox.Checked
+    })
 
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
@@ -246,8 +251,8 @@ function Show-Step1 {
     $backBtn.Height = 35
     $backBtn.Enabled = $false
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($backBtn)
-    
+    $script:form.Controls.Add($backBtn)
+
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
@@ -257,8 +262,8 @@ function Show-Step1 {
     $nextBtn.Height = 35
     $nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
-    $form.Controls.Add($nextBtn)
-    
+    $script:form.Controls.Add($nextBtn)
+
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 1 of 5"
@@ -267,15 +272,15 @@ function Show-Step1 {
     $progLabel.Width = 200
     $progLabel.Height = 25
     $progLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($progLabel)
-    
+    $script:form.Controls.Add($progLabel)
+
     $nextBtn.Add_Click({
-        $domain = $domainBox.Text.Trim()
-        $email = $emailBox.Text.Trim()
-        $cfApiToken = $cfApiBox.Text.Trim()
-        $cfTunnelToken = $cfTunnelBox.Text.Trim()
-        $setupEmail = $emailSetupCheckbox.Checked
-        $mailDomain = $mailDomainBox.Text.Trim()
+        $domain = $script:domainBox.Text.Trim()
+        $email = $script:emailBox.Text.Trim()
+        $cfApiToken = $script:cfApiBox.Text.Trim()
+        $cfTunnelToken = $script:cfTunnelBox.Text.Trim()
+        $setupEmail = $script:emailSetupCheckbox.Checked
+        $mailDomain = $script:mailDomainBox.Text.Trim()
 
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
         if (-not (Validate-Domain $domain)) { Show-Error "Invalid domain format"; return }
@@ -295,7 +300,7 @@ function Show-Step1 {
 
         $script:data.Domain = $domain
         $script:data.Email = $email
-        $script:data.Timezone = $tzBox.SelectedItem
+        $script:data.Timezone = $script:tzBox.SelectedItem
         $script:data.CloudflareApiToken = $cfApiToken
         $script:data.CloudflareTunnelToken = $cfTunnelToken
         $script:data.SetupEmail = $setupEmail
@@ -307,15 +312,14 @@ function Show-Step1 {
         }
 
         $script:step = 2
-        Show-Step2 $form
-    }.GetNewClosure())
+        Show-Step2
+    })
 }
 
 function Show-Step2 {
-    param($form)
-    
-    $form.Controls.Clear()
-    
+
+    $script:form.Controls.Clear()
+
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Text = "Step 2 of 5: ProtonVPN Configuration"
     $titleLabel.Top = 20
@@ -323,8 +327,8 @@ function Show-Step2 {
     $titleLabel.Width = 600
     $titleLabel.Height = 30
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($titleLabel)
-    
+    $script:form.Controls.Add($titleLabel)
+
     $descLabel = New-Object System.Windows.Forms.Label
     $descLabel.Text = "Enter your ProtonVPN OpenVPN credentials"
     $descLabel.Top = 55
@@ -333,8 +337,8 @@ function Show-Step2 {
     $descLabel.Height = 30
     $descLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $descLabel.ForeColor = [System.Drawing.Color]::Gray
-    $form.Controls.Add($descLabel)
-    
+    $script:form.Controls.Add($descLabel)
+
     $infoLabel = New-Object System.Windows.Forms.Label
     $infoLabel.Text = "Get from: https://account.protonvpn.com/account#downloads (OpenVPN Credentials)"
     $infoLabel.Top = 100
@@ -343,8 +347,8 @@ function Show-Step2 {
     $infoLabel.Height = 40
     $infoLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
     $infoLabel.ForeColor = [System.Drawing.Color]::Blue
-    $form.Controls.Add($infoLabel)
-    
+    $script:form.Controls.Add($infoLabel)
+
     # ProtonVPN Username Label
     $userLabelCtrl = New-Object System.Windows.Forms.Label
     $userLabelCtrl.Text = "ProtonVPN Username (username+sXXXXXX@protonvpn.com)"
@@ -353,17 +357,17 @@ function Show-Step2 {
     $userLabelCtrl.Width = 600
     $userLabelCtrl.Height = 20
     $userLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($userLabelCtrl)
-    
+    $script:form.Controls.Add($userLabelCtrl)
+
     # ProtonVPN Username TextBox
-    $userBox = New-Object System.Windows.Forms.TextBox
-    $userBox.Top = 170
-    $userBox.Left = 20
-    $userBox.Width = 600
-    $userBox.Height = 30
-    $userBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $form.Controls.Add($userBox)
-    
+    $script:userBox = New-Object System.Windows.Forms.TextBox
+    $script:userBox.Top = 170
+    $script:userBox.Left = 20
+    $script:userBox.Width = 600
+    $script:userBox.Height = 30
+    $script:userBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:form.Controls.Add($script:userBox)
+
     # ProtonVPN Password Label
     $passLabelCtrl = New-Object System.Windows.Forms.Label
     $passLabelCtrl.Text = "ProtonVPN Password"
@@ -372,18 +376,18 @@ function Show-Step2 {
     $passLabelCtrl.Width = 600
     $passLabelCtrl.Height = 20
     $passLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($passLabelCtrl)
-    
+    $script:form.Controls.Add($passLabelCtrl)
+
     # ProtonVPN Password TextBox
-    $passBox = New-Object System.Windows.Forms.TextBox
-    $passBox.Top = 230
-    $passBox.Left = 20
-    $passBox.Width = 600
-    $passBox.Height = 30
-    $passBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $passBox.UseSystemPasswordChar = $true
-    $form.Controls.Add($passBox)
-    
+    $script:passBox = New-Object System.Windows.Forms.TextBox
+    $script:passBox.Top = 230
+    $script:passBox.Left = 20
+    $script:passBox.Width = 600
+    $script:passBox.Height = 30
+    $script:passBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:passBox.UseSystemPasswordChar = $true
+    $script:form.Controls.Add($script:passBox)
+
     # Country Label
     $countryLabelCtrl = New-Object System.Windows.Forms.Label
     $countryLabelCtrl.Text = "VPN Country"
@@ -392,20 +396,20 @@ function Show-Step2 {
     $countryLabelCtrl.Width = 600
     $countryLabelCtrl.Height = 20
     $countryLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($countryLabelCtrl)
-    
+    $script:form.Controls.Add($countryLabelCtrl)
+
     # Country ComboBox
-    $countryBox = New-Object System.Windows.Forms.ComboBox
-    $countryBox.Top = 290
-    $countryBox.Left = 20
-    $countryBox.Width = 600
-    $countryBox.Height = 30
-    $countryBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $countryBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-    @("US", "UK", "CA", "AU", "DE", "NL", "FR", "CH") | ForEach-Object { $countryBox.Items.Add($_) | Out-Null }
-    $countryBox.SelectedIndex = 0
-    $form.Controls.Add($countryBox)
-    
+    $script:countryBox = New-Object System.Windows.Forms.ComboBox
+    $script:countryBox.Top = 290
+    $script:countryBox.Left = 20
+    $script:countryBox.Width = 600
+    $script:countryBox.Height = 30
+    $script:countryBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:countryBox.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+    @("US", "UK", "CA", "AU", "DE", "NL", "FR", "CH") | ForEach-Object { $script:countryBox.Items.Add($_) | Out-Null }
+    $script:countryBox.SelectedIndex = 0
+    $script:form.Controls.Add($script:countryBox)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -414,9 +418,9 @@ function Show-Step2 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 1; Show-Step1 $form }.GetNewClosure())
-    $form.Controls.Add($backBtn)
-    
+    $backBtn.Add_Click({ $script:step = 1; Show-Step1 })
+    $script:form.Controls.Add($backBtn)
+
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
@@ -427,21 +431,21 @@ function Show-Step2 {
     $nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
     $nextBtn.Add_Click({
-        $user = $userBox.Text.Trim()
-        $pass = $passBox.Text.Trim()
-        
+        $user = $script:userBox.Text.Trim()
+        $pass = $script:passBox.Text.Trim()
+
         if ([string]::IsNullOrEmpty($user)) { Show-Error "ProtonVPN Username is required"; return }
         if ([string]::IsNullOrEmpty($pass)) { Show-Error "ProtonVPN Password is required"; return }
-        
+
         $script:data.ProtonUsername = $user
         $script:data.ProtonPassword = $pass
-        $script:data.ProtonCountry = $countryBox.SelectedItem
-        
+        $script:data.ProtonCountry = $script:countryBox.SelectedItem
+
         $script:step = 3
-        Show-Step3 $form
-    }.GetNewClosure())
-    $form.Controls.Add($nextBtn)
-    
+        Show-Step3
+    })
+    $script:form.Controls.Add($nextBtn)
+
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 2 of 5"
@@ -450,14 +454,13 @@ function Show-Step2 {
     $progLabel.Width = 200
     $progLabel.Height = 25
     $progLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($progLabel)
+    $script:form.Controls.Add($progLabel)
 }
 
 function Show-Step3 {
-    param($form)
-    
-    $form.Controls.Clear()
-    
+
+    $script:form.Controls.Clear()
+
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Text = "Step 3 of 5: Plex Token"
     $titleLabel.Top = 20
@@ -465,8 +468,8 @@ function Show-Step3 {
     $titleLabel.Width = 600
     $titleLabel.Height = 30
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($titleLabel)
-    
+    $script:form.Controls.Add($titleLabel)
+
     $descLabel = New-Object System.Windows.Forms.Label
     $descLabel.Text = "Get your Plex claim token (expires in 4 minutes!)"
     $descLabel.Top = 55
@@ -475,8 +478,8 @@ function Show-Step3 {
     $descLabel.Height = 30
     $descLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $descLabel.ForeColor = [System.Drawing.Color]::Gray
-    $form.Controls.Add($descLabel)
-    
+    $script:form.Controls.Add($descLabel)
+
     $warnLabel = New-Object System.Windows.Forms.Label
     # Plain WARNING: prefix, not the emoji - a compound/supplementary-plane
     # emoji like this one has no glyph in Segoe UI's default (non-emoji)
@@ -488,8 +491,8 @@ function Show-Step3 {
     $warnLabel.Height = 50
     $warnLabel.Font = New-Object System.Drawing.Font("Segoe UI", 8, [System.Drawing.FontStyle]::Italic)
     $warnLabel.ForeColor = [System.Drawing.Color]::Red
-    $form.Controls.Add($warnLabel)
-    
+    $script:form.Controls.Add($warnLabel)
+
     # Token Label
     $tokenLabelCtrl = New-Object System.Windows.Forms.Label
     $tokenLabelCtrl.Text = "Plex Claim Token"
@@ -498,17 +501,17 @@ function Show-Step3 {
     $tokenLabelCtrl.Width = 600
     $tokenLabelCtrl.Height = 20
     $tokenLabelCtrl.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $form.Controls.Add($tokenLabelCtrl)
-    
+    $script:form.Controls.Add($tokenLabelCtrl)
+
     # Token TextBox
-    $tokenBox = New-Object System.Windows.Forms.TextBox
-    $tokenBox.Top = 180
-    $tokenBox.Left = 20
-    $tokenBox.Width = 600
-    $tokenBox.Height = 30
-    $tokenBox.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $form.Controls.Add($tokenBox)
-    
+    $script:tokenBox = New-Object System.Windows.Forms.TextBox
+    $script:tokenBox.Top = 180
+    $script:tokenBox.Left = 20
+    $script:tokenBox.Width = 600
+    $script:tokenBox.Height = 30
+    $script:tokenBox.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $script:form.Controls.Add($script:tokenBox)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -517,9 +520,9 @@ function Show-Step3 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 2; Show-Step2 $form }.GetNewClosure())
-    $form.Controls.Add($backBtn)
-    
+    $backBtn.Add_Click({ $script:step = 2; Show-Step2 })
+    $script:form.Controls.Add($backBtn)
+
     # Next Button
     $nextBtn = New-Object System.Windows.Forms.Button
     $nextBtn.Text = "Next →"
@@ -530,19 +533,19 @@ function Show-Step3 {
     $nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
     $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
     $nextBtn.Add_Click({
-        $token = $tokenBox.Text.Trim()
+        $token = $script:tokenBox.Text.Trim()
         if ([string]::IsNullOrEmpty($token)) { Show-Error "Plex token required"; return }
         if (-not $token.StartsWith("claim-")) { Show-Error "Token should start with 'claim-'"; return }
-        
+
         $script:data.PlexToken = $token
         $script:data.PlexDomain = "plex.$($script:data.Domain)"
         $script:data.JellyfinDomain = "jellyfin.$($script:data.Domain)"
-        
+
         $script:step = 4
-        Show-Step4 $form
-    }.GetNewClosure())
-    $form.Controls.Add($nextBtn)
-    
+        Show-Step4
+    })
+    $script:form.Controls.Add($nextBtn)
+
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 3 of 5"
@@ -551,14 +554,13 @@ function Show-Step3 {
     $progLabel.Width = 200
     $progLabel.Height = 25
     $progLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($progLabel)
+    $script:form.Controls.Add($progLabel)
 }
 
 function Show-Step4 {
-    param($form)
-    
-    $form.Controls.Clear()
-    
+
+    $script:form.Controls.Clear()
+
     $titleLabel = New-Object System.Windows.Forms.Label
     $titleLabel.Text = "Step 4 of 5: Generate Passwords"
     $titleLabel.Top = 20
@@ -566,8 +568,8 @@ function Show-Step4 {
     $titleLabel.Width = 600
     $titleLabel.Height = 30
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($titleLabel)
-    
+    $script:form.Controls.Add($titleLabel)
+
     $descLabel = New-Object System.Windows.Forms.Label
     $descLabel.Text = "Click button to generate secure passwords"
     $descLabel.Top = 55
@@ -576,31 +578,31 @@ function Show-Step4 {
     $descLabel.Height = 30
     $descLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $descLabel.ForeColor = [System.Drawing.Color]::Gray
-    $form.Controls.Add($descLabel)
-    
-    # Generate Button
-    # Plain text, not a lock emoji - confirmed live it renders as an empty
-    # tofu box in Segoe UI's default (non-emoji) rendering here.
-    $genBtn = New-Object System.Windows.Forms.Button
-    $genBtn.Text = "Generate Passwords"
-    $genBtn.Top = 120
-    $genBtn.Left = 125
-    $genBtn.Width = 400
-    $genBtn.Height = 50
-    $genBtn.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
-    $genBtn.BackColor = [System.Drawing.Color]::LightGreen
-    $form.Controls.Add($genBtn)
-    
+    $script:form.Controls.Add($descLabel)
+
+    # Generate Button - script-scoped: Add_Click below both sets its own
+    # Enabled/Text and reaches over to $script:nextBtn, so both buttons
+    # need to survive past this function returning.
+    $script:genBtn = New-Object System.Windows.Forms.Button
+    $script:genBtn.Text = "Generate Passwords"
+    $script:genBtn.Top = 120
+    $script:genBtn.Left = 125
+    $script:genBtn.Width = 400
+    $script:genBtn.Height = 50
+    $script:genBtn.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+    $script:genBtn.BackColor = [System.Drawing.Color]::LightGreen
+    $script:form.Controls.Add($script:genBtn)
+
     # Status Label
-    $statusLabel = New-Object System.Windows.Forms.Label
-    $statusLabel.Text = "Ready to generate"
-    $statusLabel.Top = 190
-    $statusLabel.Left = 20
-    $statusLabel.Width = 600
-    $statusLabel.Height = 150
-    $statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
-    $form.Controls.Add($statusLabel)
-    
+    $script:statusLabel = New-Object System.Windows.Forms.Label
+    $script:statusLabel.Text = "Ready to generate"
+    $script:statusLabel.Top = 190
+    $script:statusLabel.Left = 20
+    $script:statusLabel.Width = 600
+    $script:statusLabel.Height = 150
+    $script:statusLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+    $script:form.Controls.Add($script:statusLabel)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -609,22 +611,22 @@ function Show-Step4 {
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 3; Show-Step3 $form }.GetNewClosure())
-    $form.Controls.Add($backBtn)
-    
+    $backBtn.Add_Click({ $script:step = 3; Show-Step3 })
+    $script:form.Controls.Add($backBtn)
+
     # Next Button
-    $nextBtn = New-Object System.Windows.Forms.Button
-    $nextBtn.Text = "Next →"
-    $nextBtn.Top = 590
-    $nextBtn.Left = 560
-    $nextBtn.Width = 80
-    $nextBtn.Height = 35
-    $nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $nextBtn.BackColor = [System.Drawing.Color]::LightBlue
-    $nextBtn.Enabled = $false
-    $nextBtn.Add_Click({ $script:step = 5; Show-Step5 $form }.GetNewClosure())
-    $form.Controls.Add($nextBtn)
-    
+    $script:nextBtn = New-Object System.Windows.Forms.Button
+    $script:nextBtn.Text = "Next →"
+    $script:nextBtn.Top = 590
+    $script:nextBtn.Left = 560
+    $script:nextBtn.Width = 80
+    $script:nextBtn.Height = 35
+    $script:nextBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:nextBtn.BackColor = [System.Drawing.Color]::LightBlue
+    $script:nextBtn.Enabled = $false
+    $script:nextBtn.Add_Click({ $script:step = 5; Show-Step5 })
+    $script:form.Controls.Add($script:nextBtn)
+
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 4 of 5"
@@ -633,9 +635,9 @@ function Show-Step4 {
     $progLabel.Width = 200
     $progLabel.Height = 25
     $progLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($progLabel)
-    
-    $genBtn.Add_Click({
+    $script:form.Controls.Add($progLabel)
+
+    $script:genBtn.Add_Click({
         # A separate random value per secret - reusing one password across
         # unrelated databases/services means one leak compromises everything.
         $script:data.AuthentikPgPassword     = Generate-SecurePassword
@@ -663,36 +665,35 @@ function Show-Step4 {
         $script:data.ArrAuthPassword         = Generate-SecurePassword
         $script:data.RadicaleAuthPassword    = Generate-SecurePassword
 
-        $statusLabel.Text = "Generating secrets... hashing two of them via Docker, one moment"
-        $statusLabel.Refresh()
+        $script:statusLabel.Text = "Generating secrets... hashing two of them via Docker, one moment"
+        $script:statusLabel.Refresh()
         try {
             $script:data.ArrAuthHash      = Get-CaddyPasswordHash -PlainSecret $script:data.ArrAuthPassword
             $script:data.RadicaleAuthHash = Get-CaddyPasswordHash -PlainSecret $script:data.RadicaleAuthPassword
         } catch {
             Show-Error "Failed to hash the Sonarr/Radarr/Radicale passwords via Docker - is Docker Desktop running?`n`n$_"
-            $statusLabel.Text = "Ready to generate"
+            $script:statusLabel.Text = "Ready to generate"
             return
         }
 
         $secretCount = if ($script:data.SetupEmail) { 22 } else { 20 }
         $emailNote = if ($script:data.SetupEmail) { "" } else { "`n(Email server setup skipped - run _scripts\enable-email.ps1 later if that changes.)" }
-        $statusLabel.Text = @"
+        $script:statusLabel.Text = @"
 ✓ Generated $secretCount unique secrets (one per service/database - no reuse)
 $emailNote
 All passwords generated with a cryptographic RNG.
 Click Next to review, then "Create .env Files".
 "@
-        $genBtn.Enabled = $false
-        $genBtn.Text = "✓ Done"
-        $nextBtn.Enabled = $true
-    }.GetNewClosure())
+        $script:genBtn.Enabled = $false
+        $script:genBtn.Text = "✓ Done"
+        $script:nextBtn.Enabled = $true
+    })
 }
 
 function Show-Step5 {
-    param($form)
-    
-    $form.Controls.Clear()
-    
+
+    $script:form.Controls.Clear()
+
     # "and", not "&": WinForms Label text treats a single & as a mnemonic
     # marker (it gets silently swallowed rather than displayed) unless
     # doubled as && or UseMnemonic is turned off - confirmed live it
@@ -704,8 +705,8 @@ function Show-Step5 {
     $titleLabel.Width = 600
     $titleLabel.Height = 30
     $titleLabel.Font = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($titleLabel)
-    
+    $script:form.Controls.Add($titleLabel)
+
     $descLabel = New-Object System.Windows.Forms.Label
     $descLabel.Text = "Review before creating .env files"
     $descLabel.Top = 55
@@ -714,8 +715,8 @@ function Show-Step5 {
     $descLabel.Height = 30
     $descLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9)
     $descLabel.ForeColor = [System.Drawing.Color]::Gray
-    $form.Controls.Add($descLabel)
-    
+    $script:form.Controls.Add($descLabel)
+
     # Review Box
     $reviewBox = New-Object System.Windows.Forms.TextBox
     $reviewBox.Multiline = $true
@@ -761,8 +762,8 @@ Passwords: ✓ Generated ($secretCountText)
 ═════════════════════════════════════════════
 Click "Create .env Files" to proceed
 "@
-    $form.Controls.Add($reviewBox)
-    
+    $script:form.Controls.Add($reviewBox)
+
     # Back Button
     $backBtn = New-Object System.Windows.Forms.Button
     $backBtn.Text = "← Back"
@@ -771,9 +772,9 @@ Click "Create .env Files" to proceed
     $backBtn.Width = 80
     $backBtn.Height = 35
     $backBtn.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-    $backBtn.Add_Click({ $script:step = 4; Show-Step4 $form }.GetNewClosure())
-    $form.Controls.Add($backBtn)
-    
+    $backBtn.Add_Click({ $script:step = 4; Show-Step4 })
+    $script:form.Controls.Add($backBtn)
+
     # Create Button
     $createBtn = New-Object System.Windows.Forms.Button
     $createBtn.Text = "✓ Create .env Files"
@@ -788,10 +789,10 @@ Click "Create .env Files" to proceed
         $credPath = Export-Credentials
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
         Show-Success "Success!`n`nAll .env files created.`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it into Vaultwarden or Proton Pass (both accept Bitwarden-format CSV), then delete that file - it's plaintext and not safe to leave sitting on disk.$emailReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
-        $form.Close()
-    }.GetNewClosure())
-    $form.Controls.Add($createBtn)
-    
+        $script:form.Close()
+    })
+    $script:form.Controls.Add($createBtn)
+
     # Progress
     $progLabel = New-Object System.Windows.Forms.Label
     $progLabel.Text = "Step 5 of 5"
@@ -800,7 +801,7 @@ Click "Create .env Files" to proceed
     $progLabel.Width = 200
     $progLabel.Height = 25
     $progLabel.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-    $form.Controls.Add($progLabel)
+    $script:form.Controls.Add($progLabel)
 }
 
 function Create-EnvFiles {
@@ -1055,6 +1056,6 @@ function Export-Credentials {
     return $exportPath
 }
 
-$form = Create-Form
-Show-Step1 $form
-$form.ShowDialog() | Out-Null
+$script:form = Create-Form
+Show-Step1
+$script:form.ShowDialog() | Out-Null
