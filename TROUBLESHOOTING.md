@@ -146,6 +146,22 @@ These are two different ports and must stay different:
 Giving both the same value breaks qBittorrent - it needs two separate
 sockets (one HTTP, one for BitTorrent) and can't bind the same port twice.
 
+## Email server setup is optional and deferred by default
+
+`gui-installer.ps1`'s "Set up email server (Mailu) now" checkbox is
+unchecked by default - leaving it that way writes no `email-stack\.env`
+at all. `email-stack/` stays fully present in the repo (nothing removed,
+nothing to undo), just unconfigured; `deploy.ps1 -Action deploy` skips
+any stack with no `.env` rather than starting it with every variable
+resolving to an empty string. Run `_scripts/enable-email.ps1` any time
+later to turn it on - it writes `email-stack\.env` and sets
+`MAIL_DOMAIN` in `caddy\.env` without needing to re-run the whole wizard,
+and works the same whether this is a fresh install or hardware you set up
+months ago. This exists because Mailu is genuinely the most complex,
+fragile stack in this repo (see the 1.0.9, 1.2.2, and 1.5.0 CHANGELOG
+entries for the real bugs found in it over time) - not everyone setting
+up a homelab from this repo will want to take that on.
+
 ## Mailu runs its own `front` for mail protocols only - not for 80/443
 
 `email-stack/` runs Mailu's full topology - admin, dovecot, postfix,

@@ -14,15 +14,22 @@ with zero port forwarding, which matters if you're behind CGNAT (Starlink,
 many mobile carriers) where there's no public IP to forward a port on in
 the first place - but it's the same setup either way, CGNAT or not.
 
+**Don't want to run an email server at all, or not sure yet?** The wizard
+in step 2 has a "Set up email server (Mailu) now" checkbox, unchecked by
+default - leave it that way and skip the Mailu-specific parts of step 1.3
+below entirely for now. `email-stack/` stays in the repo either way, just
+unconfigured; run `_scripts/enable-email.ps1` whenever you're ready to
+turn it on, no need to redo any of this.
+
 **Already have real email on this domain through another provider (Proton
 Mail, Google Workspace, etc.)?** Don't point Mailu at it - a domain can
 only have one real mail provider, and Mailu taking over would break your
 existing inbox. Use a second domain for Mailu instead (the "Mail Domain"
-field in step 2's wizard) - it can be a domain you already own or a new
-one, and needs to be added to the same Cloudflare account (a free account
-holds many domains). Steps 1 and 3 below both need doing for that second
-domain too if so; steps 2 and 4 are shared across every domain on one
-tunnel.
+field in step 2's wizard, or `enable-email.ps1`'s prompt if you're turning
+it on later) - it can be a domain you already own or a new one, and needs
+to be added to the same Cloudflare account (a free account holds many
+domains). Steps 1 and 3 below both need doing for that second domain too
+if so; steps 2 and 4 are shared across every domain on one tunnel.
 
 1. **Create a scoped API token** for Caddy's certificate issuance: [Cloudflare
    dashboard -> My Profile -> API Tokens -> Create Token](https://dash.cloudflare.com/profile/api-tokens),
@@ -47,13 +54,15 @@ tunnel.
      one rule, which the tunnel can't pre-validate against a single
      hostname - the connection itself is still fully encrypted end-to-end,
      this only skips a redundant internal check).
-   - Subdomain `mail`, the domain, type **HTTP**, URL `caddy:80`. This one
-     needs to exist separately from the wildcard above - it's the one
-     hostname Caddy deliberately serves over plain HTTP (see the
+   - Subdomain `mail`, the domain, type **HTTP**, URL `caddy:80`. Only
+     needed if you're setting up email now (or ever plan to) - it exists
+     separately from the wildcard above because it's the one hostname
+     Caddy deliberately serves over plain HTTP (see the
      `http://mail.{$MAIL_DOMAIN}` block in `caddy/Caddyfile`), so Mailu's
      own Let's Encrypt certificate renewal can complete. Cloudflare matches
      the more specific exact hostname over the wildcard automatically, so
-     rule order doesn't matter.
+     rule order doesn't matter. Skip it for now if you're deferring email
+     setup - add it whenever you run `enable-email.ps1`.
 4. **Add a cache rule** so Cloudflare doesn't try to cache streaming
    responses: Rules -> Cache Rules -> Create rule, matching each domain's
    subdomains, set to Bypass cache.
@@ -76,13 +85,15 @@ cd _scripts
 ```
 
 The wizard collects your domain, email, the two Cloudflare tokens from
-step 1, an optional separate Mail Domain (leave blank to use your main
-domain for Mailu too), ProtonVPN credentials, and Plex token, generates a
-unique cryptographically-random secret for every database/service that
-needs one (22 in total, including a shared Caddy basic-auth login for
-Sonarr/Radarr/Prowlarr/Lidarr and one for Radicale - see
-TROUBLESHOOTING.md for why those two needed adding), and
-writes a correct `.env` file into every stack directory.
+step 1, whether to set up the email server now at all (unchecked by
+default - see the note in step 1 above), an optional separate Mail Domain
+if you do, ProtonVPN credentials, and Plex token, generates a unique
+cryptographically-random secret for every database/service that needs one
+(22 in total with email setup on, 20 without - including a shared Caddy
+basic-auth login for Sonarr/Radarr/Prowlarr/Lidarr and one for Radicale,
+always generated regardless - see TROUBLESHOOTING.md for why those two
+needed adding), and writes a correct `.env` file into every stack
+directory that's actually being set up.
 
 It also writes `credentials-export.csv` in the repo root - every login,
 token, and internal database password it just generated or collected, in

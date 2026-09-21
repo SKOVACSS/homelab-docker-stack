@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.6.0 - Make the email server optional and deferrable (2026-09-21)
+
+Mailu is by far the most complex, fragile stack in this repo - see the
+1.0.9, 1.2.2, and 1.5.0 entries above for the real bugs found in it over
+time. Not everyone using `gui-installer.ps1` to set up a homelab (new
+hardware later, or helping someone else set theirs up) will want to take
+that on, and until now the wizard always generated Mailu secrets and
+wrote `email-stack\.env` regardless.
+
+Added a "Set up email server (Mailu) now" checkbox to the wizard's first
+step, **unchecked by default**. Leaving it unchecked:
+- Skips generating `MailuSecretKey`/`MailAdminPassword` (20 secrets total
+  instead of 22)
+- Writes no `email-stack\.env` at all - the stack stays fully present in
+  the repo, just unconfigured, nothing to undo later
+- Skips the Mailu rows in `credentials-export.csv`
+- Disables (greys out) the Mail Domain field, since it means nothing
+  without email being set up
+
+**New `_scripts/enable-email.ps1`** turns email on later without
+re-running the whole wizard: prompts for the same domain-or-separate-
+domain choice the installer would have asked, confirms the Cloudflare
+dashboard steps a separate domain needs are already done, generates the
+same two secrets, writes `email-stack\.env`, and updates `MAIL_DOMAIN` in
+`caddy\.env` in place (preserving every other line). Also safe to re-run
+against an already-configured `email-stack` (asks to confirm first) -
+useful for rotating the admin password or moving Mailu to a different
+domain later, since neither secret's rotation is destructive to existing
+mail data (Mailu's SQLite database in the `mailu-data` volume is
+untouched by either).
+
+**`deploy.ps1` changes to support this properly**: `Deploy-Stack` now
+skips any stack with no `.env` file with a clear message, rather than
+starting containers with every `${VAR}` resolving to an empty string -
+this was already a latent gap (nothing previously stopped `-Action
+deploy` from doing exactly that to any stack missing its `.env`, not just
+email-stack). Also added `-Stack` support to the `deploy` action itself
+(previously only `start`/`stop`/`restart` supported targeting one stack),
+so `enable-email.ps1`'s "what to run next" instructions can point at
+`deploy.ps1 -Action deploy -Stack email-stack` directly.
+
+Live-tested: ran `Create-EnvFiles` standalone against both an email-
+enabled and email-skipped scenario, confirmed `email-stack\.env` is
+written correctly in one case and doesn't exist at all in the other, and
+confirmed `caddy\.env`'s `MAIL_DOMAIN` line and comment adjust correctly
+to match. Tested `enable-email.ps1` end-to-end (with its interactive
+prompts short-circuited, since this environment's PowerShell runs
+non-interactively) against a fresh `caddy\.env`, confirmed it correctly
+appends `MAIL_DOMAIN`, writes a correct `email-stack\.env` with real
+generated secrets, and confirmed the "already configured, overwrite?"
+safety check leaves an existing file untouched when declined.
+
 ## 1.5.0 - Security audit: no-auth services, a dangerous docker.sock mount, redundant port exposure (2026-09-21)
 
 A dedicated security pass across the whole codebase, not just the
