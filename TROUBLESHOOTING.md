@@ -151,6 +151,39 @@ limit, edit the `events`/`window` values in the `(rate_limit)` snippet in
 the Caddyfile and redeploy the caddy stack (`docker compose -f
 caddy/docker-compose.yml up -d --build`).
 
+## gluetun crash-loops immediately after deploying media-stack
+
+Check `docker logs gluetun` - two specific causes were found by actually
+deploying this stack rather than just validating the YAML (`docker compose
+config` can't catch either, since both are runtime validation inside the
+gluetun binary itself):
+
+- **`ERROR reading VPN settings: wireguard: parsing address:
+  netip.ParsePrefix(...): unable to parse IP`** even though `VPN_TYPE` is
+  set to `openvpn`. Fixed in the wizard as of 1.6.4, but a `.env` written
+  by an older version of `gui-installer.ps1` (or hand-copied from an old
+  example) may still have literal placeholder text in
+  `PROTON_WIREGUARD_KEY`/`PROTON_WIREGUARD_ADDRESSES` instead of leaving
+  them blank. gluetun tries to parse `WIREGUARD_ADDRESSES` as an IP
+  whenever it's non-empty, regardless of which `VPN_TYPE` is actually
+  selected - a placeholder string like `your-wireguard-addresses` fails
+  that parse and crash-loops the container forever. Fix: blank out both
+  values in `media-stack/.env` (unless you're actually using
+  `VPN_TYPE=wireguard`, in which case put your real WireGuard key/address
+  there instead), then `docker compose -f media-stack/docker-compose.yml
+  up -d gluetun`.
+- **`ERROR ... the country specified is not valid: value is not one of the
+  possible choices: ... United States, ...`** - gluetun's ProtonVPN
+  provider validates `SERVER_COUNTRIES` against full country names, not
+  ISO codes. `US` fails; `United States` is what it actually wants. Fixed
+  in the wizard's country dropdown as of 1.6.4; if you're hand-editing
+  `PROTON_COUNTRIES`, use the full name gluetun's own error message lists
+  (it enumerates every valid choice), not a 2-letter code.
+
+Both are one-line edits to `media-stack/.env` followed by
+`docker compose -f media-stack/docker-compose.yml up -d gluetun` - no
+need to redeploy the whole stack.
+
 ## qBittorrent: QBIT_PORT vs BT_PORT
 
 These are two different ports and must stay different:
