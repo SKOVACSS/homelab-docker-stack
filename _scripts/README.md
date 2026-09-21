@@ -20,9 +20,13 @@ file just documents each script's options.
 ```
 
 Walks through: domain/email/timezone/Cloudflare tokens/email-server
-toggle -> ProtonVPN credentials -> Plex claim token -> generate secrets ->
-review & write (see SETUP.md step 1 for how to get the two Cloudflare
-tokens - they need to exist before this wizard can use them). Generates
+toggle -> ProtonVPN credentials -> Plex claim token (optional - leave
+blank and claim manually at `http://<this-pc>:32400/web` after deploying;
+it expires in 4 minutes and `setup-directories.ps1`/`deploy.ps1` run as
+separate steps afterward, so a token entered here rarely survives long
+enough to still be valid) -> generate secrets -> review & write (see
+SETUP.md step 1 for how to get the two Cloudflare tokens - they need to
+exist before this wizard can use them). Generates
 22 distinct cryptographically-random secrets when email setup is on, 20
 when it's off (never reuses one across services) and writes a `.env` into
 every stack directory: `authentik`, `caddy`, `media-stack`,
