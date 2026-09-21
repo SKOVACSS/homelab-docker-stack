@@ -66,4 +66,5 @@ cd _scripts
 .\deploy.ps1 -Action status
 .\health-check.ps1
 .\backup.ps1 -Action backup
+.\check-versions.ps1         # lists every stack's pinned image versions
 ```
