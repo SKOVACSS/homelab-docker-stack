@@ -1,18 +1,56 @@
 # Email Stack - Self-Hosted Email Server
 # Replaces: Gmail, ProtonMail (privacy-respecting email)
 # Services: Mailu (all-in-one email solution)
-# Features: IMAP, POP3, SMTP, Webmail, Spam filtering
+# Features: IMAP, POP3, SMTP, Webmail, Spam filtering, Antivirus, CalDAV/CardDAV
+#
+# Rebuilt against Mailu's own official reference compose (2024.06.58) after
+# a live audit found this stack was missing three of Mailu's own services
+# (front, antivirus, webdav) and had TLS silently disabled on Dovecot and
+# entirely unconfigured on Postfix - see CHANGELOG.md. Every *_ADDRESS var
+# below exists because Mailu's own containers default to expecting bare
+# service names ("admin", "antispam", etc.); since this stack uses
+# "mailu-*" names instead, every cross-service address must be set
+# explicitly or the default lookup fails.
 
 networks:
   email-network:
     driver: bridge
     name: email-network
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
   caddy-network:
     driver: bridge
     name: caddy-network
     external: true
 
 services:
+  # mailu-resolver: Mailu requires a DNSSEC-*validating* resolver, not just
+  # a forwarding one - Docker's built-in 127.0.0.11 doesn't validate, and
+  # mailu-admin refuses to start without one (confirmed live: it fails
+  # outright with "your DNS resolver isn't doing DNSSEC validation" against
+  # the Docker default). This is Mailu's own unbound build, exactly what
+  # their own docs recommend running for this rather than a public
+  # resolver. It only handles the DNSSEC-sensitive external lookups
+  # (RESOLVER_ADDRESS below) - container-name resolution is untouched and
+  # still goes through Docker's normal embedded DNS.
+  mailu-resolver:
+    image: ghcr.io/mailu/unbound:2024.06.58
+    restart: unless-stopped
+    container_name: mailu-resolver
+    environment:
+      - SUBNET=172.30.0.0/24
+    networks:
+      - email-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
   # ========== MAILU: All-in-One Email Server ==========
   mailu-redis:
     image: redis:8-alpine
@@ -41,7 +79,7 @@ services:
     restart: unless-stopped
     container_name: mailu-database
     volumes:
-      - mailu-database:/var/lib/postgresql/data
+      - mailu-database:/var/lib/postgresql
     environment:
       - POSTGRES_DB=mailu
       - POSTGRES_USER=mailu
@@ -62,10 +100,71 @@ services:
           cpus: '1.0'
           memory: 512M
 
+  # mailu-front: Mailu's own nginx gateway. This is what was missing before.
+  # It does NOT bind 80/443 - Caddy stays the only thing owning those ports
+  # (see caddy/Caddyfile's "http://mail.{$DOMAIN}" block, which lets Caddy
+  # pass front's own Let's Encrypt HTTP-01 challenge through without Caddy
+  # obtaining a competing certificate for the same hostname). Front DOES
+  # bind the actual mail protocol ports directly, since those go straight
+  # to it rather than through Caddy - it terminates TLS for SMTP/IMAP/POP3
+  # using its own certbot-issued certificate, then proxies decrypted
+  # traffic internally to mailu-smtp/mailu-imap.
+  mailu-front:
+    image: ghcr.io/mailu/nginx:2024.06.58
+    restart: unless-stopped
+    container_name: mailu-front
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "25:25"      # SMTP
+      - "465:465"    # SMTPS
+      - "587:587"    # Submission
+      - "110:110"    # POP3
+      - "995:995"    # POP3S
+      - "143:143"    # IMAP
+      - "993:993"    # IMAPS
+    volumes:
+      - mailu-certs:/certs
+      - mailu-dkim:/dkim
+    environment:
+      - DOMAIN=${DOMAIN}
+      - HOSTNAMES=mail.${DOMAIN}
+      - POSTMASTER=admin
+      - TLS_FLAVOR=letsencrypt
+      - MESSAGE_SIZE_LIMIT=50000000
+      - SUBNET=0.0.0.0/0
+      - RESOLVER=mailu-resolver
+      - ADMIN_ADDRESS=mailu-admin
+      - ANTISPAM_ADDRESS=mailu-rspamd
+      - IMAP_ADDRESS=mailu-imap
+      - POP3_ADDRESS=mailu-imap
+      - SMTP_ADDRESS=mailu-smtp
+      - WEBMAIL_ADDRESS=mailu-webmail
+      - WEBDAV_ADDRESS=mailu-webdav
+      - REAL_IP_HEADER=
+      - REAL_IP_FROM=
+    depends_on:
+      - mailu-admin
+    networks:
+      - email-network
+      # So Caddy can reach it internally for the ACME challenge passthrough
+      # (see caddy/Caddyfile) - front itself never publishes 80/443.
+      - caddy-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
   mailu-admin:
     image: ghcr.io/mailu/admin:2024.06.58
     restart: unless-stopped
     container_name: mailu-admin
+    dns:
+      - 172.30.0.3
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     # No host port published: reachable only via Caddy's mailadmin.{$DOMAIN}
@@ -78,15 +177,21 @@ services:
       - SECRET_KEY=${MAILU_SECRET_KEY}
       - DOMAIN=${DOMAIN}
       - HOSTNAMES=mail.${DOMAIN}
+      - POSTMASTER=admin
       - ADMIN=true
       - MAIL_ADMIN=admin
       - INITIAL_ADMIN_ACCOUNT=${MAIL_ADMIN_USER}
       - INITIAL_ADMIN_PASSWORD=${MAIL_ADMIN_PASSWORD}
       - DATABASE_URL=postgresql://mailu:${MAILU_DB_PASSWORD}@mailu-database/mailu
       - REDIS_URL=redis://mailu-redis:6379
+      - REDIS_ADDRESS=mailu-redis
       - SQLALCHEMY_TRACK_MODIFICATIONS=false
       - DKIM_SELECTOR=default
       - DKIM_PATH=/dkim/{domain}.{selector}.key
+      - ANTIVIRUS=clamav
+      - WEBDAV=radicale
+      - WEBMAIL=roundcube
+      - RESOLVER=mailu-resolver
     depends_on:
       - mailu-database
       - mailu-redis
@@ -94,7 +199,8 @@ services:
       - email-network
       - caddy-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      # Confirmed live: admin's gunicorn binds :8080 internally, not :80.
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -113,19 +219,19 @@ services:
     container_name: mailu-imap
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "143:143"    # IMAP
-      - "993:993"    # IMAPS
-      - "110:110"    # POP3
-      - "995:995"    # POP3S
+    # No host ports: mailu-front now owns 143/993/110/995 and proxies
+    # decrypted traffic here internally over email-network.
     volumes:
       - mailu-mail:/mail
       - mailu-dkim:/dkim
     environment:
       - DOMAIN=${DOMAIN}
+      - HOSTNAMES=mail.${DOMAIN}
       - IMAP_ADDRESS=0.0.0.0
       - ADMIN_ADDRESS=mailu-admin
       - ADMIN_PORT=5555
+      - ANTIVIRUS=clamav
+      - ANTIVIRUS_ADDRESS=mailu-antivirus
       - REDIS_URL=redis://mailu-redis:6379
     depends_on:
       - mailu-admin
@@ -152,15 +258,14 @@ services:
     container_name: mailu-smtp
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-    ports:
-      - "25:25"      # SMTP
-      - "465:465"    # SMTPS
-      - "587:587"    # Submission
+    # No host ports: mailu-front now owns 25/465/587 and proxies decrypted
+    # traffic here internally over email-network.
     volumes:
       - mailu-mail:/mail
       - mailu-dkim:/dkim
     environment:
       - DOMAIN=${DOMAIN}
+      - HOSTNAMES=mail.${DOMAIN}
       - MESSAGE_SIZE_LIMIT=50000000
       - ADMIN_ADDRESS=mailu-admin
       - ADMIN_PORT=5555
@@ -194,10 +299,13 @@ services:
     # dovecot over email-network, nothing outside the stack needs to reach it.
     volumes:
       - mailu-filter:/var/lib/rspamd
+      - mailu-dkim:/dkim
     environment:
       - DOMAIN=${DOMAIN}
       - ADMIN_ADDRESS=mailu-admin
       - ADMIN_PORT=5555
+      - ANTIVIRUS=clamav
+      - ANTIVIRUS_ADDRESS=mailu-antivirus
       - REDIS_URL=redis://mailu-redis:6379
     depends_on:
       - mailu-redis
@@ -217,6 +325,57 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  # mailu-antivirus: Mailu's own ClamAV build - the piece originally planned
+  # as a standalone ClamAV container. Using Mailu's own image instead of a
+  # generic one: it's the same underlying engine, pre-wired for rspamd's
+  # antivirus.conf (ANTIVIRUS_ADDRESS above), and stays version-locked to
+  # the rest of this stack rather than tracking a separate release train.
+  # NOTE: mailu/clamav's version numbering (2.0.x) is independent of the
+  # rest of Mailu's 2024.06.x release train - it tracks the ClamAV engine's
+  # own release cycle, not Mailu's. Confirmed via GHCR's actual published
+  # tags rather than assumed - it does not follow the shared VERSION tag.
+  mailu-antivirus:
+    image: ghcr.io/mailu/clamav:2.0.43
+    restart: unless-stopped
+    container_name: mailu-antivirus
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - mailu-antivirus:/data
+    networks:
+      - email-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # mailu-webdav: CalDAV/CardDAV for contacts and calendars tied to mail
+  # accounts - a different use case from privacy-stack's standalone
+  # Radicale (general-purpose, not mail-account-linked). Reachable through
+  # mailu-front (WEBDAV_ADDRESS above); no direct external route added here.
+  mailu-webdav:
+    image: ghcr.io/mailu/radicale:2024.06.58
+    restart: unless-stopped
+    container_name: mailu-webdav
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    volumes:
+      - mailu-webdav:/data
+    networks:
+      - email-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
   mailu-webmail:
     image: ghcr.io/mailu/webmail:2024.06.58
     restart: unless-stopped
@@ -229,6 +388,10 @@ services:
       - mailu-webmail:/var/www/html/plugins/persistent
     environment:
       - DOMAIN=${DOMAIN}
+      - HOSTNAMES=mail.${DOMAIN}
+      - SECRET_KEY=${MAILU_SECRET_KEY}
+      - MESSAGE_SIZE_LIMIT=50000000
+      - FRONT_ADDRESS=mailu-front
       - IMAP_ADDRESS=mailu-imap
       - IMAP_PORT=143
       - SMTP_ADDRESS=mailu-smtp
@@ -267,4 +430,10 @@ volumes:
   mailu-filter:
     driver: local
   mailu-webmail:
+    driver: local
+  mailu-certs:
+    driver: local
+  mailu-antivirus:
+    driver: local
+  mailu-webdav:
     driver: local
