@@ -1,0 +1,47 @@
+# Hardware-transcoding device profiles shared by Plex and Jellyfin (both
+# extend whichever service block matches _scripts/detect-gpu.ps1's
+# findings - see JELLYFIN_HWACCEL/PLEX_HWACCEL in media-stack/.env).
+#
+# Modeled on immich-app/hwaccel.transcoding.yml (Immich's own upstream
+# file) for the same profile names and reasoning - see that file's
+# comments for why vaapi-wsl still falls back to cpu on today's Docker
+# Desktop WSL2 hosts regardless of GPU vendor (no /dev/dri there yet).
+# Unlike Immich's machine-learning container, neither Plex nor Jellyfin
+# needs a different image per backend - both bundle a transcoder that
+# already supports every backend below, so only devices/volumes/env vary.
+
+services:
+  cpu: {}
+
+  nvenc:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities:
+                - gpu
+                - compute
+                - video
+
+  quicksync:
+    devices:
+      - /dev/dri:/dev/dri
+
+  vaapi:
+    devices:
+      - /dev/dri:/dev/dri
+
+  vaapi-wsl:
+    # See immich-app/hwaccel.transcoding.yml's vaapi-wsl comment: needs a
+    # working /dev/dri, which Docker Desktop's WSL2 backend does not
+    # currently expose - detect-gpu.ps1 only selects this profile once it
+    # has actually confirmed /dev/dri exists.
+    devices:
+      - /dev/dri:/dev/dri
+      - /dev/dxg:/dev/dxg
+    volumes:
+      - /usr/lib/wsl:/usr/lib/wsl
+    environment:
+      - LIBVA_DRIVER_NAME=d3d12

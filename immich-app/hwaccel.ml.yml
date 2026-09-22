@@ -55,3 +55,23 @@ services:
     volumes:
       - /dev/bus/usb:/dev/bus/usb
       - /usr/lib/wsl:/usr/lib/wsl
+
+  # This repo's own addition (not upstream Immich) - _scripts/detect-gpu.ps1
+  # picks this over plain openvino-wsl when it finds /dev/dxg but no
+  # /dev/dri. Confirmed live on Docker Desktop's WSL2 backend (Windows 11,
+  # current WSL2 kernel, up-to-date Intel Arc driver): /dev/dri does not
+  # exist there at all, in either Docker Desktop's own WSL VM or a full
+  # Ubuntu WSL distro with systemd-udevd running - this is a WSL2 platform
+  # gap, not a missing driver, and the plain openvino-wsl profile above
+  # fails to start without it. OpenVINO's GPU plugin works fine through
+  # /dev/dxg alone though - verified with a real onnxruntime
+  # OpenVINOExecutionProvider GPU session, no /dev/dri involved. Once
+  # Microsoft exposes /dev/dri for WSL2 GPU passthrough (they've been
+  # rolling this out gradually), detect-gpu.ps1 will pick openvino-wsl
+  # instead automatically - this profile can retire whenever that lands
+  # everywhere.
+  openvino-wsl-dxgonly:
+    devices:
+      - /dev/dxg:/dev/dxg
+    volumes:
+      - /usr/lib/wsl:/usr/lib/wsl

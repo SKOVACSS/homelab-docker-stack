@@ -9,6 +9,7 @@
 | `backup.ps1` | Backs up every stack's `.env` (and, with `-Full`, every Docker volume; optionally off-site via Restic) | No |
 | `check-versions.ps1` | Lists every stack's pinned image version, registry, and tag | No |
 | `enable-email.ps1` | Turns on the email server (Mailu) later, if you skipped it in the wizard | No |
+| `detect-gpu.ps1` | Detects usable NVIDIA/AMD/Intel GPU acceleration for Immich/Plex/Jellyfin and writes it to their `.env` files | No |
 
 See [../SETUP.md](../SETUP.md) for the full first-time walkthrough. This
 file just documents each script's options.
@@ -73,6 +74,38 @@ second domain needs if that applies, generates `MAILU_SECRET_KEY` and
 in `caddy\.env`. Safe to re-run against an already-configured
 `email-stack` too (asks to confirm first) - useful for rotating the admin
 password or moving Mailu to a different domain later.
+
+## detect-gpu.ps1
+
+```powershell
+.\detect-gpu.ps1 [-WhatIf] [-Quiet]
+```
+
+Detects whatever GPU hardware acceleration is actually *usable* (not just
+present) for Immich's machine learning and video transcoding, and
+Plex/Jellyfin's video transcoding, then writes the result into
+`immich-app\.env` and `media-stack\.env` - `TRANSCODE_HWACCEL`,
+`ML_HWACCEL`, `ML_IMAGE_SUFFIX`, `PLEX_HWACCEL`, `JELLYFIN_HWACCEL`. Works
+across NVIDIA, AMD, and Intel without you picking a vendor - `deploy.ps1`
+runs it automatically before every deploy, so this is normally a
+zero-config, "it just uses the GPU if there is one" situation. `-WhatIf`
+shows what it would detect and write without touching any `.env` file;
+useful for checking what it found without deploying anything.
+
+No GPU, or an unsupported one? Every value defaults to `cpu` (software) in
+the compose files themselves, so this is always safe either way.
+
+Device access alone doesn't turn hardware transcoding *on* inside each
+app - Jellyfin (Dashboard > Playback) and Immich (Admin > Settings > Video
+Transcoding) each have their own hardware-acceleration setting that needs
+to match what got detected, and Plex additionally needs a Plex Pass
+subscription for hardware transcoding to activate at all. The script
+prints a reminder whenever it picks something other than `cpu`.
+
+See `immich-app/hwaccel.ml.yml`, `immich-app/hwaccel.transcoding.yml`, and
+`media-stack/hwaccel.transcoding.yml` for exactly what each detected
+profile maps to (devices, volumes, environment) - these compose files
+list every backend this script knows how to pick between.
 
 ## deploy.ps1
 

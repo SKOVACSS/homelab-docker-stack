@@ -12,6 +12,15 @@ services:
   immich-server:
     container_name: immich_server
     image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    # TRANSCODE_HWACCEL is written by _scripts/detect-gpu.ps1 (run
+    # automatically by deploy.ps1) into .env - defaults to cpu (software
+    # encode) if unset, so this is always safe with no GPU present. See
+    # hwaccel.transcoding.yml for what each profile actually maps to, and
+    # why some of them (vaapi-wsl in particular) still fall back to cpu on
+    # today's Docker Desktop WSL2 hosts regardless of GPU vendor.
+    extends:
+      file: hwaccel.transcoding.yml
+      service: ${TRANSCODE_HWACCEL:-cpu}
     volumes:
       - ${UPLOAD_LOCATION}:/data
       - /etc/localtime:/etc/localtime:ro
@@ -39,7 +48,18 @@ services:
 
   immich-machine-learning:
     container_name: immich_machine_learning
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    # ML_HWACCEL/ML_IMAGE_SUFFIX are written by _scripts/detect-gpu.ps1 (run
+    # automatically by deploy.ps1) into .env, detected fresh on every
+    # deploy - no manual editing needed regardless of GPU vendor, or
+    # whether there's a GPU at all. ML_HWACCEL selects the device/volume
+    # profile from hwaccel.ml.yml; ML_IMAGE_SUFFIX picks the matching image
+    # variant (each accelerator backend needs its own build, e.g.
+    # -openvino, -cuda - unlike transcoding, which uses the same ffmpeg
+    # binary for every backend). Both default to plain CPU if unset.
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}${ML_IMAGE_SUFFIX:-}
+    extends:
+      file: hwaccel.ml.yml
+      service: ${ML_HWACCEL:-cpu}
     volumes:
       - model-cache:/cache
     env_file:

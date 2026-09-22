@@ -1,5 +1,99 @@
 # Changelog
 
+## 1.7.0 - Automatic, vendor-agnostic GPU hardware acceleration (2026-09-21)
+
+Generalizes 1.6.9's manual Intel Arc GPU wiring into something that works
+unattended for NVIDIA, AMD, or Intel, with no GPU at all being just as
+safe. New `_scripts/detect-gpu.ps1`, run automatically by `deploy.ps1`
+before every deploy:
+
+- Tests what's actually *usable* rather than trusting what's merely
+  *present* - a real `docker run --gpus all` probe for NVIDIA, and
+  mounting `/dev/dri`/`/dev/dxg`/`/dev/kfd` into a throwaway container to
+  see whether the host path even exists, rather than guessing from
+  platform/vendor alone. This distinction is real: confirmed live that
+  `/dev/dri` doesn't exist on Docker Desktop's WSL2 backend even with a
+  present, working, up-to-date GPU and driver.
+- Picks the right profile per app from three new/extended compose files -
+  `immich-app/hwaccel.ml.yml` (extended with an `openvino-wsl-dxgonly`
+  profile, this repo's own addition, for hosts with `/dev/dxg` but no
+  `/dev/dri`), `immich-app/hwaccel.transcoding.yml` (upstream Immich,
+  unchanged in substance, comments added), and a new
+  `media-stack/hwaccel.transcoding.yml` shared by Plex and Jellyfin,
+  modeled on Immich's own file.
+- `immich-app/docker-compose.yml` and `media-stack/docker-compose.yml`
+  now select a profile via Docker Compose's `extends:` (confirmed
+  variable interpolation works in `extends.service` before committing to
+  this design) instead of a hardcoded device list - `immich-server`,
+  `immich-machine-learning`, `plex`, and `jellyfin` all default to `cpu`
+  (software, empty profile) if `.env` doesn't set anything, so this is
+  safe on a host with no GPU or with detection disabled/failed.
+- Immich's machine learning additionally needs a different *image* per
+  backend (`-openvino`, `-cuda`, `-rocm` - each accelerator is a separate
+  build, unlike transcoding which shares one ffmpeg for every backend) -
+  `ML_IMAGE_SUFFIX` handles that half separately from `ML_HWACCEL`'s
+  device/volume selection.
+
+Video transcoding hardware acceleration remains unavailable on Docker
+Desktop's WSL2 backend for now regardless of GPU vendor (`/dev/dri`
+doesn't exist there yet) - `detect-gpu.ps1` correctly falls back to `cpu`
+for it rather than picking a profile that would fail to start. Immich's
+own ML acceleration doesn't have this limitation (OpenVINO/CUDA/ROCm work
+through `/dev/dxg` or `/dev/dri` directly, not through ffmpeg's VAAPI
+code path), so that part *does* get GPU acceleration on WSL2 today.
+
+## 1.6.9 - Fix silently-broken basic-auth hashes, add qBittorrent a real login, wire up Intel Arc GPU (2026-09-21)
+
+Three fixes found while setting up Plex/Immich remote access and Intel Arc
+B580 GPU passthrough:
+
+**`arr_auth`/`radicale_auth` were unauthenticatable with ANY password, since
+this repo started using them.** `gui-installer.ps1` escaped literal `$`
+characters in bcrypt hashes (needed so docker compose's own `${VAR}`
+interpolation doesn't misread part of the hash as a variable reference)
+via `-replace '\$', '$$'`. That looks right but is a no-op: PowerShell's
+`-replace` runs its replacement argument through .NET regex substitution
+syntax, where `$$` is the *escape sequence* for a single literal `$` - so
+the hash came out un-doubled every time, and docker compose then silently
+deleted a chunk of every hash it interpolated (`$2a$14$IjrAc...` -> treated
+`IjrAc...` as a variable name, found it unset, substituted empty string).
+Confirmed live: the container's actual `ARR_AUTH_HASH` was missing a whole
+segment compared to the `.env` file. Fixed by switching to the literal
+`.Replace()` string method (no substitution-pattern semantics). Rotated
+the live Sonarr/Radarr/Prowlarr/Lidarr and Radicale passwords since the
+old ones were never actually valid credentials to begin with.
+
+**qBittorrent had no stable login at all.** Unlike every other admin UI in
+this repo, `qbit.{$DOMAIN}` had no Caddy `basic_auth` in front of it -
+its only protection was qBittorrent's own WebUI login, which was never
+set to anything permanent (hotio's image generates a random temporary
+password every container start, logged but never surfaced anywhere
+lasting). Added a dedicated `qbit_auth` Caddy snippet (a separate
+credential from `arr_auth` on purpose - qBittorrent controls what gets
+downloaded, a worse outcome if leaked than reaching the Arr apps) and
+wired its generation/export into `gui-installer.ps1` the same way
+`arr_auth`/`radicale_auth` already work.
+
+**Intel Arc B580 (or any GPU) needs `/dev/dxg`, not `/dev/dri`, on Docker
+Desktop's WSL2 backend - and `/dev/dri` doesn't exist there at all.**
+Confirmed live: `/dev/dri` is absent both inside Docker Desktop's own WSL
+VM and inside a full Ubuntu WSL distro with systemd-udevd running, on a
+current WSL2 kernel (6.6.87.2) with an up-to-date Arc driver - this is a
+WSL2 platform limitation, not a driver or config problem. Consequences:
+- `immich-machine-learning` now runs the `-openvino` image variant with
+  `/dev/dxg` passed through - confirmed working via a real
+  `onnxruntime.InferenceSession` against `OpenVINOExecutionProvider`
+  device_type=GPU. Face detection/CLIP smart search now use the GPU.
+- Video transcoding (Immich, and by extension Plex/Jellyfin) can NOT use
+  the Arc GPU right now: ffmpeg's VAAPI backend hard-requires a
+  `/dev/dri` render node to initialize even with `LIBVA_DRIVER_NAME=d3d12`
+  set - confirmed by an actual failed hwaccel init
+  ("No available render device for DRM render node"). Immich's
+  `ffmpeg.accel` was left set to `vaapi` from a stale prior config with no
+  working device behind it, which would have failed every video transcode
+  job going forward - set to `disabled` (software encode) until Microsoft
+  exposes `/dev/dri` for WSL2 GPU passthrough.
+
 ## 1.6.8 - Switch credentials export from CSV to Bitwarden JSON (2026-09-21)
 
 Found live: importing `credentials-export.csv` into Proton Pass via its

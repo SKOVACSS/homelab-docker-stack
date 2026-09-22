@@ -84,6 +84,16 @@
   }
 }
 
+# Deliberately a separate login from arr_auth above, not reused: qBittorrent
+# controls what actually gets downloaded, a worse outcome if this login
+# leaks than reaching the Arr apps' library-management UI, so it isn't
+# worth sharing one login across both risk levels.
+(qbit_auth) {
+  basic_auth {
+    {$QBIT_AUTH_USER} {$QBIT_AUTH_HASH}
+  }
+}
+
 # ========== MEDIA APPS ==========
 
 # Sonarr - TV shows automation
@@ -122,6 +132,7 @@ lidarr.{$DOMAIN} {
 qbit.{$DOMAIN} {
   import security_headers
   import rate_limit qbit
+  import qbit_auth
   reverse_proxy gluetun:{$QBIT_PORT} {
     header_up X-Real-IP {http.request.remote}
   }
