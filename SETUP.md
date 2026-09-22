@@ -248,6 +248,25 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   4. Optional: Settings -> Notifications -> Gotify, once you've created an
      Application for it in Gotify's web UI to get a token - same pattern as
      Watchtower/Diun's Gotify setup.
+- **Immich** (`photos.yourdomain.com`): machine learning (facial
+  recognition, smart search, duplicate detection, OCR) is on by default
+  and needs no setup - `_scripts/detect-gpu.ps1` (run automatically by
+  `deploy.ps1`) already points it at whatever GPU acceleration this host
+  actually supports. Video transcoding hardware acceleration is a
+  separate, less commonly available thing - see TROUBLESHOOTING.md if
+  yours shows `cpu`/`disabled` and you expected otherwise. For OAuth
+  login via Authentik (optional, but the only way to get one-tap mobile
+  login instead of typing a password): create an OAuth2 Provider +
+  Application in Authentik named "Immich" with all four redirect URIs -
+  `https://photos.yourdomain.com/auth/login`,
+  `https://photos.yourdomain.com/user-settings`,
+  `app.immich:///oauth-callback`, and
+  `https://photos.yourdomain.com/api/oauth/mobile-redirect` - then set
+  `oauth.enabled: true` plus the issuer URL/client ID/secret in Immich's
+  Admin -> Settings -> OAuth. See TROUBLESHOOTING.md for the exact
+  provider settings that avoid the same two Authentik gotchas Homepage's
+  setup hit, and for how to bring additional family members onto OAuth
+  without splitting their existing account in two.
 
 ## 6. Back up
 
