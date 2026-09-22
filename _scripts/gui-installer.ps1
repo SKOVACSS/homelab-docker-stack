@@ -675,19 +675,26 @@ function Show-Step4 {
         $script:data.PiholeWebPassword       = Generate-SecurePassword
         $script:data.ArrAuthPassword         = Generate-SecurePassword
         $script:data.RadicaleAuthPassword    = Generate-SecurePassword
+        # Separate from ArrAuthPassword on purpose: qBittorrent controls what
+        # gets downloaded (and, if abused, could leak download activity or
+        # be pointed at unwanted content) - a materially worse outcome than
+        # someone reaching the Arr apps' library management UI, so it isn't
+        # worth sharing one login across both risk levels.
+        $script:data.QbitAuthPassword        = Generate-SecurePassword
 
-        $script:statusLabel.Text = "Generating secrets... hashing two of them via Docker, one moment"
+        $script:statusLabel.Text = "Generating secrets... hashing three of them via Docker, one moment"
         $script:statusLabel.Refresh()
         try {
             $script:data.ArrAuthHash      = Get-CaddyPasswordHash -PlainSecret $script:data.ArrAuthPassword
             $script:data.RadicaleAuthHash = Get-CaddyPasswordHash -PlainSecret $script:data.RadicaleAuthPassword
+            $script:data.QbitAuthHash     = Get-CaddyPasswordHash -PlainSecret $script:data.QbitAuthPassword
         } catch {
-            Show-Error "Failed to hash the Sonarr/Radarr/Radicale passwords via Docker - is Docker Desktop running?`n`n$_"
+            Show-Error "Failed to hash the Sonarr/Radarr/Radicale/qBittorrent passwords via Docker - is Docker Desktop running?`n`n$_"
             $script:statusLabel.Text = "Ready to generate"
             return
         }
 
-        $secretCount = if ($script:data.SetupEmail) { 22 } else { 20 }
+        $secretCount = if ($script:data.SetupEmail) { 23 } else { 21 }
         $emailNote = if ($script:data.SetupEmail) { "" } else { "`n(Email server setup skipped - run _scripts\enable-email.ps1 later if that changes.)" }
         $script:statusLabel.Text = @"
 ✓ Generated $secretCount unique secrets (one per service/database - no reuse)
@@ -930,8 +937,22 @@ BOOTSTRAP_TOKEN=$($script:data.AuthentikBootstrapToken)
     # a hand-placed Portainer password hash) - every literal $ in a bcrypt
     # hash must be doubled to $$ to survive being written into a .env file,
     # or compose silently mangles it into an empty/wrong value.
-    $arrAuthHashEscaped = $script:data.ArrAuthHash -replace '\$', '$$'
-    $radicaleAuthHashEscaped = $script:data.RadicaleAuthHash -replace '\$', '$$'
+    # NOTE: must be the literal .Replace() string method, not the -replace
+    # operator. -replace '\$','$$' looks right but silently does nothing:
+    # PowerShell's -replace runs its replacement argument through .NET
+    # regex substitution syntax, where '$$' is the ESCAPE SEQUENCE for a
+    # single literal '$' - so '\$' -> '$$' round-trips to the same single
+    # '$', a no-op. Confirmed live: every bcrypt hash written this way came
+    # out un-doubled, which docker compose's own ${VAR} interpolation then
+    # misread as a reference to a variable named after whatever alphanumeric
+    # run followed the embedded '$' - silently deleting that whole chunk
+    # from the hash before the container ever saw it. Every login gated by
+    # arr_auth or radicale_auth was consequently unauthenticatable with ANY
+    # password. .Replace() is a plain literal find-and-replace with no
+    # substitution-pattern semantics, so it actually doubles the '$'.
+    $arrAuthHashEscaped = $script:data.ArrAuthHash.Replace('$', '$$')
+    $radicaleAuthHashEscaped = $script:data.RadicaleAuthHash.Replace('$', '$$')
+    $qbitAuthHashEscaped = $script:data.QbitAuthHash.Replace('$', '$$')
 
     $mailDomainLine = if ($script:data.SetupEmail) {
         "# Same as DOMAIN unless you entered a separate Mail Domain in step 1 -`n# must match DOMAIN in email-stack\.env exactly either way.`nMAIL_DOMAIN=$($script:data.MailDomain)"
@@ -954,6 +975,10 @@ ARR_AUTH_USER=admin
 ARR_AUTH_HASH=$arrAuthHashEscaped
 RADICALE_AUTH_USER=family
 RADICALE_AUTH_HASH=$radicaleAuthHashEscaped
+# Separate login from ARR_AUTH above on purpose - see qbit_auth in
+# caddy/Caddyfile and the comment on QbitAuthPassword's generation.
+QBIT_AUTH_USER=admin
+QBIT_AUTH_HASH=$qbitAuthHashEscaped
 "@
     $caddyEnv | Out-File "$appRoot\caddy\.env" -Encoding UTF8 -Force
 
@@ -1174,6 +1199,7 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Immich Database" "" "postgres" $script:data.ImmichDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Pi-hole" "https://pihole.$d" "" $script:data.PiholeWebPassword "Password-only login, no username"))
     $rows.Add((New-CredRow "Sonarr / Radarr / Prowlarr / Lidarr" @("https://sonarr.$d", "https://radarr.$d", "https://prowlarr.$d", "https://lidarr.$d") "admin" $script:data.ArrAuthPassword "Shared Caddy basic-auth login - autofills on all four sites"))
+    $rows.Add((New-CredRow "qBittorrent" "https://qbit.$d" "admin" $script:data.QbitAuthPassword "Caddy basic-auth in front of qBittorrent's WebUI - deliberately a separate login from the Arr stack above. qBittorrent's OWN WebUI login (Tools > Options > Web UI) is separate again and defaults to a random temporary password printed in its container logs on first start - set a permanent one there too the first time you log in."))
     $rows.Add((New-CredRow "Radicale (Calendar/Contacts)" "https://cal.$d" "family" $script:data.RadicaleAuthPassword "Caddy basic-auth in front of Radicale, which has no auth of its own"))
     $rows.Add((New-CredRow "ProtonVPN" "https://account.protonvpn.com" $script:data.ProtonUsername $script:data.ProtonPassword "Used by media-stack's gluetun VPN routing"))
     $rows.Add((New-CredRow "Portainer" "https://portainer.$d" "" "" "Set your own password on first visit, then fill in here"))

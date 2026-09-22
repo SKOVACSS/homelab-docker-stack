@@ -227,6 +227,20 @@ Write-Host ""
 
 switch ($Action) {
     "deploy" {
+        # Detects NVIDIA/AMD/Intel GPU hardware acceleration and writes the
+        # right *_HWACCEL values into immich-app/.env and media-stack/.env
+        # before anything reads them - see detect-gpu.ps1 for why this
+        # can't just be a fixed device mapping. Runs on every deploy (cheap,
+        # idempotent, and needs to notice if hardware changed), and doesn't
+        # abort the deploy if it fails for any reason - everything it would
+        # set defaults to cpu (software) in the compose files themselves.
+        try {
+            & "$PSScriptRoot\detect-gpu.ps1" -Quiet:$Quiet
+        } catch {
+            Write-Status "GPU detection failed, continuing with cpu/software defaults: $_" "warning"
+        }
+        Write-Host ""
+
         # -Stack targets one stack directly, skipping the full ordered
         # sequence below - for bringing up a stack on its own after the
         # rest is already running (e.g. _scripts/enable-email.ps1 right
