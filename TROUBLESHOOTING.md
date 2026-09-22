@@ -886,51 +886,78 @@ evidence, not evidence it doesn't work - worth revisiting once it
 reaches GA and has real-world reports, not something to preemptively
 switch to now on the hope it happens to fix the `dzn` gap above.
 
-## Outbound TCP port 53 appears blocked - a real risk for future cert renewals
+## Outbound TCP port 53 was blocked by ProtonVPN's DNS leak protection, not the ISP/router
 
 Discovered while verifying the `chat.{$DOMAIN}` route for `ai-stack`:
 Caddy's DNS-01 certificate issuance for that new domain repeatedly failed
 with `dial tcp 172.64.34.71:53: connect: connection refused` (Cloudflare's
-authoritative nameserver). Confirmed this isn't a Caddy/container-specific
-problem - it's a host-level networking condition:
+authoritative nameserver). First hypothesis was a router/ISP-level block
+(Starlink) - **that was wrong**, corrected after further investigation
+below. The real cause was entirely local to this host and had nothing to
+do with the network path beyond it.
+
+**Root cause, confirmed step by step:**
 
 - `Test-NetConnection -ComputerName 172.64.34.71 -Port 53` (TCP) fails
-  directly from the Windows host itself, outside any container.
-- Same failure against `1.1.1.1:53` (TCP) - not specific to Cloudflare's
-  nameserver IP.
-- `Test-NetConnection -ComputerName 172.64.34.71 -Port 443` (TCP)
-  **succeeds** against the exact same IP - this is specific to port 53,
-  not a broader connectivity problem.
-- Normal DNS resolution (`Resolve-DnsName`, which uses UDP) works fine -
-  this only affects TCP:53, which is what certmagic (Caddy's ACME
-  library) uses specifically to query authoritative nameservers directly
-  during DNS-01 propagation checks, bypassing recursive resolver caches.
-- No outbound-blocking Windows Firewall rule was found for port 53 in
-  either direction - the block is happening upstream (router or ISP,
-  Starlink in this deployment's case), not in Windows itself.
+  from the Windows host itself; `Test-NetConnection ... -Port 443`
+  **succeeds** against the same IP - specific to port 53, not a broader
+  connectivity problem. Normal DNS resolution (UDP) works fine.
+- The *precise* Windows socket error, gotten by testing with .NET's
+  `TcpClient` directly instead of `Test-NetConnection`'s plain boolean
+  result: `An attempt was made to access a socket in a way forbidden by
+  its access permissions` (WSAEACCES) - a **local** policy block, not a
+  network-level refusal. It returns in under 20ms, far too fast to be a
+  round trip to anywhere.
+- This host runs ProtonVPN's native Windows desktop client (separate
+  from the containerized `gluetun` instance media-stack uses for
+  qBittorrent - see the qBittorrent/gluetun entries above). Its running
+  processes include `ProtonVPN.NrptWatchdog` - NRPT is Windows' DNS
+  Name Resolution Policy Table, and a "watchdog" for it strongly implies
+  active enforcement of DNS routing, matching a common VPN client
+  feature: DNS leak protection, which blocks direct outbound DNS to
+  anything except the VPN's own tunnel resolver, so no query can leak
+  outside the tunnel and reveal what you're browsing to your ISP.
+- Confirmed directly: TCP:53 to ProtonVPN's own DNS server
+  (`10.2.0.1`, the address on the `ProtonVPN` network adapter) succeeds
+  instantly. TCP:53 to *any other* address - Cloudflare, Google's
+  `8.8.8.8`, anything - fails with the same WSAEACCES. This block
+  applies **system-wide**, including Docker Desktop/WSL2 traffic (a
+  `docker run` container hit the identical `connection refused` before
+  this was diagnosed), since ProtonVPN's driver operates at the Windows
+  Filtering Platform level below the container network boundary.
 
-**Why this hasn't broken anything yet**: this server sits behind
-Cloudflare Tunnel with Cloudflare's own Universal SSL terminating the
-public-facing connection - browsers validate *Cloudflare's* certificate,
-not Caddy's, and the tunnel's connection to Caddy doesn't require Caddy
-to hold a valid publicly-trusted cert. Confirmed directly: `chat.
-{$DOMAIN}` served real traffic (HTTP 200, actual page content) through
-the tunnel the entire time Caddy's own DNS-01 attempts for that domain
-kept failing and retrying in the background.
+**The fix**: pointed Caddy's DNS-01 resolver at ProtonVPN's own resolver
+instead of trying to route around the block. Caddy's global
+`tls_resolvers` option (added in Caddy v2.11.2; this deployment runs
+v2.11.4) overrides which DNS server the ACME DNS-01 solver uses for both
+its zone-detection SOA lookup and its propagation check - normally these
+query authoritative nameservers directly, which is exactly the traffic
+ProtonVPN blocks. Since `10.2.0.1` is a real general-purpose recursive
+resolver (not restricted to VPN-internal domains) and TCP to it isn't
+blocked, this sidesteps the problem entirely without touching any
+ProtonVPN or Windows Firewall setting:
+```
+{
+  tls_resolvers 10.2.0.1
+}
+```
+Verified working end-to-end: a DNS-01 challenge for `chat.stevenks.com`
+reached `"authz_status":"valid"` against Let's Encrypt's staging CA after
+this change - confirming the zone lookup and propagation check both
+complete successfully through ProtonVPN's resolver. Production issuance
+can still occasionally hit `timed out waiting for record to fully
+propagate` on a given attempt (ordinary DNS propagation/caching timing
+against a single resolver, not the hard block from before) - Caddy
+retries automatically and indefinitely with backoff, so this is a minor
+delay to first issuance, not a failure requiring intervention.
 
-**Why it's still worth fixing**: every one of this deployment's 30+
-other domains already has a valid, previously-issued cert - they're not
-affected *today* because they don't need to redo the DNS-01 challenge
-until their existing cert nears renewal. When that happens (Let's
-Encrypt certs are 90 days), each one will hit this same
-connection-refused failure. Caddy retries indefinitely
-(`max_duration":2592000` = 30 days) so a renewal isn't silently lost
-forever, but a cert can still expire if this isn't resolved before the
-retry window runs out. Not something this repo's config can fix on its
-own - needs investigating at the router/ISP level (a firmware update, a
-security feature blocking outbound TCP:53 specifically, or an ISP-side
-policy). A possible Caddy-side mitigation worth trying if the underlying
-network block can't be resolved: setting a `resolvers` override in the
-`acme_dns` config to use a recursive UDP resolver instead of querying
-authoritative nameservers directly over TCP - untested as of this
-writing.
+**If this stops working** (ProtonVPN reconnects to a different server,
+client update changes the tunnel subnet, or the VPN is uninstalled): the
+`10.2.0.1` IP is specific to this ProtonVPN client's current tunnel -
+check the actual address via `ipconfig /all` (look for the "ProtonVPN"
+adapter) or `Get-NetIPConfiguration -InterfaceAlias "ProtonVPN"` and
+update `tls_resolvers` in `caddy/Caddyfile` to match. If ProtonVPN is
+ever removed from this host entirely, `tls_resolvers` can likely be
+removed too and DNS-01 will fall back to Caddy's normal
+authoritative-nameserver behavior - but there's no harm in leaving it
+pointed at a working resolver either way.
