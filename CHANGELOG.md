@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.12.0 - Immich OAuth via Authentik, GPU/ML verification (2026-09-22)
+
+**Verified GPU hardware acceleration end-to-end** rather than assuming
+`_scripts/detect-gpu.ps1`'s automation (added in an earlier pass) was
+still correct and actually applied live. It was: `TRANSCODE_HWACCEL=cpu`
+and `ML_HWACCEL=openvino-wsl-dxgonly` are both live and correct for this
+host's real hardware situation - Docker Desktop's WSL2 backend exposes
+`/dev/dxg` but not `/dev/dri` here, so ffmpeg-based video transcoding
+(Immich, Plex, Jellyfin) genuinely cannot be hardware-accelerated no
+matter the config, while Immich's OpenVINO-based machine learning can
+and does run accelerated against `/dev/dxg` alone. Confirmed all four ML
+features (facial recognition, smart search, duplicate detection, OCR)
+are enabled and pointed at the accelerated ML service - see
+TROUBLESHOOTING.md for the full hardware explanation.
+
+**Replaced Immich's OAuth login.** It was configured but pointed at a
+now-deleted Cloudflare Access app and left disabled the whole time.
+Set up a proper Authentik OAuth2Provider instead (all four required
+redirect URIs registered, covering web + iOS + Android + the mobile
+fallback bridge), applying the grant_types/signing_key/property_mappings
+fixes from the earlier Homepage OIDC work up front this time instead of
+hitting the same bugs again. Created Authentik accounts for four family
+members with emails matching their existing Immich accounts, so their
+first OAuth login links to their existing photos instead of creating a
+duplicate account - confirmed this linking behavior directly from
+Immich's own source, since its docs don't cover it. Password login
+remains available for everyone as a fallback.
+
 ## 1.11.0 - Tuned Sonarr/Radarr's automated search and release selection (2026-09-22)
 
 **PreToMe is now indexer priority 1 (highest)** in Prowlarr, synced through
