@@ -86,11 +86,26 @@ one-time step in your own account is the token itself:
 
 1. **Create a broader Cloudflare API token** - this is a *different*
    token from `CLOUDFLARE_API_TOKEN` above (that one is DNS-only; this
-   one needs Workers KV/Scripts Edit, Turnstile Edit, Account
-   Settings/Analytics Read, and Zone DNS/Workers Routes/Zone Read -
-   [this pre-filled link](https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22turnstile%22%2C%22type%22%3A%22edit%22%7D%5D&name=CrowdSec+Cloudflare+bouncer)
-   from CrowdSec's own docs sets most of these for you - review and add
-   the Read-only ones before creating it). Keep it somewhere safe for a
+   one needs the full set CrowdSec's own docs specify - get every one of
+   these exactly right, permission AND scope both, or the bouncer's
+   auto-generate step fails outright with no useful error:
+   - Account: Workers KV Storage - **Edit**
+   - Account: Workers Scripts - **Edit**
+   - Account: Turnstile - **Edit**
+   - Account: Account Settings - **Read**
+   - Account: Account Analytics - **Read**
+   - User: User Details - **Read** (easy to miss - it's under "User",
+     not "Account" or "Zone", a different resource-type dropdown)
+   - Zone: DNS - **Read**
+   - Zone: Workers Routes - **Edit** (not Read - the bouncer creates and
+     manages the actual route, it doesn't just read it)
+   - Zone: Zone - **Read**
+
+   [This pre-filled link](https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22turnstile%22%2C%22type%22%3A%22edit%22%7D%5D&name=CrowdSec+Cloudflare+bouncer)
+   from CrowdSec's own docs sets the first three for you - add the
+   remaining six by hand (the "Add more" button under Permissions), and
+   double-check each one's permission level against the list above
+   before creating it. Keep the finished token somewhere safe for a
    minute; `enable-crowdsec.ps1` asks for it once and doesn't store it
    anywhere itself.
 2. Run `_scripts/enable-crowdsec.ps1` - it deploys the engine, mints the
