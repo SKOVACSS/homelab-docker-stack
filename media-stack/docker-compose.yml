@@ -133,7 +133,7 @@ services:
       - ${MEDIA_BOOKS}:/media/books:ro
     # NO ports: section - qBittorrent has no independent network, shares gluetun
     labels:
-      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.enable=false"
     deploy:
       resources:
         limits:
