@@ -448,6 +448,18 @@ runs again.
 
 ## qBittorrent bans itself behind a basic_auth-protected reverse proxy
 
+**Update:** `qbit_auth` no longer exists in this Caddyfile as of the
+change described below - removed once it was confirmed qBittorrent
+already has its own real, mandatory login, making Caddy's copy pure
+redundant friction (and, per this exact bug, actively harmful). This
+specific instance can no longer recur here, but the entry stays as
+general knowledge for the underlying pattern, which still applies to
+Radicale's `cal.{$DOMAIN}` (its own auth is genuinely disabled, so
+Caddy's basic_auth there is load-bearing, not redundant - this bug class
+doesn't apply there since there's no second login for the header to
+collide with) or any new app you ever put a Caddy login in front of that
+also happens to have its own separate login underneath.
+
 If `qbit.{$DOMAIN}` intermittently (or permanently) returns "Your IP
 address has been banned after too many failed authentication attempts"
 even with correct credentials at every layer, this is not Cloudflare and

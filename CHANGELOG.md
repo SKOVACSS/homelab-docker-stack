@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.7.3 - Drop redundant Caddy logins from Sonarr/Radarr/Prowlarr/Lidarr/qBittorrent (2026-09-22)
+
+These five apps were each gated by two separate logins: a Caddy-level
+basic-auth (arr_auth/qbit_auth) plus the app's own. Checked live and
+confirmed all five already had a real, mandatory login of their own
+(Sonarr/Radarr/Prowlarr/Lidarr: `AuthenticationMethod=Forms`,
+`AuthenticationRequired=Enabled`, not the "disabled for local addresses"
+default this repo's comments had assumed; qBittorrent: its own WebUI
+login, independently confirmed working in 1.7.2) - meaning Caddy's copy
+added no real protection, just a second credential to remember, and HTTP
+Basic's browser-native prompt doesn't autofill from a password manager
+the way an app's own HTML login form does.
+
+Removed the `arr_auth`/`qbit_auth` basic_auth snippets and their
+`import` lines from `caddy/Caddyfile` entirely - each of these five apps
+now has exactly one login: its own, matching every other app in this
+stack. `ARR_AUTH_USER`/`ARR_AUTH_HASH`/`QBIT_AUTH_USER`/`QBIT_AUTH_HASH`
+are gone from `.env.example`, `caddy/docker-compose.yml`, and
+`gui-installer.ps1` (which also no longer generates those two
+passwords - down to 19/21 secrets from 21/23). The credentials export
+now points to each app's own first-run login screen instead, same
+pattern already used for Portainer/Trilium/Focalboard/Jellyfin.
+
+Radicale (the calendar) keeps its Caddy-level login unchanged - its own
+auth is deliberately disabled entirely (`RADICALE_AUTH_TYPE=none`), so
+Caddy is genuinely its only gate, not a redundant second one. Also
+rotated `RADICALE_AUTH_HASH` live: the previously-rotated password from
+earlier in this same session was never actually recorded anywhere
+retrievable, so the login "provided at install" didn't work - same
+"generate fresh, verify live, hand over the new value" fix used
+throughout tonight for qBittorrent.
+
+Confirmed live end-to-end for all five apps: each shows its own
+login/redirects to its own `/login` with zero credentials sent, no Caddy
+challenge appears, and a correct app-native login succeeds and grants
+access to an authenticated session.
+
 ## 1.7.2 - Fix qBittorrent self-banning on every single request through Caddy (2026-09-22)
 
 Root-caused the long-standing "Your IP address has been banned after too
