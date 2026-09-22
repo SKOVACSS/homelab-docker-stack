@@ -1,0 +1,37 @@
+# Custom scenario, not from CrowdSec's hub - crowdsecurity/caddy (see
+# collections installed via COLLECTIONS in docker-compose.yml) parses
+# Caddy's logs correctly but doesn't ship a generic "repeated 401/403
+# from one client" bucket; its own auth_fail metadata only fires for
+# Caddy-level HTTP Basic Auth failures (a WWW-Authenticate: Basic
+# response header), which nothing in this repo uses anymore - every app
+# here handles its own login instead (see SECURITY.md). Confirmed live:
+# 8 real 401s from Sonarr's own API auth didn't trip anything in the
+# stock collections at all.
+#
+# This is the same intent Fail2Ban's caddy jail already covers (see
+# security-stack/fail2ban/data/filter.d/caddy.conf) - any 401/403 from
+# the same real client_ip, any host, any path behind Caddy, not
+# hardcoded to guessed login paths per app. capacity/leakspeed approximate
+# Fail2Ban's maxretry=5 / findtime=600s (5 events within ~10 minutes).
+#
+# Bind-mounted directly into /etc/crowdsec/scenarios/ alongside the
+# hub-managed ones (see docker-compose.yml) - `cscli hub upgrade` only
+# touches items it tracks by name in the hub index, so a hand-authored
+# file with no hub entry is left alone by it.
+type: leaky
+name: homelab/caddy-generic-auth-fail
+description: "Repeated 401/403 from the same client across any app behind Caddy"
+filter: "evt.Meta.log_type == 'http_access-log' && (evt.Meta.http_status == '401' || evt.Meta.http_status == '403')"
+groupby: "evt.Meta.source_ip"
+capacity: 5
+leakspeed: "120s"
+blackhole: 1m
+labels:
+  confidence: 3
+  spoofable: 0
+  classification:
+    - attack.T1110
+  behavior: "http:bruteforce"
+  service: http
+  label: "Repeated auth failure"
+  remediation: true

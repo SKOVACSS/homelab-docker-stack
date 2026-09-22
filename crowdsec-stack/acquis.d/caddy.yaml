@@ -1,0 +1,8 @@
+# Not secret, checked into git - this just tells crowdsec where to read
+# from and which parser to use. `type: caddy` is what the
+# crowdsecurity/caddy-logs parser filters on (see its `filter:` matching
+# evt.Parsed.program startsWith 'caddy', which this label sets).
+filenames:
+  - /caddy-logs/access.log
+labels:
+  type: caddy
