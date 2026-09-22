@@ -803,3 +803,57 @@ and per-profile settings respectively, not container env vars). Both need
 the one-time web UI setup documented in SETUP.md - there's no way to
 pre-bake either of them into `.env`/`docker-compose.yml` the way this
 repo does for most other apps.
+
+## Vulkan/`dzn` doesn't actually work on Docker Desktop + WSL2 + Intel Arc
+
+`ai-stack`'s `llama-server` was originally set up on llama.cpp's
+`server-vulkan` image, on the theory that Mesa's WSL2-specific `dzn`
+driver (translates Vulkan calls to D3D12 over `/dev/dxg`, the same device
+Immich's OpenVINO machine learning already uses successfully - see the
+GPU video transcoding entry above) would give it real GPU acceleration
+without the `/dev/dri` requirement that rules out llama.cpp's SYCL
+(`server-intel`) variant on this host. Public reports suggested this
+combination works elsewhere. It doesn't work here, confirmed directly
+rather than left as an assumption:
+
+- `/dev/dxg` mounts into the container fine, and mounting
+  `/usr/lib/wsl:/usr/lib/wsl` (same as Immich's `openvino-wsl-dxgonly`
+  hwaccel profile) does make `libd3d12.so`/`libdxcore.so` available.
+- But that alone isn't enough - the actual Vulkan-to-D3D12 translation
+  (Mesa's `dzn` ICD, a `.so` plus a `/usr/share/vulkan/icd.d/*.json`
+  manifest) has to be *compiled into Mesa itself* on the Linux side.
+  Checked directly inside the running container
+  (`dpkg -L mesa-vulkan-drivers`): Ubuntu 26.04's `mesa-vulkan-drivers`
+  package (26.0.8) ships ICDs for `asahi`, `gfxstream`, `intel_hasvk`,
+  `intel` (ANV, needs `/dev/dri`), `lvp` (CPU software fallback),
+  `nouveau`, `radeon`, and `virtio` - no `dzn` anywhere in the package,
+  not even as an unregistered file.
+- Result: `llama-server`'s own logs show `warning: no usable GPU found,
+  --gpu-layers option will be ignored` every startup, and it silently
+  falls back to CPU inference. Still functional (just slower) - this
+  isn't a broken deployment, just not the GPU-accelerated one originally
+  intended.
+
+**Currently evaluating**: Intel's official `intel/vllm` XPU image, which
+uses Level-Zero/oneAPI instead of Vulkan - the same compute path
+(distinct from the Vulkan/VAAPI graphics path Mesa's `dzn`/ANV drivers
+serve) that already works for Immich's OpenVINO ML on this identical
+`/dev/dxg`-only host. If that pans out, `ai-stack` will switch to it in a
+follow-up change; if you're reading this and it still says
+`server-vulkan` in `ai-stack/docker-compose.yml`, the CPU fallback above
+is still the current state.
+
+## Docker VMM: GPU passthrough support is undocumented, not confirmed working or broken
+
+Docker Desktop's new unified hypervisor backend (**Docker VMM**, public
+beta since v4.86, GA targeted end of October 2026) doesn't currently
+change anything about the GPU findings above, but it's worth writing
+down why "just switch backends" wasn't the answer: Docker's own GPU
+support documentation still states hardware acceleration is
+WSL2-backend-only, Docker VMM's own release notes and docs don't mention
+GPU passthrough in either direction (neither "supported" nor
+"unsupported"), and no community reports of anyone testing a GPU
+workload under it were found as of this writing. That's an absence of
+evidence, not evidence it doesn't work - worth revisiting once it
+reaches GA and has real-world reports, not something to preemptively
+switch to now on the hope it happens to fix the `dzn` gap above.

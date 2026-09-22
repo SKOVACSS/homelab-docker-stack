@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.14.0 - Local LLM chat via llama.cpp + Open WebUI, currently CPU-only (2026-09-22)
+
+**Added a new `ai-stack`**: llama-server (llama.cpp) + Open WebUI as a
+self-hosted local chat alternative to a cloud LLM service. GPU
+acceleration was the original goal but doesn't actually work yet on this
+host, confirmed empirically rather than assumed - see TROUBLESHOOTING.md
+for the full "Vulkan/dzn doesn't work on Docker Desktop + WSL2" writeup.
+Short version: llama.cpp's `server-vulkan` image relies on Mesa's `dzn`
+driver to translate Vulkan to D3D12 over `/dev/dxg`, but Ubuntu's
+`mesa-vulkan-drivers` package (confirmed by listing its files directly
+inside the running container) doesn't build `dzn` at all - not a
+configuration gap, a missing driver. `server-intel` (SYCL) was already
+ruled out earlier for needing `/dev/dri`, which this host doesn't expose
+to containers either. The stack currently runs `llama-server` on CPU,
+which works fine, just slower than GPU inference would be. Ships with
+Qwen3 14B (Q4_K_M, ~8.4GB), auto-downloaded on first boot via llama.cpp's
+own `-hf` flag - change the model by editing one line in
+`ai-stack/docker-compose.yml`.
+
+Currently evaluating Intel's official `intel/vllm` XPU image as a
+GPU-accelerated alternative - it uses Level-Zero/oneAPI, the same
+compute path (not Vulkan/VAAPI) that already gets Immich's OpenVINO
+machine learning working over this same `/dev/dxg` device. Untested as
+of this entry; a follow-up change will switch `ai-stack` to it if it
+pans out.
+
+Also looked into whether Docker Desktop's new **Docker VMM** backend
+(public beta as of Docker Desktop v4.86, GA targeted end of October
+2026) would do any better here. It doesn't help today: Docker's own GPU
+support docs still say hardware acceleration is WSL2-backend-only, Docker
+VMM's own docs don't mention GPU passthrough at all, and no one's
+reported testing it yet either way - worth revisiting after GA, not
+something to switch to now. See TROUBLESHOOTING.md.
+
 ## 1.13.0 - Automated ebook acquisition and Kindle delivery (2026-09-22)
 
 **Added LazyLibrarian + Calibre-Web-Automated**, automating a workflow
