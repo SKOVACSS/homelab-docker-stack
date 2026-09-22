@@ -408,8 +408,8 @@ pihole.{$DOMAIN} {
 
 # ========== AI ==========
 
-# Open WebUI - chat frontend for llama-server (ai-stack), currently
-# CPU-only - see TROUBLESHOOTING.md. llama-server itself has no route -
+# Open WebUI - chat frontend for vllm (ai-stack), GPU-accelerated via
+# Level-Zero/XPU - see TROUBLESHOOTING.md. vllm itself has no route -
 # it's a backend API only this container needs to reach, same reasoning
 # as immich-machine-learning not getting one either. Uses its own
 # built-in login (first account created becomes admin), no Caddy

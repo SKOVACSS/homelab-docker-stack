@@ -1,18 +1,26 @@
-# AI stack - local LLM chat via llama.cpp + Open WebUI.
+# AI stack - local LLM chat via vLLM (Intel XPU) + Open WebUI.
 #
-# Runs on CPU, not GPU, despite the /dev/dxg mount below - see
-# TROUBLESHOOTING.md ("Vulkan/dzn doesn't actually work on Docker Desktop
-# + WSL2 + Intel Arc") for why. Short version: llama-server uses
-# llama.cpp's Vulkan backend (not the SYCL "intel" one, which needs a
-# real DRM render node this host doesn't expose), on the theory that
-# Mesa's WSL2 "dzn" driver would translate Vulkan to D3D12 over
-# /dev/dxg the same way Immich's OpenVINO ML already uses that device
-# successfully. Confirmed directly inside the container that Ubuntu's
-# mesa-vulkan-drivers package doesn't actually build the dzn ICD at all,
-# so this silently falls back to CPU inference instead - still
-# functional, just slower. The /dev/dxg mount is left in place because
-# it's harmless and this may get revisited (see TROUBLESHOOTING.md for
-# the intel/vllm XPU evaluation in progress).
+# GPU-accelerated for real, confirmed by actually running inference (not
+# just checking device detection) - see TROUBLESHOOTING.md ("vLLM's
+# Level-Zero/oneAPI backend is the one that actually works on Docker
+# Desktop + WSL2 + Intel Arc") for the full story. Short version: this
+# stack originally shipped on llama.cpp's Vulkan backend, on the theory
+# that Mesa's WSL2 "dzn" driver would translate Vulkan to D3D12 over
+# /dev/dxg - confirmed that doesn't work (Ubuntu's mesa-vulkan-drivers
+# package doesn't build dzn at all). vLLM's XPU backend takes a
+# completely different path - Level-Zero/oneAPI, the same compute stack
+# (not Vulkan/VAAPI) that already gets Immich's OpenVINO ML working over
+# this same /dev/dxg device - and it's the one that actually works here,
+# confirmed end-to-end (real chat completions generated on the B580, not
+# just "device detected").
+#
+# Model choice: Qwen2.5-7B-Instruct-AWQ, not something bigger, because
+# vLLM's own memory overhead (activation buffers, torch.compile scratch
+# space) is heavier than llama.cpp's - a 14B AWQ model's ~9.4GB of
+# weights alone left only ~0.15GB free for KV cache on this 12GB card,
+# not enough to serve even one request. 7B AWQ (~5GB weights) leaves
+# comfortable headroom for an 8192-token context, confirmed by actually
+# loading it and completing a real chat request, not just estimating.
 
 networks:
   caddy-network:
@@ -25,39 +33,44 @@ networks:
     name: ai-network
 
 services:
-  llama-server:
-    image: ghcr.io/ggml-org/llama.cpp:server-vulkan
+  vllm:
+    image: intel/vllm:0.17.0-xpu
     restart: unless-stopped
-    container_name: llama-server
+    container_name: vllm
     devices:
       - /dev/dxg:/dev/dxg
     volumes:
+      # Microsoft's WSL2 GPU paravirtualization libs (libd3d12.so,
+      # libdxcore.so) - vLLM's Level-Zero runtime needs these alongside
+      # /dev/dxg itself, same as Immich's openvino-wsl-dxgonly hwaccel
+      # profile (see immich-app/hwaccel.ml.yml).
+      - /usr/lib/wsl:/usr/lib/wsl
       # Hugging Face's own cache layout, so a model already pulled here
       # isn't re-downloaded if anything else on this host also uses it.
-      - llama-hf-cache:/root/.cache/huggingface
+      - vllm-hf-cache:/root/.cache/huggingface
     command:
-      # bartowski's GGUF quant of Qwen3 14B - the Q4_K_M file is ~8.4GB,
-      # comfortably inside the B580's 12GB VRAM with room left for context.
-      # First boot downloads it (a few minutes); every boot after that
-      # reuses llama-hf-cache above. Change the -hf argument to try a
-      # different model/quant - see https://huggingface.co/models?library=gguf.
-      - "-hf"
-      - "bartowski/Qwen_Qwen3-14B-GGUF:Q4_K_M"
+      - "vllm"
+      - "serve"
+      # Change this to try a different model - see
+      # https://huggingface.co/models?other=vllm for what's compatible.
+      # Stay AWQ-quantized and mind the VRAM math above if sizing up.
+      - "Qwen/Qwen2.5-7B-Instruct-AWQ"
       - "--port"
-      - "8080"
-      - "--ctx-size"
+      - "8000"
+      - "--max-model-len"
       - "8192"
-      - "--n-gpu-layers"
-      - "99"
+      - "--gpu-memory-utilization"
+      - "0.9"
     # No Caddy route and no caddy-network membership - this is a backend
     # API only Open WebUI needs to reach, same reasoning as
-    # immich-machine-learning not getting its own route.
+    # immich-machine-learning not getting one either.
     networks:
       - ai-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      # Generous start period: first boot downloads an ~8GB model before
-      # the server can respond to anything, including this healthcheck.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      # Generous start period: first boot downloads ~5GB of weights, then
+      # vLLM's torch.compile warmup (roughly a minute) before it can
+      # respond to anything, including this healthcheck.
       start_period: 10m
       interval: 30s
       timeout: 10s
@@ -68,26 +81,26 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 6G
+          memory: 12G
         reservations:
           cpus: '1.0'
-          memory: 2G
+          memory: 4G
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:v0.11.4
     restart: unless-stopped
     container_name: open-webui
     environment:
-      - OPENAI_API_BASE_URLS=http://llama-server:8080/v1
-      # llama-server doesn't check this, but Open WebUI expects a
-      # non-empty value before it'll treat the backend as configured.
+      - OPENAI_API_BASE_URLS=http://vllm:8000/v1
+      # vLLM doesn't check this, but Open WebUI expects a non-empty
+      # value before it'll treat the backend as configured.
       - OPENAI_API_KEYS=none
       - ENABLE_OLLAMA_API=false
       - WEBUI_URL=https://chat.${DOMAIN}
     volumes:
       - open-webui-data:/app/backend/data
     depends_on:
-      - llama-server
+      - vllm
     networks:
       - ai-network
       - caddy-network
@@ -108,7 +121,7 @@ services:
           memory: 512M
 
 volumes:
-  llama-hf-cache:
+  vllm-hf-cache:
     driver: local
   open-webui-data:
     driver: local

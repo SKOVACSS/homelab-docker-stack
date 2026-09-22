@@ -290,18 +290,21 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   provider settings that avoid the same two Authentik gotchas Homepage's
   setup hit, and for how to bring additional family members onto OAuth
   without splitting their existing account in two.
-- **Open WebUI** (`chat.yourdomain.com`, `ai-stack`): local LLM chat, no
-  pre-set login - the first account created through its own signup page
-  becomes the admin account, same pattern as Portainer/Trilium/Focalboard/
-  Jellyfin above. First boot downloads the default model
-  (Qwen3 14B, ~8.4GB) before `llama-server` can respond to anything,
-  including its own healthcheck, so expect the stack to show unhealthy
-  for a few minutes right after first deploy - this is expected, not a
-  failure. Change the model by editing the `-hf` argument in
-  `ai-stack/docker-compose.yml` (any GGUF model from
-  [huggingface.co/models?library=gguf](https://huggingface.co/models?library=gguf))
-  and redeploying. Currently runs on CPU, not GPU - see TROUBLESHOOTING.md
-  for why.
+- **Open WebUI** (`chat.yourdomain.com`, `ai-stack`): local LLM chat,
+  GPU-accelerated via vLLM's Level-Zero/XPU backend (see
+  TROUBLESHOOTING.md for why this specific backend, not llama.cpp's
+  Vulkan one). No pre-set login - the first account created through its
+  own signup page becomes the admin account, same pattern as
+  Portainer/Trilium/Focalboard/Jellyfin above. First boot downloads the
+  default model (Qwen2.5-7B-Instruct-AWQ, ~5GB) then runs vLLM's
+  `torch.compile` warmup (roughly a minute) before it can respond to
+  anything, including its own healthcheck, so expect the stack to show
+  unhealthy for several minutes right after first deploy - this is
+  expected, not a failure. Change the model by editing the `vllm serve`
+  arguments in `ai-stack/docker-compose.yml` - stay AWQ-quantized and
+  check the VRAM math in TROUBLESHOOTING.md before sizing up, a 12GB card
+  has less headroom than it looks like once vLLM's own overhead is
+  accounted for.
 
 ## 6. Back up
 
