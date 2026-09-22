@@ -30,13 +30,18 @@ services:
       # rather than a hardcoded placeholder.
       - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
       # Widget credentials for the live stat tiles (Pi-hole, Sonarr,
-      # Radarr, Lidarr) - same API keys/password already used elsewhere
-      # in this repo (Unpackerr, Recyclarr, Pi-hole's own admin login),
-      # not new secrets generated just for this.
+      # Radarr, Lidarr, Prowlarr, Seerr, qBittorrent, slskd) - same API
+      # keys/password already used elsewhere in this repo (Unpackerr,
+      # Recyclarr, Pi-hole's own admin login, soularr), not new secrets
+      # generated just for this.
       - HOMEPAGE_VAR_PIHOLE_PASSWORD=${PIHOLE_WEBPASSWORD}
       - HOMEPAGE_VAR_SONARR_API_KEY=${SONARR_API_KEY}
       - HOMEPAGE_VAR_RADARR_API_KEY=${RADARR_API_KEY}
       - HOMEPAGE_VAR_LIDARR_API_KEY=${LIDARR_API_KEY}
+      - HOMEPAGE_VAR_PROWLARR_API_KEY=${PROWLARR_API_KEY}
+      - HOMEPAGE_VAR_SEERR_API_KEY=${SEERR_API_KEY}
+      - HOMEPAGE_VAR_QBITTORRENT_API_KEY=${QBIT_API_KEY}
+      - HOMEPAGE_VAR_SLSKD_API_KEY=${SLSKD_API_KEY}
       # Homepage had no login of its own by default - anyone reaching
       # home.{$DOMAIN} saw every service in this stack with zero
       # credentials. OIDC login via Authentik (the OAuth2 Provider +

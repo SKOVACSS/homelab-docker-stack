@@ -9,9 +9,13 @@
           # sonarr is on media-network, not caddy-network - Homepage can't
           # reach it by container name, so this goes through the public
           # route instead (same as its href above).
+          # fields pinned to 2 (of the 3 allowed: wanted, queued, series) -
+          # left at the default 3 fields, this widget wraps to a second row
+          # and makes the tile twice as tall as its Media Apps siblings.
           type: sonarr
           url: "https://sonarr.{{HOMEPAGE_VAR_DOMAIN}}"
           key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
+          fields: ["wanted", "queued"]
     - Radarr:
         icon: radarr.png
         href: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
@@ -19,15 +23,27 @@
         server: my-docker
         container: radarr
         widget:
+          # fields pinned to 2 (of the 4 allowed) for the same row-height
+          # reason as Sonarr above - Radarr's default is all 4 fields.
           type: radarr
           url: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
           key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
+          fields: ["wanted", "queued"]
     - Prowlarr:
         icon: prowlarr.png
         href: "https://prowlarr.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Indexer manager
         server: my-docker
         container: prowlarr
+        widget:
+          # Prowlarr has no href-based public route like Sonarr/Radarr/
+          # Lidarr (no dedicated public subdomain in the Caddyfile), but
+          # it IS on caddy-network alongside Homepage, so it's reachable
+          # by container name directly.
+          type: prowlarr
+          url: http://prowlarr:9696
+          key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
+          fields: ["numberOfGrabs", "numberOfFailGrabs"]
     - Lidarr:
         icon: lidarr.png
         href: "https://lidarr.{{HOMEPAGE_VAR_DOMAIN}}"
@@ -35,25 +51,11 @@
         server: my-docker
         container: lidarr
         widget:
+          # fields pinned to 2 (of the 3 allowed), same reason as Sonarr.
           type: lidarr
           url: "https://lidarr.{{HOMEPAGE_VAR_DOMAIN}}"
           key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
-    - qBittorrent:
-        icon: qbittorrent.png
-        href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Torrent client (VPN-routed)
-    - slskd:
-        icon: slskd.png
-        href: "https://slskd.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Soulseek client (bridged to Lidarr)
-        server: my-docker
-        container: slskd
-    - LazyLibrarian:
-        icon: lazylibrarian.png
-        href: "https://lazylibrarian.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Ebook automation
-        server: my-docker
-        container: lazylibrarian
+          fields: ["wanted", "queued"]
     - Seerr:
         # Homepage's icon pack doesn't have a "seerr" icon yet (very new
         # rebrand as of 2026) - overseerr.png as the closest visual match
@@ -63,6 +65,48 @@
         description: Request movies & shows
         server: my-docker
         container: seerr
+        widget:
+          # seerr is on caddy-network alongside Homepage (unlike Sonarr/
+          # Radarr/Lidarr above), so it's reachable by container name.
+          # fields pinned to 2 (of the 6 allowed; default is 3), same
+          # row-height reason as Sonarr/Radarr/Lidarr.
+          type: seerr
+          url: http://seerr:5055
+          key: "{{HOMEPAGE_VAR_SEERR_API_KEY}}"
+          fields: ["pending", "approved"]
+    - qBittorrent:
+        icon: qbittorrent.png
+        href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Torrent client (VPN-routed)
+        widget:
+          # qBittorrent has no network of its own - network_mode:
+          # service:gluetun - so it's reached through gluetun's hostname
+          # on caddy-network, at qBittorrent's own WebUI port.
+          type: qbittorrent
+          url: http://gluetun:8080
+          key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
+          fields: ["download", "upload"]
+    - slskd:
+        icon: slskd.png
+        href: "https://slskd.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Soulseek client (bridged to Lidarr)
+        server: my-docker
+        container: slskd
+        widget:
+          # Same network_mode: service:gluetun situation as qBittorrent
+          # above - slskd has no network of its own either.
+          type: slskd
+          url: http://gluetun:5030
+          key: "{{HOMEPAGE_VAR_SLSKD_API_KEY}}"
+          fields: ["downloads", "uploads"]
+    - LazyLibrarian:
+        icon: lazylibrarian.png
+        href: "https://lazylibrarian.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Ebook automation
+        server: my-docker
+        container: lazylibrarian
+        # No Homepage widget exists for LazyLibrarian (not in Homepage's
+        # supported service list) - link-only tile, same as before.
 
 - Media Servers:
     - Plex:
