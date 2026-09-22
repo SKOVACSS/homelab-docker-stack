@@ -232,6 +232,29 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   -> Profiles) and/or manually reassign existing library items if you
   want them to benefit from the new scoring too - that's a deliberate,
   not-yet-made call, not an oversight.
+- **LazyLibrarian** (`lazylibrarian.yourdomain.com`) + **Calibre-Web-
+  Automated** (`calibre.yourdomain.com`): book/ebook automation with
+  IRC/XDCC as a download source (IRCHighway's `#ebooks`), auto-conversion,
+  and Send-to-Kindle. Two first-run steps, both web-UI only (confirmed no
+  env-var equivalent exists for either):
+  1. **LazyLibrarian** - Config -> Search Providers -> enable IRC, server
+     `irc.irchighway.net`, channel `#ebooks`. No login/credentials needed
+     (anonymous IRC, same as using it manually) - this provider is a
+     known intermittent one upstream (occasional join/connection drops),
+     so don't be surprised if a search occasionally needs retrying. Set
+     its download destination to LazyLibrarian's own `/downloads` (this
+     is already the `BOOKS_INGEST_PATH` folder Calibre-Web-Automated
+     watches - see TROUBLESHOOTING.md for why this has to be a folder
+     separate from your actual library).
+  2. **Calibre-Web-Automated** - ships with the documented Calibre-Web
+     default login (`admin`/`admin123`) - change this immediately, same
+     urgency as Wallabag above, since it's public knowledge not just
+     unset. Then Admin -> Edit Mail Server Settings for SMTP (needed for
+     Send-to-Kindle - Amazon also requires whitelisting whatever address
+     you send from under your Amazon account's "Approved Personal
+     Document E-mail List"), and each family member sets their own
+     `@kindle.com` address under their own profile's "Send to eReader
+     Email Address" field.
 - **Seerr** (`requests.yourdomain.com`): lets family/friends request movies
   and shows instead of asking you directly. First-run setup, all through
   its own web UI:

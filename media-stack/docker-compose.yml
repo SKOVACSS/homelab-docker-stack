@@ -429,6 +429,92 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # LazyLibrarian - book/ebook automation, the recommended Readarr
+  # replacement noted above. Its standout feature for this use case is a
+  # native IRC download provider: IRCHighway's #ebooks channel and its
+  # XDCC bots are the primary ebook source in this community - the same
+  # thing the user already does manually. No env-var config exists for
+  # this (confirmed against linuxserver's own image docs - IRC server/
+  # channel/search-bot settings are web-UI only), so that's a one-time
+  # setup step - see SETUP.md. Downloads land in the same host folder
+  # Calibre-Web-Automated watches below, so a finished IRC grab is picked
+  # up, converted, and ready to send to a Kindle with no manual step.
+  lazylibrarian:
+    image: lscr.io/linuxserver/lazylibrarian:latest
+    restart: unless-stopped
+    container_name: lazylibrarian
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - lazylibrarian-config:/config
+      - ${BOOKS_INGEST_PATH}:/downloads
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5299/home"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Calibre-Web-Automated - watches the same folder LazyLibrarian downloads
+  # into (/cwa-book-ingest is an INGEST folder, not a library - CWA removes
+  # each file after converting and importing it, per its own docs), and can
+  # email newly-added books straight to a Kindle's @kindle.com address
+  # (Amazon's own free personal-document delivery). SMTP and each family
+  # member's Kindle address are set up once through its own web UI - see
+  # SETUP.md. TRUSTED_PROXY_COUNT=2 accounts for this stack's two proxy
+  # hops (Cloudflare Tunnel, then Caddy) so CWA logs/rate-limits the real
+  # client IP instead of Caddy's.
+  calibre-web-automated:
+    image: crocodilestick/calibre-web-automated:v4.0.6
+    restart: unless-stopped
+    container_name: calibre-web-automated
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - TRUSTED_PROXY_COUNT=2
+    volumes:
+      - cwa-config:/config
+      - ${BOOKS_INGEST_PATH}:/cwa-book-ingest
+      # NOT ${MEDIA_BOOKS} directly - an existing Calibre library (with its
+      # own metadata.db) already lives one level down, inside a
+      # CalibreLibrary subfolder, alongside unrelated loose files. CWA
+      # expects metadata.db at the mounted root, so this has to point at
+      # the actual library folder specifically, or CWA won't recognize the
+      # existing library and may create a conflicting second one.
+      - ${CALIBRE_LIBRARY_PATH}:/calibre-library
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
   # Unpackerr - Sonarr/Radarr/Lidarr can natively import a completed
   # download, but none of them know how to extract an archive (multi-part
   # RAR, zip, etc). Unpackerr bridges that gap: it polls each *arr's queue
@@ -628,6 +714,10 @@ volumes:
   lidarr-config:
     driver: local
   slskd-config:
+    driver: local
+  lazylibrarian-config:
+    driver: local
+  cwa-config:
     driver: local
   seerr-config:
     driver: local
