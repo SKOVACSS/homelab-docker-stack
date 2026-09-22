@@ -10,6 +10,7 @@
 | `check-versions.ps1` | Lists every stack's pinned image version, registry, and tag | No |
 | `enable-email.ps1` | Turns on the email server (Mailu) later, if you skipped it in the wizard | No |
 | `detect-gpu.ps1` | Detects usable NVIDIA/AMD/Intel GPU acceleration for Immich/Plex/Jellyfin and writes it to their `.env` files | No |
+| `heal-network-dependents.ps1` | Auto-recreates qBittorrent/slskd if gluetun's container ID changed under them | No |
 
 See [../SETUP.md](../SETUP.md) for the full first-time walkthrough. This
 file just documents each script's options.
@@ -145,6 +146,36 @@ healthcheck / unhealthy / not-running, and prints an overall percentage.
 everything is healthy, 1 otherwise (useful in a scheduled task). Pass
 `-GotifyUrl`/`-GotifyToken` to get a push notification when something's
 unhealthy or down (same opt-in pattern as `backup.ps1`).
+
+## heal-network-dependents.ps1
+
+```powershell
+.\heal-network-dependents.ps1 [-Quiet] [-GotifyUrl <url>] [-GotifyToken <token>]
+```
+
+qBittorrent and slskd both use `network_mode: service:gluetun` to route
+their traffic through the VPN, which Docker binds to gluetun's specific
+container ID at creation time - not its name. Whenever gluetun gets
+recreated for any reason (a Docker Desktop/WSL2 restart, a host reboot,
+a manual `--force-recreate`) without qBittorrent/slskd being recreated
+alongside it, they're left holding a reference to a container ID that no
+longer exists - confirmed live, this isn't hypothetical. Neither a plain
+`docker start` nor the normal `restart: unless-stopped` policy can fix
+this (they keep retrying the same broken reference); only
+`docker compose up -d` re-resolves it. This script checks for exactly
+that broken state and runs the fix automatically. Exit code 0 if nothing
+needed fixing or everything recovered, 1 if something's still broken
+after attempting to fix it (useful in a scheduled task, same pattern as
+`health-check.ps1`). Same opt-in Gotify pattern too.
+
+Scheduling it to run every 15 minutes catches this well before it'd
+otherwise be noticed:
+```powershell
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\heal-network-dependents.ps1`" -Quiet"
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 3650)
+Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Homelab_Heal_Network_Dependents"
+```
 
 ## setup-directories.ps1
 
