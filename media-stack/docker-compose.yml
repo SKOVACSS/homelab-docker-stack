@@ -65,6 +65,15 @@ services:
       # security audit flagged the same redundant-port pattern repo-wide.
       - "${BT_PORT}:${BT_PORT}"
       - "${BT_PORT}:${BT_PORT}/udp"
+      # SLSK_PORT = slskd's Soulseek peer listen port (same idea as BT_PORT,
+      # one port below). Caveat: ProtonVPN's port forwarding only assigns
+      # ONE forwarded port per VPN connection, and BT_PORT already claims
+      # it - so this port isn't actually reachable from the internet the
+      # way BT_PORT is. Soulseek still works fully for searching and
+      # downloading either way; the only effect is reduced visibility as
+      # an upload source for other peers, same as being behind any NAT
+      # without forwarding. See TROUBLESHOOTING.md.
+      - "${SLSK_PORT}:${SLSK_PORT}"
     volumes:
       - ./gluetun:/gluetun
     networks:
@@ -133,6 +142,87 @@ services:
         reservations:
           cpus: '1.0'
           memory: 1G
+
+  # slskd - a headless Soulseek client with a REST API and its own web UI.
+  # Added because public torrent trackers (1337x, YTS, etc. above) rarely
+  # carry lossless/hi-res music, while Soulseek is full of genuine CD/vinyl
+  # FLAC rips shared directly by other users. Routed through gluetun for
+  # the same reason as qBittorrent: Soulseek is P2P, so every peer you
+  # transfer with sees your IP unless it's tunneled - see the qBittorrent
+  # comment above for the fuller rationale. soularr (below) bridges this
+  # to Lidarr's wanted/missing list automatically; the web UI is also
+  # useful on its own for manual searches, reachable at slskd.{$DOMAIN}
+  # via Caddy - no extra login layer needed, slskd has its own built-in
+  # auth (SLSKD_USERNAME/PASSWORD below), unlike Sonarr/Radarr originally.
+  slskd:
+    image: slskd/slskd:0.26.0
+    restart: unless-stopped
+    container_name: slskd
+    depends_on:
+      gluetun:
+        condition: service_started
+    network_mode: service:gluetun
+    environment:
+      - SLSKD_SLSK_USERNAME=${SLSKD_SLSK_USERNAME}
+      - SLSKD_SLSK_PASSWORD=${SLSKD_SLSK_PASSWORD}
+      - SLSKD_SLSK_LISTEN_PORT=${SLSK_PORT}
+      - SLSKD_HTTP_PORT=${SLSKD_WEBUI_PORT}
+      - SLSKD_USERNAME=${SLSKD_USERNAME}
+      - SLSKD_PASSWORD=${SLSKD_PASSWORD}
+      - SLSKD_API_KEY=${SLSKD_API_KEY}
+      - SLSKD_SHARED_DIR=/music
+      - SLSKD_REMOTE_CONFIGURATION=true
+    volumes:
+      - slskd-config:/app
+      - ${SLSKD_DOWNLOADS_PATH}:/app/downloads
+      - ${MEDIA_MUSIC}:/music:ro
+    # NO ports: section - shares gluetun's network, same as qBittorrent
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # soularr - bridges Lidarr's "wanted/missing" list to slskd, the same
+  # role Completed Download Handling plays for qBittorrent: it searches
+  # Soulseek for each missing album, grabs the best match (its default
+  # format preference already favors FLAC over mp3 - see
+  # media-stack/soularr/config.ini.example), and tells Lidarr to import
+  # the result once slskd finishes the transfer. Talks to slskd via
+  # gluetun's hostname, not "slskd" - see the qBittorrent comment above
+  # for why a service on network_mode: service:gluetun has no name of its
+  # own on the network.
+  soularr:
+    image: mrusse08/soularr:v1.2.2
+    restart: unless-stopped
+    container_name: soularr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - SCRIPT_INTERVAL=300
+      - WEBUI_ENABLED=true
+      - WEBUI_PORT=8265
+    volumes:
+      - ${SLSKD_DOWNLOADS_PATH}:/downloads
+      - ./soularr:/data
+    networks:
+      - media-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   sonarr:
     image: ghcr.io/hotio/sonarr:release
@@ -233,6 +323,41 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # FlareSolverr - several public indexers Prowlarr talks to (1337x, EZTV,
+  # Kickass Torrents, etc) sit behind Cloudflare's bot challenge, which a
+  # plain HTTP request from Prowlarr can't pass - confirmed live via
+  # Prowlarr's own indexer test: "blocked by CloudFlare Protection." This
+  # runs a real (headless) browser to solve that challenge and hands the
+  # resulting session back to Prowlarr, which is configured as an Indexer
+  # Proxy (Settings -> Indexers -> Proxies) and applied only to the
+  # specific indexers that need it via a tag - untagged indexers bypass it
+  # entirely. No web UI is exposed through Caddy; only Prowlarr talks to
+  # this, over media-network.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+    restart: unless-stopped
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ:-UTC}
+    networks:
+      - media-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8191/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
   # Readarr (book automation) has been removed: hotio's upstream repo was
   # archived June 2025 and officially retired - it never left beta in its
   # whole lifetime and will not be fixed. See CHANGELOG.md. If you want
@@ -250,6 +375,11 @@ services:
       - lidarr-config:/config
       - ${MEDIA_MUSIC}:/music
       - ${QBIT_DOWNLOADS_PATH}:/downloads
+      # Same host folder slskd downloads into, mounted at a distinct path
+      # since /downloads above is already qBittorrent's. soularr's own
+      # config.ini tells it to use this path when it calls Lidarr's import
+      # API - see media-stack/soularr/config.ini.example.
+      - ${SLSKD_DOWNLOADS_PATH}:/downloads-soulseek
     # No published port - see the identical comment on sonarr above.
     networks:
       - media-network
@@ -467,6 +597,8 @@ volumes:
   prowlarr-config:
     driver: local
   lidarr-config:
+    driver: local
+  slskd-config:
     driver: local
   seerr-config:
     driver: local

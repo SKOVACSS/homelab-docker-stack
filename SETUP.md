@@ -195,6 +195,26 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   then redeploy media-stack. `docker compose -f
   media-stack/docker-compose.yml logs unpackerr` should show all three
   apps connecting with `apikey:true` and no errors.
+- **slskd + soularr** (Soulseek client, bridged to Lidarr's wanted list -
+  for lossless/hi-res music that public torrent trackers rarely carry; see
+  `TROUBLESHOOTING.md` for the full pipeline explanation): needs
+  `SLSKD_SLSK_USERNAME`/`SLSKD_SLSK_PASSWORD` (your Soulseek network
+  identity - picking a new username/password here registers it
+  automatically, there's no separate signup), `SLSKD_USERNAME`/
+  `SLSKD_PASSWORD` (slskd's own web UI login - change these from any
+  placeholder immediately, same urgency as Wallabag above), and
+  `SLSKD_API_KEY` (any 32-character random hex string) in
+  `media-stack/.env`. Then copy `media-stack/soularr/config.ini.example`
+  to `media-stack/soularr/config.ini` and fill in the same
+  `LIDARR_API_KEY` and `SLSKD_API_KEY` values. slskd's web UI is at
+  `slskd.yourdomain.com`; `docker compose -f media-stack/docker-compose.yml
+  logs slskd` should show `Logged in to the Soulseek server as
+  <your username>` within a few seconds of startup.
+- **MusicBrainz Picard**: not part of this stack - it's a manual tagging
+  tool, better run natively from [picard.musicbrainz.org](https://picard.musicbrainz.org)
+  on your own PC pointed at your `MEDIA_MUSIC` folder than containerized,
+  since you'd only reach for it occasionally rather than leaving it
+  running.
 - **Seerr** (`requests.yourdomain.com`): lets family/friends request movies
   and shows instead of asking you directly. First-run setup, all through
   its own web UI:
