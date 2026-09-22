@@ -5,12 +5,23 @@
         description: TV automation
         server: my-docker
         container: sonarr
+        widget:
+          # sonarr is on media-network, not caddy-network - Homepage can't
+          # reach it by container name, so this goes through the public
+          # route instead (same as its href above).
+          type: sonarr
+          url: "https://sonarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
     - Radarr:
         icon: radarr.png
         href: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Movie automation
         server: my-docker
         container: radarr
+        widget:
+          type: radarr
+          url: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
     - Prowlarr:
         icon: prowlarr.png
         href: "https://prowlarr.{{HOMEPAGE_VAR_DOMAIN}}"
@@ -23,6 +34,10 @@
         description: Music automation
         server: my-docker
         container: lidarr
+        widget:
+          type: lidarr
+          url: "https://lidarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
     - qBittorrent:
         icon: qbittorrent.png
         href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
@@ -148,6 +163,12 @@
         description: Network-wide DNS ad/tracker blocking
         server: my-docker
         container: pihole
+        widget:
+          type: pihole
+          url: http://pihole:80
+          version: 6
+          key: "{{HOMEPAGE_VAR_PIHOLE_PASSWORD}}"
+          fields: ["queries", "blocked", "blocked_percent"]
 
 - Utilities:
     - Portainer:
