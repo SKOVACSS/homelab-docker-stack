@@ -1,3 +1,13 @@
+- Family:
+    - Family Guide:
+        # Static page (family-guide/index.html, served directly by Caddy -
+        # see family.{$DOMAIN} in the Caddyfile) with plain-language links
+        # and how-tos for household-facing apps only - not this admin
+        # dashboard. No widget: it's a static page with nothing to poll.
+        icon: mdi-account-group
+        href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Plain-language links & how-tos for the family
+
 - Media Apps:
     - Sonarr:
         icon: sonarr.png

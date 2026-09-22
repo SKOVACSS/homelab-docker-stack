@@ -271,6 +271,16 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   4. Optional: Settings -> Notifications -> Gotify, once you've created an
      Application for it in Gotify's web UI to get a token - same pattern as
      Watchtower/Diun's Gotify setup.
+- **Family Guide** (`family.yourdomain.com`): a static, no-login page
+  (`family-guide/index.html`, served directly by Caddy - see the
+  `family.{$DOMAIN}` block in `caddy/Caddyfile`) with plain-language links
+  and short how-tos for the household-facing apps only (Photos, Movies &
+  Shows, Seerr requests, Music, Files, Books/Kindle, the AI assistant,
+  Passwords, Email) - deliberately excludes every admin-only tool (Sonarr,
+  Pi-hole, Portainer, etc). No setup needed beyond deploying the stack;
+  visitors type in the family's domain once and it's remembered in their
+  browser (`localStorage`) from then on. Nothing to configure through a
+  web UI, unlike everything else in this section.
 - **Immich** (`photos.yourdomain.com`): machine learning (facial
   recognition, smart search, duplicate detection, OCR) is on by default
   and needs no setup - `_scripts/detect-gpu.ps1` (run automatically by

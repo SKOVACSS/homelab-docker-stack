@@ -456,3 +456,14 @@ dashboard.{$DOMAIN} {
     root /var/www/html
   }
 }
+
+# Family guide - simple, no-login static page for non-technical family
+# members: links and short how-tos for the household-facing apps only
+# (not admin tools like Sonarr/Pi-hole/Portainer - those still need their
+# own login, this page just points at them). Deliberately has no login
+# of its own since it holds nothing sensitive, just links + text.
+family.{$DOMAIN} {
+  import security_headers
+  root * /srv/family-guide
+  file_server
+}
