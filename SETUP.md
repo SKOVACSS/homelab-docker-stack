@@ -215,6 +215,23 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   on your own PC pointed at your `MEDIA_MUSIC` folder than containerized,
   since you'd only reach for it occasionally rather than leaving it
   running.
+- **Recyclarr** (syncs TRaSH Guides' Custom Formats and Quality Profiles
+  into Sonarr/Radarr - see `TROUBLESHOOTING.md` for what this actually
+  changes and a real gotcha it hit on first deploy): copy
+  `media-stack/recyclarr/recyclarr.yml.example` to
+  `media-stack/recyclarr/recyclarr.yml` and fill in the same
+  `SONARR_API_KEY`/`RADARR_API_KEY` already in `media-stack/.env`. It
+  syncs on its own schedule (`CRON_SCHEDULE` in `docker-compose.yml`,
+  default once daily) once deployed, or force an immediate run with
+  `docker compose -f media-stack/docker-compose.yml run --rm recyclarr
+  sync`. This only adds new Quality Profiles ("HD Bluray + WEB", "UHD
+  Bluray + WEB" in Radarr; "WEB-1080p", "WEB-2160p" in Sonarr) alongside
+  whatever profiles you already had - it does not touch your existing
+  profiles or reassign any movie/show away from the profile it's
+  currently using. Set one of the new profiles as your default (Settings
+  -> Profiles) and/or manually reassign existing library items if you
+  want them to benefit from the new scoring too - that's a deliberate,
+  not-yet-made call, not an oversight.
 - **Seerr** (`requests.yourdomain.com`): lets family/friends request movies
   and shows instead of asking you directly. First-run setup, all through
   its own web UI:
