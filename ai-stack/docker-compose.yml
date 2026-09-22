@@ -48,6 +48,15 @@ services:
       # Hugging Face's own cache layout, so a model already pulled here
       # isn't re-downloaded if anything else on this host also uses it.
       - vllm-hf-cache:/root/.cache/huggingface
+    # Docker's default (64MB) is sized for tensor-parallel/multi-GPU vLLM
+    # setups, where NCCL uses /dev/shm heavily for inter-GPU IPC and can
+    # crash with a Bus error at the default size. Confirmed live this
+    # isn't currently being hit (single B580, no tensor parallelism -
+    # `df -h /dev/shm` inside the container shows 8KB used out of 64MB) -
+    # this is cheap insurance against a future change (a bigger model,
+    # more concurrent requests, a second GPU) rather than a fix for an
+    # active problem.
+    shm_size: '2gb'
     command:
       - "vllm"
       - "serve"

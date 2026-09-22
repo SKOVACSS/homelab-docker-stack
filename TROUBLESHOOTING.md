@@ -140,6 +140,18 @@ running Docker Desktop and exposing services to the internet, treat Caddy's
 rate limiting (below) as your actual brute-force defense, and consider a
 router/firewall-level ban list as well.
 
+**This is still true even after the detection logic itself was fixed and
+verified live** (see SECURITY.md) - Fail2Ban's caddy jail now correctly
+identifies the real attacking IP from Caddy's access log and counts
+failures accurately, confirmed via a real 401 showing up as `Total
+failed: 1`. That fix makes the logs and detection genuinely correct, not
+the ban action - this limitation is about where the container runs, not
+anything in its config. If the ban action matters to you on this host
+today rather than only after a future move to native Linux, see
+SECURITY.md's CrowdSec recommendation - it bans at Cloudflare's edge via
+API instead of local iptables, which isn't subject to this limitation at
+all.
+
 ## Rate limiting - how it actually works
 
 `caddy/Caddyfile` uses the [caddy-ratelimit](https://github.com/mholt/caddy-ratelimit)

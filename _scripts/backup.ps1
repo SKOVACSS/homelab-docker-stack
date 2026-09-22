@@ -165,6 +165,85 @@ function Test-OffSiteIntegrity {
     }
 }
 
+# Every Postgres/MariaDB container in this repo, and how to dump it -
+# `docker exec ... pg_dumpall`/`mysqldump` before the raw volume tar
+# below, not instead of it: taring a database's data directory while its
+# engine is live and writing (no stop step, no snapshot) risks a
+# corrupted/inconsistent restore from uncommitted WAL or a torn write
+# mid-copy. A dump asks the engine itself for a consistent, restorable
+# snapshot instead. The raw volume copy still happens too for these
+# containers - harmless, just redundant; prefer the dump for restores.
+# Postgres dumps run as their own POSTGRES_USER via the container's local
+# socket (trusted, no password needed - matches how these images'
+# entrypoints authenticate themselves). MariaDB needs the root password
+# explicitly, passed via MYSQL_PWD so it doesn't show up in `docker top`.
+function Get-EnvValue {
+    param([string]$EnvFile, [string]$Key)
+    if (-not (Test-Path $EnvFile)) { return $null }
+    $line = Get-Content $EnvFile | Where-Object { $_ -match "^$Key=" } | Select-Object -First 1
+    if (-not $line) { return $null }
+    return ($line -split "=", 2)[1]
+}
+
+function Backup-Databases {
+    param([string]$DumpPath)
+
+    Write-Host ""
+    Write-Host "Dumping databases (consistent snapshot, not a live volume copy)..." -ForegroundColor Cyan
+    New-Item -ItemType Directory -Path $DumpPath -Force | Out-Null
+
+    # Credentials live in each stack's own .env, not this script's - same
+    # reasoning as every other cross-stack credential in this repo
+    # (dashboard/HOMEPAGE_VAR_*, etc.): read them from the file directly
+    # rather than requiring them to be duplicated into this script's own
+    # environment ahead of time.
+    $pgUser = Get-EnvValue "$appRoot\authentik\.env" "PG_USER"
+    $immichUser = Get-EnvValue "$appRoot\immich-app\.env" "DB_USERNAME"
+    $nextcloudRootPass = Get-EnvValue "$appRoot\privacy-stack\.env" "NEXTCLOUD_DB_ROOT_PASS"
+
+    $databaseContainers = @(
+        @{ Container = "authentik-postgresql"; Engine = "postgres"; User = $pgUser }
+        @{ Container = "immich_postgres";      Engine = "postgres"; User = $immichUser }
+        @{ Container = "paperless-db";         Engine = "postgres"; User = "paperless" }
+        @{ Container = "wallabag-db";          Engine = "postgres"; User = "wallabag" }
+        @{ Container = "nextcloud-db";         Engine = "mariadb";  User = "root"; RootPassword = $nextcloudRootPass }
+    )
+
+    foreach ($db in $databaseContainers) {
+        $running = docker inspect $db.Container --format '{{.State.Running}}' 2>$null
+        if ($running -ne "true") {
+            Write-Host "  ⏭️  $($db.Container) not running - skipping (stack likely not deployed)" -ForegroundColor DarkGray
+            continue
+        }
+        if (-not $db.User -or ($db.Engine -eq "mariadb" -and -not $db.RootPassword)) {
+            Write-Host "  ⚠️  $($db.Container) is running but its credentials weren't found in .env - skipping, raw volume copy is the only backup for it this run" -ForegroundColor Yellow
+            continue
+        }
+
+        $dumpFile = Join-Path $DumpPath "$($db.Container).sql"
+        try {
+            if ($db.Engine -eq "postgres") {
+                docker exec $db.Container pg_dumpall -U $db.User 2>$null | Out-File -FilePath $dumpFile -Encoding utf8
+            } else {
+                # mariadb-dump, not mysqldump - confirmed live against
+                # this image (mariadb:11.4.13): the mysqldump binary name
+                # doesn't exist in it at all, only the newer mariadb-*
+                # rename MariaDB ships now.
+                docker exec -e "MYSQL_PWD=$($db.RootPassword)" $db.Container mariadb-dump -u $db.User --all-databases 2>$null | Out-File -FilePath $dumpFile -Encoding utf8
+            }
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $dumpFile) -and (Get-Item $dumpFile).Length -gt 0) {
+                Write-Host "  ✅ Dumped: $($db.Container)" -ForegroundColor Green
+            } else {
+                Write-Host "  ❌ Dump failed or empty: $($db.Container)" -ForegroundColor Red
+                Send-GotifyNotification -Title "Backup: database dump failed" -Message "$($db.Container) - dump was empty or exited non-zero, raw volume copy is the only backup for it this run" -Priority 7
+            }
+        } catch {
+            Write-Host "  ❌ Dump failed: $($db.Container) - $_" -ForegroundColor Red
+            Send-GotifyNotification -Title "Backup: database dump failed" -Message "$($db.Container): $_" -Priority 7
+        }
+    }
+}
+
 function Create-Backup {
     Write-Host ""
     Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
@@ -193,6 +272,13 @@ function Create-Backup {
         Write-Host "  ✅ Backed up: $($_.Name)" -ForegroundColor Green
     }
     
+    # Database dumps - before the raw volume copy below, see
+    # Backup-Databases for why (consistent snapshot vs. a live tar).
+    if ($Full) {
+        $dumpsPath = Join-Path $backupPath "dumps"
+        Backup-Databases -DumpPath $dumpsPath
+    }
+
     # Backup Docker volumes
     if ($Full) {
         Write-Host ""

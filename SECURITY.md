@@ -17,12 +17,43 @@ What's actually implemented, and what you still have to do yourself.
 - **Security headers** (HSTS, X-Content-Type-Options, X-Frame-Options, CSP,
   Referrer-Policy, Permissions-Policy) applied to every route - see the
   `(security_headers)` snippet in `caddy/Caddyfile`.
+- **`trusted_proxies` configured in `caddy/Caddyfile`, and real access
+  logging on every route.** Neither existed before - confirmed live, and
+  worse than a missing nice-to-have: every request Caddy handled looked
+  like it came from cloudflared's own container IP (the actual TCP peer
+  for all tunnel-routed traffic), never the real visitor. That silently
+  broke rate limiting's per-client key (pooled across every real visitor
+  instead of actually per-client), every `X-Real-IP` header forwarded to
+  backend apps (their own login/ban logic saw the same wrong shared IP
+  for everyone), and Fail2Ban (see below) all at once. Fixed by trusting
+  caddy-network's subnet specifically (`servers { trusted_proxies static
+  172.20.0.0/16 }`) - confirmed live afterward: Caddy's access log now
+  shows a real `client_ip` distinct from `remote_ip`, and rate limiting/
+  `X-Real-IP` both use it correctly.
 - **Rate limiting** on most routes (30 req/min per client IP, per route) via
   a real `caddy-ratelimit` plugin build - see TROUBLESHOOTING.md for how it
-  works and its limits.
-- **Fail2Ban**, watching Caddy's logs for repeated failures - see
-  TROUBLESHOOTING.md for why this doesn't actually block anything under
-  Docker Desktop on Windows/macOS (it needs a native Linux host).
+  works and its limits. This was silently rate-limiting by cloudflared's
+  IP, not per real visitor, until the `trusted_proxies` fix above.
+- **Fail2Ban, rebuilt from a non-functional starting point.** The
+  previous config had three independent bugs, any one of which alone
+  would have made it a total no-op: its filter regex was written for
+  Apache-style log lines against a Caddy that produced no access logs at
+  all (fixed above); its custom jail/filter files sat in
+  `/etc/fail2ban/jail.d`, a path this specific image (`crazymax/fail2ban`)
+  never reads custom config from (it expects `/data/jail.d`,
+  `/data/filter.d` - see `security-stack/fail2ban/data/`); and it used
+  `failregex2`/`failregex3`/`maxretry2`/`maxretry3`, which are not real
+  Fail2Ban directives and were silently ignored. Rebuilt correctly and
+  verified live end-to-end: a real 401 from Sonarr's API showed up in
+  Caddy's access log with the correct `client_ip`, and Fail2Ban's own
+  jail status immediately showed `Total failed: 1` for it.
+  **This still cannot actually block anything on this host** - Docker
+  Desktop runs containers inside a Linux VM, so the iptables rules
+  Fail2Ban inserts never reach the real Windows host's network stack (see
+  TROUBLESHOOTING.md). The detection logic is now genuinely correct - the
+  ban action itself needs either a native Linux host, or something that
+  bans upstream of that limitation entirely (see "What you need to do"
+  below).
 - **Network segmentation.** Each stack has its own internal Docker network;
   only the specific services that need to be reachable from outside join
   the shared `caddy-network`. Databases and caches never do.
@@ -77,6 +108,15 @@ What's actually implemented, and what you still have to do yourself.
   container can't starve the others.
 - **Health checks** on nearly every service, surfaced by
   `_scripts/health-check.ps1`.
+- **Database backups are consistent dumps, not a live tar of a running
+  database's data directory.** `_scripts/backup.ps1` runs `pg_dumpall`/
+  `mariadb-dump` against every Postgres/MariaDB container in this repo
+  (authentik-postgresql, immich_postgres, paperless-db, wallabag-db,
+  nextcloud-db) before the raw volume copy, asking each engine for a
+  restorable snapshot instead of copying its files mid-write - confirmed
+  live against all five. The raw volume copy of these still happens too
+  (harmless, just redundant) - prefer the dump under `dumps/` in a
+  backup for restoring any of these five.
 - **The dashboard (Homepage) is gated behind Authentik SSO**, not left
   open. It's a single page linking to - and showing live stats for -
   every other service in this repo, so it's exactly the kind of thing
@@ -93,6 +133,17 @@ What's actually implemented, and what you still have to do yourself.
 
 ## What you need to do
 
+- **Consider CrowdSec (with its Cloudflare bouncer) instead of - or
+  alongside - Fail2Ban for actual brute-force blocking.** Fail2Ban's
+  detection is now correct (see "What's in place" above) but its ban
+  action is structurally inert on this host, full stop, because of how
+  Docker Desktop isolates containers from the real Windows network stack
+  - no amount of further config fixes it. CrowdSec's Cloudflare bouncer
+  bans at Cloudflare's edge via API instead of local iptables, which
+  sidesteps that limitation entirely rather than working around it - it
+  would actually block traffic today, not just log it. Not set up here;
+  a real decision (new service, new Cloudflare API token scope), not
+  something to add silently.
 - **LazyLibrarian currently has no authentication at all - not even a
   default password to change, unlike Wallabag below.** Confirmed directly
   against the live config (`config.ini` has no `http_user`/`http_pass`
@@ -144,3 +195,27 @@ What's actually implemented, and what you still have to do yourself.
   admin tooling), not just edit the file.
 - **Back up before you touch secrets.** `_scripts/backup.ps1 -Action backup
   -Full` snapshots every `.env` and every Docker volume.
+- **Break-glass access, if Authentik itself goes down: verified, not just
+  assumed.** Homepage (the dashboard) is genuinely OIDC-only with no
+  fallback - confirmed live, its login page offers nothing but "Login via
+  Authentik." But Homepage is just a links page with no admin capability
+  of its own, so losing it is an inconvenience, not a lockout. The tool
+  that actually matters - Portainer, since that's how you'd restart a
+  broken Authentik/its Postgres/its Redis in the first place - was also
+  confirmed live to have its own independent native login, completely
+  unaffected by Authentik's health. Keep it that way: don't wire
+  Portainer into Authentik-only auth later without keeping a native
+  fallback account, or this stops being true.
+- **Cloudflare Tunnel and heavy media traffic - a real account-level risk,
+  not just a performance one.** TROUBLESHOOTING.md already covers very
+  high-bitrate 4K Plex remux *buffering* through the tunnel. Separately,
+  Cloudflare's terms restrict using the platform as a bulk CDN for
+  non-HTML traffic, which Plex/Jellyfin/Immich sync/Nextcloud arguably
+  are - the realistic enforcement is aimed at people running the free
+  tier as their primary video CDN for a public-facing streaming
+  operation, not a small household's occasional use, but it's a real
+  account/domain risk, not a hypothetical one. Not fixed here - the fix
+  changes the architecture (route heavy media through the WireGuard VPN
+  already in `security-stack/` instead of the tunnel, or a cheap VPS
+  running WireGuard as a relay if you're behind CGNAT), which is a real
+  decision with real tradeoffs, not something to silently reroute.
