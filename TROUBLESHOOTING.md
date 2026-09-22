@@ -498,3 +498,53 @@ Then clear any active ban immediately with `docker restart qbittorrent`
 only restarting qBittorrent itself does). This class of bug applies to
 any backend proxied behind Caddy `basic_auth` that also implements its
 own separate login - worth checking if you add another one.
+
+## Setting up Homepage's Authentik OIDC provider by hand/API hits two traps
+
+If you create the OAuth2 Provider + Application for Homepage via
+Authentik's API or Django shell instead of its own admin UI wizard (the
+wizard fills in sane defaults for both of these; a bare
+`OAuth2Provider.objects.create(...)` does not), you'll hit two separate
+failures in sequence, both looking like generic OIDC errors with no
+obvious cause:
+
+**`invalid_request` / "The request is otherwise malformed" on every
+authorize attempt, regardless of login state.** Confirmed live via
+Authentik's own source (`authentik/providers/oauth2/views/authorize.py`,
+`check_grant()`): it rejects the request unless
+`self.grant_type in self.provider.grant_types` - and a provider created
+without explicitly setting `grant_types` defaults to `[]`, which no
+grant type can ever be a member of. Set it explicitly:
+
+```python
+from authentik.providers.oauth2.models import OAuth2Provider, GrantTypes
+p = OAuth2Provider.objects.get(name="Homepage")
+p.grant_types = [GrantTypes.AUTHORIZATION_CODE, GrantTypes.REFRESH_TOKEN]
+p.save()
+```
+
+**`unexpected JWT alg received, expected RS256, got: HS256`** from the
+client (Homepage/NextAuth) after that's fixed. A provider with no
+`signing_key` set signs ID tokens with HS256 (symmetric, using the
+client secret) - most OIDC client libraries, including Homepage's,
+expect and require RS256 by default. Assign one of Authentik's own
+certificates:
+
+```python
+from authentik.crypto.models import CertificateKeyPair
+p.signing_key = CertificateKeyPair.objects.get(name="authentik Self-signed Certificate")
+p.save()
+```
+
+Also don't forget scope mappings - a freshly-scripted provider has
+`property_mappings: []` too, which won't produce the `invalid_request`
+error above but will silently omit `email`/`profile` claims from the ID
+token. Attach Authentik's shipped defaults:
+
+```python
+from authentik.providers.oauth2.models import ScopeMapping
+p.property_mappings.set(ScopeMapping.objects.filter(managed__startswith="goauthentik.io/providers/oauth2/scope-"))
+```
+
+All three are one-time setup steps - fix them on the Provider object
+once and every future login works normally.
