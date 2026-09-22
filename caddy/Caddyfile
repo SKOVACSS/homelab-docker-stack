@@ -122,6 +122,20 @@ lidarr.{$DOMAIN} {
   reverse_proxy lidarr:8686
 }
 
+# LazyLibrarian - Book/ebook automation
+lazylibrarian.{$DOMAIN} {
+  import security_headers
+  import rate_limit lazylibrarian
+  reverse_proxy lazylibrarian:5299
+}
+
+# Calibre-Web-Automated - ebook library, conversion, and Send-to-Kindle
+calibre.{$DOMAIN} {
+  import security_headers
+  import rate_limit calibre
+  reverse_proxy calibre-web-automated:8083
+}
+
 # qBittorrent - Torrent client WebUI (VPN-routed via gluetun's network namespace)
 qbit.{$DOMAIN} {
   import security_headers
