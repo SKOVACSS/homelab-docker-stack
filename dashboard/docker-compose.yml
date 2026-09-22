@@ -29,6 +29,19 @@ services:
       # link works for whatever domain this was actually installed with,
       # rather than a hardcoded placeholder.
       - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
+      # Homepage had no login of its own by default - anyone reaching
+      # home.{$DOMAIN} saw every service in this stack with zero
+      # credentials. OIDC login via Authentik (the OAuth2 Provider +
+      # Application named "Homepage", slug "homepage", were created
+      # there to match this) - same login you'd set up for anything else
+      # behind Authentik later, rather than a one-off separate password.
+      - HOMEPAGE_AUTH_ENABLED=true
+      - HOMEPAGE_EXTERNAL_URL=https://home.${DOMAIN}
+      - HOMEPAGE_AUTH_SECRET=${HOMEPAGE_AUTH_SECRET}
+      - HOMEPAGE_OIDC_ISSUER=https://auth.${DOMAIN}/application/o/homepage/
+      - HOMEPAGE_OIDC_CLIENT_ID=${HOMEPAGE_OIDC_CLIENT_ID}
+      - HOMEPAGE_OIDC_CLIENT_SECRET=${HOMEPAGE_OIDC_CLIENT_SECRET}
+      - HOMEPAGE_OIDC_NAME=Authentik
     networks:
       - caddy-network
     labels:

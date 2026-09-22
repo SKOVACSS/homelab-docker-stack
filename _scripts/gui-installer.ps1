@@ -10,8 +10,24 @@ $script:data = @{}
 function Generate-SecurePassword {
     # Uses a cryptographic RNG (System.Random is NOT safe for secrets - it's
     # a seeded PRNG, not suitable for passwords/tokens/keys).
+    # No $ in this charset - deliberate, not an oversight. Every secret this
+    # generates gets written into some stack's .env file, and docker
+    # compose's own ${VAR} interpolation treats a bare $ as the start of a
+    # variable reference: a generated password like "...UMe$nJGLkNnrR"
+    # silently gets truncated to "...UMe" wherever it's actually consumed,
+    # since "$nJGLkNnrR" doesn't match any real variable. Confirmed live -
+    # this is exactly what broke Authentik's bootstrap admin login (and,
+    # audited afterward, silently affected several other generated secrets
+    # across this repo too, just without a visible symptom for ones only
+    # ever compared against themselves - e.g. an app and its own database
+    # both reading the same already-truncated value and staying consistent
+    # with each other, just weaker than the nominal length). Doubling every
+    # $ (like caddy/Caddyfile's bcrypt hashes already do) would also work,
+    # but that's an easy step to forget at every call site that ever writes
+    # one of these into a .env file - not generating one at all removes the
+    # entire class of bug instead of relying on remembering to escape it.
     param([int]$Length = 32)
-    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*'
     $bytes = [byte[]]::new($Length)
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
     $password = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
@@ -25,7 +41,7 @@ function Get-CaddyPasswordHash {
     # already a hard prerequisite for this entire repo, so this adds no
     # new dependency. Passed as a real argument, not string-interpolated
     # into a command line, so special characters in the password (this
-    # repo's generated passwords include !@#$%^&*) can't be misread as
+    # repo's generated passwords include !@#%^&*) can't be misread as
     # shell syntax.
     param([Parameter(Mandatory=$true)][string]$PlainSecret)
     $hash = & docker run --rm caddy:2.11.4 caddy hash-password --plaintext $PlainSecret

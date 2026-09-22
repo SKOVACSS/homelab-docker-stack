@@ -30,9 +30,18 @@ services:
     volumes:
       - gotify-data:/app/data
     environment:
-      - GOTIFY_DEFAULTUSER_USER=${GOTIFY_ADMIN_USER}
+      # GOTIFY_DEFAULTUSER_USER is not a real Gotify config key (silently
+      # ignored) - confirmed live that the actual login name only ever
+      # comes from GOTIFY_DEFAULTUSER_NAME, which was hardcoded to
+      # "Administrator" here regardless of GOTIFY_ADMIN_USER's value. The
+      # password was always correct; only the username the credentials
+      # export told you to use ("admin") never actually matched what
+      # Gotify created. Both env vars only apply on first-ever startup
+      # against an empty database anyway - changing this doesn't rename
+      # an already-created account (fix that via the API, POST
+      # /user/{id} with a new "name", or the web UI's user settings).
+      - GOTIFY_DEFAULTUSER_NAME=${GOTIFY_ADMIN_USER}
       - GOTIFY_DEFAULTUSER_PASS=${GOTIFY_ADMIN_PASSWORD}
-      - GOTIFY_DEFAULTUSER_NAME=Administrator
       - GOTIFY_SERVER_SSL_ENABLED=false
       - GOTIFY_SERVER_CORS_ALLOW_ORIGINS=*
     networks:
