@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.7.2 - Fix qBittorrent self-banning on every single request through Caddy (2026-09-22)
+
+Root-caused the long-standing "Your IP address has been banned after too
+many failed authentication attempts" error on qbit.{$DOMAIN}, which
+earlier investigation this same day had (incorrectly) suspected was
+Cloudflare's WAF or edge rate limiting.
+
+The real cause: `caddy/Caddyfile`'s `qbit.{$DOMAIN}` block validates the
+`qbit_auth` basic_auth header (Caddy's own credential, gating the proxy
+from the internet) and then - unlike you'd expect - Caddy's
+`reverse_proxy` forwards that same `Authorization` header upstream by
+default. qBittorrent's own WebUI sees it and tries to use it as a login
+attempt against *its own separate* password, which can never match
+(it's Caddy's credential, not qBittorrent's) - counting as a failed
+login. This happened on literally every request that reached
+qBittorrent through Caddy, so its own "ban IP after N failed logins"
+feature was guaranteed to eventually ban whatever address Caddy's
+reverse_proxy connects from - which every real user shares, since they
+all arrive via Caddy. Once banned, ALL further requests were rejected
+regardless of correct credentials at any layer, until the ban expired.
+
+Confirmed by reproducing the exact "banned" response on demand (curling
+qBittorrent directly with a fabricated `Authorization` header) and then
+reproducing a clean login by removing it. Fixed by adding
+`header_up -Authorization` to the `qbit.{$DOMAIN}` `reverse_proxy` block,
+so qBittorrent never sees Caddy's own credential and relies purely on
+its own cookie-based session. Also raised qBittorrent's own
+`web_ui_max_auth_fail_count` (5 -> 50) and lowered
+`web_ui_ban_duration` (3600s -> 300s) as defense-in-depth, so a genuine
+run of bad logins is more forgiving and self-clears faster.
+
 ## 1.7.1 - Fix Caddy's rate limit throttling normal Sonarr/Radarr/Prowlarr/Lidarr usage (2026-09-22)
 
 `caddy/Caddyfile`'s shared `rate_limit` snippet allowed only 30

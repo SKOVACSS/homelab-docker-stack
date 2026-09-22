@@ -445,3 +445,44 @@ that one database completely fresh instead (only sensible if you're sure
 there's nothing worth keeping in it), delete its data directory/volume
 before the next `docker compose up` so first-run initialization actually
 runs again.
+
+## qBittorrent bans itself behind a basic_auth-protected reverse proxy
+
+If `qbit.{$DOMAIN}` intermittently (or permanently) returns "Your IP
+address has been banned after too many failed authentication attempts"
+even with correct credentials at every layer, this is not Cloudflare and
+not Caddy's own rate limiter - it's qBittorrent banning itself.
+
+Caddy's `basic_auth` (the `qbit_auth` snippet, a separate credential from
+qBittorrent's own login) validates the incoming `Authorization` header
+and then, by default, `reverse_proxy` still forwards that same header
+upstream. qBittorrent's WebUI sees it and tries to use it as a login
+attempt against *its own* password - which never matches, since it's
+Caddy's credential, not qBittorrent's - and counts it as a failed login.
+This happens on every single request that reaches qBittorrent through
+Caddy, so its own "ban IP after N failed logins" setting (Options > Web
+UI, default 5 failures) is guaranteed to eventually ban whatever address
+`reverse_proxy` connects from - the one address every real user's
+traffic shares. Once banned, everyone using the proxy is locked out
+regardless of correct credentials, until the ban expires.
+
+Confirm by checking `docker exec qbittorrent tail -f
+/config/data/logs/qbittorrent.log` while loading the site through
+Caddy - a login failure logged against gluetun/Caddy's container IP with
+`attempt count` climbing on every page load is this bug, not a real bad
+password anywhere.
+
+Fix: strip the header before it reaches qBittorrent, in that service's
+`reverse_proxy` block in `caddy/Caddyfile`:
+
+```
+reverse_proxy gluetun:{$QBIT_PORT} {
+  header_up -Authorization
+}
+```
+
+Then clear any active ban immediately with `docker restart qbittorrent`
+(the ban list is in-memory only - restarting Caddy does *not* clear it,
+only restarting qBittorrent itself does). This class of bug applies to
+any backend proxied behind Caddy `basic_auth` that also implements its
+own separate login - worth checking if you add another one.
