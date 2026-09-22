@@ -199,13 +199,17 @@ if ([string]::IsNullOrWhiteSpace($lapiKey)) {
     exit 1
 }
 
-# The generated file has a literal `${API_KEY}` placeholder and defaults
-# to localhost:8080 (the README's bare-docker-run example, where the
-# bouncer and engine share a network namespace) - this stack runs them
-# as two separate containers on crowdsec-network instead, so the LAPI is
-# reachable by container name, not localhost.
+# The generated file has literal `${API_KEY}` and `${CROWDSEC_LAPI_URL}`
+# placeholders - confirmed live against the actual current tool output
+# (an earlier version of this script assumed a bare "localhost:8080"
+# default instead, which this version of the binary doesn't emit, so
+# that substitution silently no-op'd and left the real placeholder in
+# place). This stack runs the engine and bouncer as two separate
+# containers on crowdsec-network, so the LAPI is reachable by container
+# name, not localhost.
 (Get-Content $genPath) `
     -replace '\$\{API_KEY\}', $lapiKey `
+    -replace '\$\{CROWDSEC_LAPI_URL\}', 'http://crowdsec:8080/' `
     -replace 'lapi_url:\s*http://localhost:8080/?', 'lapi_url: http://crowdsec:8080/' `
     | Set-Content $bouncerConfigPath -Encoding UTF8
 Remove-Item $genPath -Force
