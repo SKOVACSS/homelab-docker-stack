@@ -186,6 +186,15 @@ the token from the Cloudflare dashboard. First-run setup for a few services:
   logs gluetun` for the port ProtonVPN forwarded you, then update `BT_PORT`
   in `media-stack/.env` and redeploy that stack (`.\deploy.ps1 -Action
   restart -Stack media-stack`).
+- **Unpackerr** (auto-extracts split RAR/zip downloads before Sonarr/
+  Radarr/Lidarr import them - see `TROUBLESHOOTING.md` for how the whole
+  pipeline fits together): needs `SONARR_API_KEY`, `RADARR_API_KEY`, and
+  `LIDARR_API_KEY` in `media-stack/.env`, one from each app's own Settings
+  -> General -> Security page. Only fill these in once those three apps
+  have started at least once (they don't generate a key until first boot),
+  then redeploy media-stack. `docker compose -f
+  media-stack/docker-compose.yml logs unpackerr` should show all three
+  apps connecting with `apikey:true` and no errors.
 - **Seerr** (`requests.yourdomain.com`): lets family/friends request movies
   and shows instead of asking you directly. First-run setup, all through
   its own web UI:

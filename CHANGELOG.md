@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.9.0 - Auto-extract archives before Sonarr/Radarr/Lidarr import (2026-09-22)
+
+**Added Unpackerr to media-stack.** Sonarr, Radarr, and Lidarr already
+import a finished qBittorrent download automatically via their own
+Completed Download Handling - that part needed no changes. What none of
+them can do is extract an archive: a torrent that ships as a multi-part
+RAR (or zip) just sits there "complete" but unimportable, since there's
+no video/audio file for the *arr app to recognize yet. Unpackerr closes
+that gap - it polls each app's queue API, and once qBittorrent reports an
+item fully downloaded (which, for a split RAR, means every `.rNN` volume
+has already arrived and hash-checked - qBittorrent never reports a
+torrent "complete" on a partial set), Unpackerr extracts any archive it
+finds at that item's download path. The *arr app's existing import scan
+then picks up the extracted file on its normal polling interval, exactly
+like any other completed download. No new "transfer" logic was needed -
+extraction was the only missing step.
+
+Needs one API key per app (`SONARR_API_KEY`, `RADARR_API_KEY`,
+`LIDARR_API_KEY` in `media-stack/.env`) - see `SETUP.md`. `DELETE_ORIG` is
+left at its default (off) deliberately: this stack downloads over
+BitTorrent, and deleting the source archive right after extraction would
+corrupt an in-progress seed.
+
 ## 1.8.0 - Homepage SSO via Authentik, and a systemic secret-generation bug (2026-09-22)
 
 Two unrelated fixes bundled together since both surfaced in the same
