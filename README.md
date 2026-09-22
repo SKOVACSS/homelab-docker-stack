@@ -14,18 +14,21 @@ family and friends.
 |---|---|
 | `caddy/` | Reverse proxy - HTTPS, security headers, rate limiting - plus Cloudflare Tunnel for remote access with zero port forwarding (works behind CGNAT). Every other stack routes through this one. |
 | `authentik/` | Single sign-on (SSO) for the whole lab. |
-| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent (VPN-routed via gluetun), Plex, Jellyfin, Seerr (movie/show requests). |
+| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent and slskd (both VPN-routed via gluetun), LazyLibrarian + Calibre-Web-Automated (ebook automation and Send-to-Kindle), Plex, Jellyfin, Seerr (movie/show requests). |
 | `privacy-stack/` | Nextcloud, Navidrome, Syncthing, Paperless-ngx, Wallabag, Trilium, Focalboard, OnlyOffice, Radicale. |
 | `immich-app/` | Google Photos replacement. |
+| `ai-stack/` | vLLM (Intel XPU/Level-Zero backend) + Open WebUI - local, GPU-accelerated LLM chat, no data leaving the house. |
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |
 | `email-stack/` | Mailu (self-hosted email) - optional, off by default in the installer. Run `_scripts/enable-email.ps1` any time to turn it on. |
 | `monitoring-stack/` | InfluxDB + Telegraf (host/container metrics - feeds the Grafana in `utilities/`). |
 | `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
-| `dashboard/` | Homepage - single landing page linking to every service above. |
+| `dashboard/` | Homepage - single landing page linking to every service above, with live stat widgets for several of them. Gated behind Authentik SSO, same as everything else that isn't deliberately public. |
 | `dns-stack/` | Pi-hole (network-wide ad/tracker blocking) + dnscrypt-proxy (encrypted upstream DNS). |
+| `family-guide/` | A plain-language, no-login static page for non-technical family members - links and short how-tos for the household-facing apps only (Photos, Movies & Shows, Seerr requests, Music, Files, Books/Kindle, the AI assistant, Passwords, Email). Not its own Compose stack - served directly by Caddy (`family.{$DOMAIN}`), see `caddy/Caddyfile`. |
 
-Each stack is an independent Docker Compose project with its own
+Each stack (except `family-guide/`, which is plain static files with no
+services of its own) is an independent Docker Compose project with its own
 `docker-compose.yml` and `.env`, deployed in dependency order (Caddy first,
 since it owns the shared `caddy-network` every other stack joins).
 
@@ -60,6 +63,14 @@ since it owns the shared `caddy-network` every other stack joins).
   hand using `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
   These files hold real credentials - keep them out of any git remote you
   push to (see `.gitignore`).
+- **Self-healing for VPN-routed network dependents.** qBittorrent and slskd
+  use `network_mode: service:gluetun`, which binds to gluetun's specific
+  container ID at creation time - if gluetun ever gets recreated without
+  them (a host reboot, a manual recreate), that binding breaks and neither
+  `docker start` nor `restart: unless-stopped` can fix it. A scheduled task
+  runs `_scripts/heal-network-dependents.ps1` every 15 minutes to detect
+  and automatically recreate any dependent left behind, with an optional
+  Gotify notification either way.
 
 ## Quick reference
 
