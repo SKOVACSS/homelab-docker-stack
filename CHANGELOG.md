@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.10.0 - Added indexers, FlareSolverr, and a Soulseek pipeline for Lidarr (2026-09-22)
+
+**Prowlarr now has real indexers.** It shipped with only book/archive
+trackers (EBookBay, Internet Archive, PreToMe) configured - nothing for
+movies/TV. Added 1337x, YTS, EZTV, LimeTorrents, The Pirate Bay, and
+Torrent Downloads, all public, no credentials needed. Three of them
+(1337x, EZTV, and a Kickass Torrents mirror) sit behind Cloudflare's bot
+challenge and failed Prowlarr's own connectivity test with "blocked by
+CloudFlare Protection" until FlareSolverr (a headless-browser proxy that
+solves the challenge on Prowlarr's behalf) was added and tagged onto just
+those three indexers - untagged indexers bypass it entirely, so this adds
+no overhead to the trackers that didn't need it. The Kickass mirror still
+fails even through FlareSolverr (a 403 from that specific mirror, not a
+Cloudflare block) - left disabled pending a working mirror URL.
+
+**Added slskd + soularr for lossless/hi-res music.** Public torrent
+trackers are a poor source for FLAC/hi-res releases; Soulseek is not.
+slskd is a headless Soulseek client with a REST API, routed through
+gluetun exactly like qBittorrent (Soulseek is P2P - every peer you
+transfer with sees your IP unless it's tunneled). soularr watches
+Lidarr's wanted/missing list, searches Soulseek via slskd for each one,
+and lets Lidarr import the result - the same role Completed Download
+Handling plays for qBittorrent, just for a source Lidarr has no native
+concept of. Its default format preference already favors FLAC over mp3.
+slskd's web UI is reachable at `slskd.{$DOMAIN}` for manual searches; it
+has its own built-in login, so - like every arr app - no extra Caddy
+`basic_auth` layer was added on top of it.
+
+**MusicBrainz Picard** (manual tag/metadata cleanup) was deliberately
+*not* containerized - recommended to run natively on a desktop instead,
+since it's an occasional hands-on tool rather than an always-on service.
+
 ## 1.9.0 - Auto-extract archives before Sonarr/Radarr/Lidarr import (2026-09-22)
 
 **Added Unpackerr to media-stack.** Sonarr, Radarr, and Lidarr already

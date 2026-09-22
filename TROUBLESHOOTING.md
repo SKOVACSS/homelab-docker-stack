@@ -590,3 +590,64 @@ downloads over BitTorrent, where the original files are still the seed -
 deleting them right after extraction would corrupt the torrent's own
 data on disk mid-seed. Turn it on only if you stop seeding immediately
 after a download completes.
+
+## slskd's documented default Soulseek port (50300) fails on Windows
+
+Confirmed live: `docker compose up` on the `slskd` service failed with
+`bind: An attempt was made to access a socket in a way forbidden by its
+access permissions` when `SLSK_PORT` was left at slskd's own documented
+default of 50300. Cause: Windows reserves large chunks of the high port
+range for Hyper-V's dynamic port allocation (`netsh int ipv4 show
+excludedportrange protocol=tcp` lists them), and on this machine that
+range happened to swallow 50300 entirely. This isn't specific to slskd -
+any container publishing a port in one of these ranges hits the same
+error. Fixed by moving `SLSK_PORT` to 42300 in `.env.example` (outside
+every default Windows exclusion range) - if you still hit this on your
+own machine, run the `netsh` command above and pick a port outside
+whatever ranges it lists.
+
+## Soulseek pipeline: how slskd + soularr actually fit together
+
+Same shape as the Unpackerr entry above, for a completely different
+source: Lidarr has no native concept of Soulseek, so nothing about this
+touches Lidarr's own Completed Download Handling. soularr is the bridge -
+it polls Lidarr's wanted/missing list directly via API, searches Soulseek
+for each one via slskd's REST API, and once slskd finishes a transfer,
+calls Lidarr's import API pointed at the download folder itself (not
+Lidarr's normal download-client-queue mechanism), so grabbed albums never
+appear in Lidarr's Activity queue the way a qBittorrent grab does - check
+soularr's own log/web UI (port 8265) instead to see what it's doing.
+
+**`http://gluetun:5030`, not `http://slskd:5030`, in
+`soularr/config.ini`'s `[Slskd] host_url`.** slskd runs on
+`network_mode: service:gluetun` (to tunnel Soulseek traffic through the
+VPN, same reasoning as qBittorrent - Soulseek is P2P, so every peer you
+transfer with sees your IP unless it's tunneled), which means it has no
+network identity of its own for other containers to resolve by name -
+exactly the same gotcha documented for Sonarr/Radarr/Prowlarr's qBittorrent
+download-client setting elsewhere in this stack.
+
+**The Soulseek peer port (`SLSK_PORT`) is not actually reachable from the
+internet**, unlike `BT_PORT`. ProtonVPN's port forwarding assigns exactly
+one forwarded port per VPN connection, and `BT_PORT` (qBittorrent)
+already claims it, since both share gluetun's single VPN tunnel. Soulseek
+still works fully for searching and downloading either way - the only
+effect is reduced visibility as an upload source to other peers, the same
+degradation any P2P client sees behind an unforwarded NAT.
+
+## Changing a Caddyfile `{$VAR}` means updating TWO files, not one
+
+Confirmed live: adding a new `{$SOME_VAR}` reference to `caddy/Caddyfile`
+(for the `slskd.{$DOMAIN}` route) and updating `.env` alone was not
+enough - the site came back with every request failing `dial tcp ...:80:
+connect: connection refused`, because the variable resolved to an empty
+string inside the container. Caddy reads `{$VAR}` substitutions from its
+own **process environment**, not from a `.env` file directly - and
+`caddy/docker-compose.yml`'s `environment:` block only forwards the
+specific variables it explicitly lists (see `DOMAIN`, `QBIT_PORT`,
+`CLOUDFLARE_API_TOKEN` there). A new `{$VAR}` used in the Caddyfile has to
+be added to that list too, or it silently resolves to nothing - Caddy
+doesn't error on an undefined `{$VAR}`, it just substitutes empty string,
+which is much harder to spot than a startup crash. After adding a
+variable to the Caddyfile, grep `caddy/docker-compose.yml`'s
+`environment:` block before redeploying, not just `caddy/.env`.
