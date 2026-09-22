@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.13.0 - Automated ebook acquisition and Kindle delivery (2026-09-22)
+
+**Added LazyLibrarian + Calibre-Web-Automated**, automating a workflow
+the user was previously doing by hand: finding and downloading ebooks via
+IRCHighway's `#ebooks` channel, then getting them onto Kindle devices.
+LazyLibrarian is the maintained Readarr replacement this repo already
+pointed at (see the 1.0 removal note) and its standout feature here is a
+native IRC/XDCC download provider - no other *arr-family app has this,
+since IRC (not torrents) is the primary ebook source in that community.
+Calibre-Web-Automated watches the same folder LazyLibrarian downloads
+into, auto-converts to Kindle-friendly formats, and can email new books
+straight to a `@kindle.com` address (Amazon's own free delivery method) -
+both apps' setup (IRC provider, SMTP, per-user Kindle addresses) is
+web-UI only in both cases, no env-var equivalent exists for either.
+
+Found and preserved an existing Calibre library at deploy time - it
+lives nested inside `MEDIA_BOOKS/CalibreLibrary`, not at `MEDIA_BOOKS`
+directly, alongside some unrelated loose files. Mounting `MEDIA_BOOKS`
+itself into Calibre-Web-Automated's library volume would have made it
+unable to find the existing `metadata.db` and likely created a second,
+conflicting library - added a dedicated `CALIBRE_LIBRARY_PATH` pointed
+at the actual library folder instead, confirmed live via CWA's own
+"Existing library found... mounting now" log line rather than assumed.
+
 ## 1.12.0 - Immich OAuth via Authentik, GPU/ML verification (2026-09-22)
 
 **Verified GPU hardware acceleration end-to-end** rather than assuming

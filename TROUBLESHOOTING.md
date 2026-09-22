@@ -768,3 +768,38 @@ aside since it's normalized, or genuinely different address) and OAuth
 login for them will silently create a second, empty account instead of
 linking to their photos - confirm the email match before rolling this
 out to anyone else.
+
+## Calibre-Web-Automated needs the exact Calibre library folder, not its parent
+
+Confirmed live before it became a real problem: `MEDIA_BOOKS` already had
+an existing, in-use Calibre library on this deployment, but it lived one
+level down (`MEDIA_BOOKS/CalibreLibrary`, containing `metadata.db`
+directly, plus a `.calnotes` folder) - alongside a few unrelated loose
+epub files sitting directly in `MEDIA_BOOKS` that were never part of
+that library. Calibre-Web-Automated's `/calibre-library` mount expects
+`metadata.db` at the mounted root itself, not nested inside it - mounting
+`MEDIA_BOOKS` directly would have made CWA unable to see the existing
+library at all, likely causing it to initialize a second, empty one at
+the wrong level instead of using the real data.
+
+Added a dedicated `CALIBRE_LIBRARY_PATH` env var pointed at the actual
+library folder specifically, rather than reusing `MEDIA_BOOKS` on the
+assumption it's already library-shaped. Confirmed the fix worked via
+CWA's own startup log: `[cwa-auto-library]: Existing library found at
+/calibre-library, mounting now...` - if you ever see it instead say
+something like "no existing library, creating new," check this mount
+before anything else; it almost certainly means the path is one level
+off from where an existing `metadata.db` actually lives.
+
+## LazyLibrarian and Calibre-Web-Automated have no env-var configuration
+
+Unlike the Sonarr/Radarr/Lidarr family (hotio images), neither of these
+two exposes its real settings via docker-compose environment variables -
+confirmed against linuxserver's own image docs for LazyLibrarian (only
+`PUID`/`PGID`/`TZ`/`UMASK`/`DOCKER_MODS` exist; IRC server/channel/search-
+bot settings are web-UI only) and via Calibre-Web-Automated's own example
+compose file (SMTP settings and per-user Kindle addresses are Admin-panel
+and per-profile settings respectively, not container env vars). Both need
+the one-time web UI setup documented in SETUP.md - there's no way to
+pre-bake either of them into `.env`/`docker-compose.yml` the way this
+repo does for most other apps.
