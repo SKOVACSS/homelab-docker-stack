@@ -248,6 +248,26 @@ function Show-Step1 {
     $script:mailDomainBox.Enabled = $false
     $script:form.Controls.Add($script:mailDomainBox)
 
+    # Set Up CrowdSec checkbox - unchecked by default, same reasoning as
+    # email above but more so: even checked, this can only start the
+    # detection engine (log parsing, no host network access needed, so
+    # nothing here needs external setup to be useful on its own). The
+    # Cloudflare bouncer half - the part that actually bans an attacker,
+    # since Fail2Ban's own ban action can't reach the real host under
+    # Docker Desktop (see TROUBLESHOOTING.md) - needs a Cloudflare Worker
+    # deployed through YOUR OWN Cloudflare/GitHub account first, which
+    # this wizard cannot do on your behalf. See _scripts/enable-crowdsec.ps1
+    # and SETUP.md for that half, whether or not this box is checked.
+    $script:crowdsecSetupCheckbox = New-Object System.Windows.Forms.CheckBox
+    $script:crowdsecSetupCheckbox.Text = "Set up CrowdSec engine now (detection only - Cloudflare bouncer is a separate manual step either way)"
+    $script:crowdsecSetupCheckbox.Top = 515
+    $script:crowdsecSetupCheckbox.Left = 20
+    $script:crowdsecSetupCheckbox.Width = 650
+    $script:crowdsecSetupCheckbox.Height = 24
+    $script:crowdsecSetupCheckbox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
+    $script:crowdsecSetupCheckbox.Checked = $false
+    $script:form.Controls.Add($script:crowdsecSetupCheckbox)
+
     # Mail Domain only means anything if email is actually being set up
     # now - greyed out otherwise rather than removed, so it's obvious the
     # option exists and why it's currently unavailable. Every control here
@@ -297,6 +317,7 @@ function Show-Step1 {
         $cfTunnelToken = $script:cfTunnelBox.Text.Trim()
         $setupEmail = $script:emailSetupCheckbox.Checked
         $mailDomain = $script:mailDomainBox.Text.Trim()
+        $setupCrowdSec = $script:crowdsecSetupCheckbox.Checked
 
         if ([string]::IsNullOrEmpty($domain)) { Show-Error "Domain is required"; return }
         if (-not (Validate-Domain $domain)) { Show-Error "Invalid domain format"; return }
@@ -320,6 +341,7 @@ function Show-Step1 {
         $script:data.CloudflareApiToken = $cfApiToken
         $script:data.CloudflareTunnelToken = $cfTunnelToken
         $script:data.SetupEmail = $setupEmail
+        $script:data.SetupCrowdSec = $setupCrowdSec
         # Falls back to the main domain when left blank - see caddy/.env's
         # MAIL_DOMAIN and email-stack/.env's DOMAIN. Meaningless (and left
         # unset) when email isn't being set up at all.
@@ -770,6 +792,12 @@ function Show-Step5 {
     } else {
         "Mail Domain: $($script:data.MailDomain) (separate from Domain - needs`nits own Cloudflare Public Hostname rules and DNS-edit permission too)"
     }
+
+    $crowdsecStatusText = if ($script:data.SetupCrowdSec) {
+        "CrowdSec engine: will be set up (detection only). Its Cloudflare`nbouncer still needs _scripts\enable-crowdsec.ps1 either way - see SETUP.md."
+    } else {
+        "CrowdSec: NOT set up now - crowdsec-stack\.env will not be written.`nRun _scripts\enable-crowdsec.ps1 any time later to turn it on."
+    }
     $secretCountText = if ($script:data.SetupEmail) { "21 unique secure secrets" } else { "19 unique secure secrets" }
     $plexClaimText = if ([string]::IsNullOrEmpty($script:data.PlexToken)) {
         "Plex Claim Token: not set - claim it manually after deploying at`nhttp://<this-pc>:32400/web (sign in with your Plex account there)"
@@ -783,6 +811,7 @@ CONFIGURATION SUMMARY
 
 Domain: $($script:data.Domain)
 $emailStatusText
+$crowdsecStatusText
 Email: $($script:data.Email)
 Timezone: $($script:data.Timezone)
 
@@ -855,6 +884,7 @@ Click "Create .env Files" to proceed
         Create-EnvFiles
         $credPath = Export-Credentials
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
+        $crowdsecReminder = if ($script:data.SetupCrowdSec) { "`n`nCrowdSec engine is set up - its Cloudflare bouncer (the part that actually bans an attacker) still needs .\enable-crowdsec.ps1 for the manual Cloudflare Worker setup - see SETUP.md." } else { "`n`nCrowdSec (Fail2Ban's detection is real, but can't actually block anything under Docker Desktop - see TROUBLESHOOTING.md) was skipped - run .\enable-crowdsec.ps1 any time later to turn it on." }
         $credReminder = "`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it as Bitwarden JSON - in Vaultwarden: Tools -> Import Data -> Bitwarden (json). In Proton Pass: Settings -> Import -> Bitwarden -> select this file (Proton Pass's Bitwarden importer only accepts JSON/ZIP, not CSV - confirmed live). Then delete that file - it's plaintext and not safe to leave sitting on disk."
 
         if ($script:autoDeployCheckbox.Checked) {
@@ -907,10 +937,10 @@ Click "Create .env Files" to proceed
             if ($deployFailed) {
                 Show-Error "The .env files were created fine, but deployment hit a problem:`n`n$deployErrorDetail`n`nFix the issue (check the console window this wizard was launched from for details), then run:`n.\deploy.ps1 -Action deploy`nyourself once it's resolved.$credReminder"
             } else {
-                Show-Success "Success!`n`nAll .env files created, host directories set up, and every configured stack deployed.$healthResultText$emailReminder$credReminder"
+                Show-Success "Success!`n`nAll .env files created, host directories set up, and every configured stack deployed.$healthResultText$emailReminder$crowdsecReminder$credReminder"
             }
         } else {
-            Show-Success "Success!`n`nAll .env files created.$emailReminder$credReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
+            Show-Success "Success!`n`nAll .env files created.$emailReminder$crowdsecReminder$credReminder`n`nNext:`n1. .\setup-directories.ps1`n2. .\deploy.ps1 -Action deploy`n3. .\health-check.ps1"
         }
 
         $script:form.Close()
@@ -1065,6 +1095,15 @@ MAIL_ADMIN_PASSWORD=$($script:data.MailAdminPassword)
 TZ=$($script:data.Timezone)
 "@
         $emailEnv | Out-File "$appRoot\email-stack\.env" -Encoding UTF8 -Force
+    }
+
+    # Same "no .env = skipped, present-but-unconfigured" pattern as email
+    # above. Only writes the engine's .env (TZ, nothing secret) - the
+    # Cloudflare bouncer half always needs _scripts\enable-crowdsec.ps1
+    # regardless of this checkbox, since it needs a Cloudflare Worker
+    # deployed through your own account first (see that script/SETUP.md).
+    if ($script:data.SetupCrowdSec) {
+        "TZ=$($script:data.Timezone)" | Out-File "$appRoot\crowdsec-stack\.env" -Encoding UTF8 -Force
     }
 
     $securityEnv = @"

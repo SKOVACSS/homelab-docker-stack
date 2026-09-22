@@ -73,6 +73,39 @@ if so; steps 2 and 4 are shared across every domain on one tunnel.
    tunnel instead of Plex's own relay network - the fix if you've had
    reliability problems with Plex's relay before.
 
+**Want CrowdSec's Cloudflare bouncer set up too (optional - the thing
+that can actually ban an attacker on this host, unlike Fail2Ban - see
+SECURITY.md)?** This needs its own separate manual setup in your
+Cloudflare/GitHub account, independent of everything above - it's not
+part of the wizard, and `_scripts/enable-crowdsec.ps1` can't do these
+two steps for you either, since they need your own account:
+
+1. **Deploy the Remediation Worker.** Follow [CrowdSec's Self-Hosted
+   Installer guide](https://docs.crowdsec.net/u/bouncers/cloudflare-workers/#self-hosted-setup) -
+   it clones a small installer into your GitHub (or GitLab) account and
+   deploys it as a Cloudflare Worker via a one-click button, then walks
+   you through a 3-step web wizard (paste your API token from the next
+   step, point it at CrowdSec, pick which zones/domains to protect).
+   After installation, set the Worker Route's **Fail Mode to FAIL OPEN**
+   (in the installer's zone settings) - this means a Worker error or a
+   Cloudflare quota overrun lets traffic through instead of taking your
+   whole site down.
+2. **Create a new, broader Cloudflare API token** - this is a
+   *different* token from `CLOUDFLARE_API_TOKEN` above (that one is
+   DNS-only; this one needs Workers KV/Scripts Edit, Turnstile Edit,
+   Account Settings/Analytics Read, and Zone DNS/Workers Routes/Zone
+   Read - [this pre-filled link](https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22turnstile%22%2C%22type%22%3A%22edit%22%7D%5D&name=CrowdSec+Cloudflare+bouncer)
+   from CrowdSec's own docs sets most of these for you - review and add
+   the Read-only ones before creating it). Keep this token somewhere
+   safe for a minute; `enable-crowdsec.ps1` asks for it once and doesn't
+   store it anywhere itself.
+
+Once both are done, run `_scripts/enable-crowdsec.ps1` - it handles
+everything else (deploying the engine, minting the bouncer's own API
+key, wiring the two tokens together). See that script's own comments
+for exactly what it does and in what order; it's safe to stop partway
+and come back later.
+
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for what to check if any of
 this doesn't come up cleanly - a lot of it (real DNS, a real Cloudflare
 account) can't be dry-run locally before your first real deployment.

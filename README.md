@@ -28,6 +28,7 @@ family and friends.
 | `immich-app/` | Google Photos replacement. |
 | `ai-stack/` | vLLM (Intel XPU/Level-Zero backend) + Open WebUI - local, GPU-accelerated LLM chat, no data leaving the house. |
 | `security-stack/` | Fail2Ban and a WireGuard VPN server. |
+| `crowdsec-stack/` | CrowdSec + its Cloudflare bouncer - optional, off by default. Bans attacking IPs at Cloudflare's edge, which (unlike Fail2Ban's local iptables) actually works under Docker Desktop. Needs manual one-time setup in your own Cloudflare/GitHub account - see SETUP.md and `_scripts/enable-crowdsec.ps1`. |
 | `email-stack/` | Mailu (self-hosted email) - optional, off by default in the installer. Run `_scripts/enable-email.ps1` any time to turn it on. |
 | `monitoring-stack/` | InfluxDB + Telegraf (host/container metrics - feeds the Grafana in `utilities/`). |
 | `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
@@ -105,6 +106,10 @@ cd _scripts
 
 # Optional: turn on the email server later if you skipped it above
 .\enable-email.ps1
+
+# Optional: turn on CrowdSec + its Cloudflare bouncer (needs manual
+# Cloudflare/GitHub account setup first - see SETUP.md)
+.\enable-crowdsec.ps1
 ```
 
 ## Contributing
