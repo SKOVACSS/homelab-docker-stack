@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.14.0 - Local LLM chat, GPU-accelerated via vLLM's Level-Zero/XPU backend (2026-09-22)
+
+**Added a new `ai-stack`**: vLLM (Intel's official XPU-enabled image) +
+Open WebUI as a self-hosted, GPU-accelerated local chat alternative to a
+cloud LLM service, exposed at `chat.{$DOMAIN}`. Getting here took two
+attempts, both verified empirically rather than assumed - the working
+one first, then the dead end for the record:
+
+- **What works**: vLLM's XPU backend uses Level-Zero/oneAPI - the same
+  compute path (not Vulkan/VAAPI) that already gets Immich's OpenVINO
+  machine learning working over `/dev/dxg` on this host. Confirmed by
+  actually running inference, not just checking device detection:
+  `torch.xpu.is_available()` returns `True`, the B580 shows up in
+  `sycl-ls` as `[level_zero:gpu]`, and a real chat completion came back
+  from the model running on it. Needs `/usr/lib/wsl:/usr/lib/wsl`
+  mounted alongside `/dev/dxg` (Microsoft's WSL2 D3D12 paravirtualization
+  libs Level-Zero depends on) - same mount Immich's
+  `openvino-wsl-dxgonly` hwaccel profile already uses, see
+  `immich-app/hwaccel.ml.yml`. Ships with Qwen2.5-7B-Instruct-AWQ
+  (~5GB), sized to leave comfortable VRAM headroom for an 8192-token
+  context on the B580's 12GB - a 14B AWQ model was tried first and its
+  ~9.4GB of weights alone left only 0.15GB free for KV cache, not enough
+  to serve even one request, confirmed by actually hitting that error
+  rather than estimating it up front.
+- **What doesn't work**: the original plan was llama.cpp's `server-vulkan`
+  image, on the theory that Mesa's WSL2 `dzn` driver would translate
+  Vulkan to D3D12 over the same `/dev/dxg` device. It doesn't - confirmed
+  directly inside the container (`dpkg -L mesa-vulkan-drivers`) that
+  Ubuntu's Mesa package doesn't build the `dzn` ICD at all, not a
+  configuration gap, a missing driver. `server-intel` (SYCL) was already
+  ruled out earlier for needing `/dev/dri`, which this host doesn't
+  expose to containers either. Full writeup in TROUBLESHOOTING.md, kept
+  for the record since it's the kind of thing that looks plausible from
+  documentation alone and only breaks on contact with the actual host.
+
+Also looked into whether Docker Desktop's new **Docker VMM** backend
+(public beta as of Docker Desktop v4.86, GA targeted end of October
+2026) would do any better here. It doesn't help today: Docker's own GPU
+support docs still say hardware acceleration is WSL2-backend-only, Docker
+VMM's own docs don't mention GPU passthrough at all, and no one's
+reported testing it yet either way - worth revisiting after GA, not
+something to switch to now. See TROUBLESHOOTING.md.
+
 ## 1.13.0 - Automated ebook acquisition and Kindle delivery (2026-09-22)
 
 **Added LazyLibrarian + Calibre-Web-Automated**, automating a workflow
