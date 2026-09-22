@@ -7,6 +7,13 @@
 # as .env above. config.ini.example is the committed template.
 media-stack/soularr/config.ini
 
+# recyclarr.yml holds real Sonarr/Radarr API keys - same reasoning as
+# .env above. recyclarr.yml.example is the committed template.
+media-stack/recyclarr/recyclarr.yml
+media-stack/recyclarr/logs/
+media-stack/recyclarr/repo/
+media-stack/recyclarr/cache/
+
 # gui-installer.ps1's password-manager import file - plaintext, meant to
 # be imported into Vaultwarden/Proton Pass and then deleted, not kept.
 credentials-export.json

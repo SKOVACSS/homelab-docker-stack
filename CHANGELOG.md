@@ -1,5 +1,41 @@
 # Changelog
 
+## 1.11.0 - Tuned Sonarr/Radarr's automated search and release selection (2026-09-22)
+
+**PreToMe is now indexer priority 1 (highest)** in Prowlarr, synced through
+to both Sonarr and Radarr - it's a private tracker and the preferred first
+option over the public trackers added in 1.10.0, which are now spread
+across priority 30-45 instead of all sitting at the same default (25).
+
+**Removed two dead legacy indexers.** Sonarr's "Torrent RSS Feed" and
+Radarr's "PreToMe RSS Feed" both pre-dated Prowlarr entirely - hand-
+configured `TorrentRssIndexer` entries pointed directly at PreToMe's RSS
+URL, with `supportsSearch: false` (RSS-only, no active/interactive
+search). Fully superseded by the new Prowlarr-managed PreToMe indexer,
+which supports both RSS and full search - the old ones were pure
+duplication at this point, so they're gone rather than left as clutter.
+
+**Added Recyclarr**, which syncs TRaSH Guides' community-maintained
+Custom Formats and Quality Profiles into Sonarr/Radarr on a schedule.
+This is the actual "improve automated search and selection" piece:
+before this, a search just grabbed whatever came back; now releases are
+scored - cam/telesync/upscaled/fake releases are rejected outright,
+well-regarded release groups and correct HDR/audio handling are
+preferred. Added new profiles ("HD Bluray + WEB"/"UHD Bluray + WEB" in
+Radarr, "WEB-1080p"/"WEB-2160p" in Sonarr) alongside the existing ones,
+deliberately not reassigning any existing library item or changing
+either app's default profile - that's left as your call.
+
+Hit one real bug getting Recyclarr working: syncing more than one
+instance definition that shares the same `base_url` silently skips all
+of them (no error, exit code 0) - not obvious from the individual
+per-profile template files each app ships, which each define their own
+separate top-level instance. Fixed by consolidating each app's HD and
+UHD profiles into one instance definition with two `quality_profiles`
+entries, per Recyclarr's own documented pattern for this. Documented in
+TROUBLESHOOTING.md along with the reasoning for why the two profiles per
+app were combined this way.
+
 ## 1.10.0 - Added indexers, FlareSolverr, and a Soulseek pipeline for Lidarr (2026-09-22)
 
 **Prowlarr now has real indexers.** It shipped with only book/archive
