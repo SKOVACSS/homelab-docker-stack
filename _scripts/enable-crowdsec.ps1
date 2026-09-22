@@ -129,10 +129,19 @@ if ($continueToCloudflare -ne "y") {
 
 Write-Host ""
 Write-Host "Before continuing, confirm you've created a Cloudflare API token with" -ForegroundColor White
-Write-Host "the broad permission set SETUP.md lists (Workers KV/Scripts Edit," -ForegroundColor White
-Write-Host "Turnstile Edit, Account Settings/Analytics Read, Zone DNS/Workers" -ForegroundColor White
-Write-Host "Routes/Zone Read) - this is a DIFFERENT, broader token than the" -ForegroundColor White
-Write-Host "DNS-only one caddy\.env already has." -ForegroundColor White
+Write-Host "ALL NINE of these (SETUP.md has the full walkthrough) - this is a" -ForegroundColor White
+Write-Host "DIFFERENT, broader token than the DNS-only one caddy\.env already has:" -ForegroundColor White
+Write-Host "  Account: Workers KV Storage - Edit" -ForegroundColor White
+Write-Host "  Account: Workers Scripts    - Edit" -ForegroundColor White
+Write-Host "  Account: Turnstile          - Edit" -ForegroundColor White
+Write-Host "  Account: Account Settings   - Read" -ForegroundColor White
+Write-Host "  Account: Account Analytics  - Read" -ForegroundColor White
+Write-Host "  User:    User Details       - Read  (a different resource-type" -ForegroundColor White
+Write-Host "                                        dropdown, easy to miss)" -ForegroundColor White
+Write-Host "  Zone:    DNS                - Read" -ForegroundColor White
+Write-Host "  Zone:    Workers Routes     - Edit  (not Read - the bouncer" -ForegroundColor White
+Write-Host "                                        creates/manages the route)" -ForegroundColor White
+Write-Host "  Zone:    Zone               - Read" -ForegroundColor White
 $ready = Read-Host "Done? (y/N)"
 if ($ready -ne "y") {
     Write-Host "Come back once that's done - the engine keeps running as-is." -ForegroundColor Cyan
