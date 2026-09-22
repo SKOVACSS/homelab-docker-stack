@@ -16,12 +16,27 @@
 # via the caddy-dns/cloudflare plugin compiled in by ./Dockerfile. The
 # token needs Zone:DNS:Edit permission for this domain only - see
 # SETUP.md for how to create it.
+#
+# tls_resolvers is required on this host specifically - see
+# TROUBLESHOOTING.md ("DNS-01 propagation checks fail: outbound TCP port
+# 53 is blocked by ProtonVPN's DNS leak protection"). ProtonVPN's DNS
+# leak protection blocks outbound TCP port 53 system-wide (including
+# Docker/WSL2 traffic) to everything except its own tunnel resolver -
+# certmagic's zone-detection step (finding the SOA record) tries UDP
+# first but falls back to TCP on timeout, and that fallback is what gets
+# blocked. Pointing tls_resolvers at ProtonVPN's own resolver sidesteps
+# this entirely, since it's a real general-purpose recursive resolver
+# (not restricted to VPN-internal domains) and TCP to it isn't blocked.
+# This IP is specific to this ProtonVPN client's current tunnel - if it
+# changes (reconnect, different server), check the "ProtonVPN" network
+# adapter's assigned DNS server (ipconfig /all) and update this.
 
 # Global settings
 {
   email {$ACME_EMAIL}
   acme_ca https://acme-v02.api.letsencrypt.org/directory
   acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
+  tls_resolvers 10.2.0.1
 
   order rate_limit after basic_auth
 }
