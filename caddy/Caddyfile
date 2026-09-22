@@ -131,6 +131,17 @@ qbit.{$DOMAIN} {
   }
 }
 
+# slskd - Soulseek client WebUI (VPN-routed via gluetun's network namespace,
+# same as qBittorrent above). Has its own built-in login (SLSKD_USERNAME/
+# PASSWORD), so no Caddy basic_auth layer here either.
+slskd.{$DOMAIN} {
+  import security_headers
+  import rate_limit slskd
+  reverse_proxy gluetun:{$SLSKD_WEBUI_PORT} {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # Seerr - lets family/friends request movies/shows without asking directly
 requests.{$DOMAIN} {
   import security_headers

@@ -21,6 +21,7 @@ services:
       # be passed through here explicitly.
       DOMAIN: ${DOMAIN}
       QBIT_PORT: ${QBIT_PORT}
+      SLSKD_WEBUI_PORT: ${SLSKD_WEBUI_PORT}
       CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
       # Only set MAIL_DOMAIN in caddy/.env if Mailu needs to live on a
       # *different* domain than everything else (e.g. your main domain
