@@ -27,6 +27,18 @@
         icon: qbittorrent.png
         href: "https://qbit.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Torrent client (VPN-routed)
+    - slskd:
+        icon: slskd.png
+        href: "https://slskd.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Soulseek client (bridged to Lidarr)
+        server: my-docker
+        container: slskd
+    - LazyLibrarian:
+        icon: lazylibrarian.png
+        href: "https://lazylibrarian.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Ebook automation
+        server: my-docker
+        container: lazylibrarian
     - Seerr:
         # Homepage's icon pack doesn't have a "seerr" icon yet (very new
         # rebrand as of 2026) - overseerr.png as the closest visual match
@@ -62,6 +74,24 @@
         description: Music streaming
         server: my-docker
         container: navidrome
+    - Calibre-Web-Automated:
+        # Homepage's icon pack has "calibre-web.png" for the upstream
+        # project this is built on - closest visual match, harmless to
+        # swap later if a dedicated icon shows up (same reasoning as the
+        # Seerr/overseerr.png entry above).
+        icon: calibre-web.png
+        href: "https://calibre.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Ebook library & Send-to-Kindle
+        server: my-docker
+        container: calibre-web-automated
+
+- AI:
+    - Open WebUI:
+        icon: open-webui.png
+        href: "https://chat.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Local LLM chat (GPU-accelerated)
+        server: my-docker
+        container: open-webui
 
 - Files & Collaboration:
     - Nextcloud:
