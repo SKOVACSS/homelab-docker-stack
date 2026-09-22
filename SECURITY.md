@@ -38,12 +38,23 @@ What's actually implemented, and what you still have to do yourself.
   can only proxy HTTP), mail's raw SMTP/IMAP ports, and Caddy's own
   80/443 (kept for LAN-direct access, optional - see its
   `docker-compose.yml`).
-- **Caddy-level `basic_auth` in front of services with no real
-  authentication of their own.** Sonarr, Radarr, Prowlarr, and Lidarr
-  don't ship with auth enabled by default; Radicale's own default is no
-  auth at all. Confirmed live (a raw request succeeded with zero
-  credentials) before fixing - see `arr_auth`/`cal.{$DOMAIN}` in
-  `caddy/Caddyfile`.
+- **Every app-facing route relies on that app's own real login - confirmed,
+  not assumed.** Sonarr, Radarr, Prowlarr, Lidarr, and qBittorrent each
+  have their own mandatory login (Settings > General > Security,
+  `AuthenticationRequired` set to `Enabled`, not the "disabled for local
+  addresses" default some of these apps ship with - which would have been
+  meaningless behind a reverse proxy, since every request looks local to
+  the app). This was confirmed live before removing Caddy's own
+  `arr_auth`/`qbit_auth` `basic_auth` layer that used to duplicate it - a
+  second login added no real protection once the app's own login was
+  verified genuinely enforced, and HTTP Basic's browser-native prompt
+  doesn't autofill from a password manager the way an app's own HTML
+  login form does. Each of those apps now gets exactly one login: its own.
+  Radicale is the one exception - its own auth is disabled entirely
+  (no in-app account system to enable), so Caddy's `basic_auth` (see
+  `cal.{$DOMAIN}` in `caddy/Caddyfile`) is its only real gate, and stays.
+  **LazyLibrarian is a known gap, not a parity decision** - see "What you
+  need to do" below.
 - **No unnecessary Docker socket access.** `mailu-admin` used to mount
   `/var/run/docker.sock` read-write for no reason - confirmed against
   Mailu's own upstream source that nothing in the admin service's runtime
@@ -66,9 +77,35 @@ What's actually implemented, and what you still have to do yourself.
   container can't starve the others.
 - **Health checks** on nearly every service, surfaced by
   `_scripts/health-check.ps1`.
+- **The dashboard (Homepage) is gated behind Authentik SSO**, not left
+  open. It's a single page linking to - and showing live stats for -
+  every other service in this repo, so it's exactly the kind of thing
+  that shouldn't be reachable with zero login just because none of the
+  individual services it points to are exposed directly.
+- **Exactly one deliberately public, no-login page: the family guide**
+  (`family.{$DOMAIN}`, served by Caddy from `family-guide/`). This is a
+  conscious design choice, not an oversight - it holds no credentials, no
+  personal data, and nothing state-changing, only links and instructions
+  pointing at services that each have their own real login. Don't take
+  "no login" elsewhere in this repo as license by association; everything
+  else with no login is a gap to close (see LazyLibrarian below), not a
+  precedent this page sets.
 
 ## What you need to do
 
+- **LazyLibrarian currently has no authentication at all - not even a
+  default password to change, unlike Wallabag below.** Confirmed directly
+  against the live config (`config.ini` has no `http_user`/`http_pass`
+  set, and there's no Caddy-level `basic_auth` in front of
+  `lazylibrarian.{$DOMAIN}` either) - anyone who knows or guesses that
+  subdomain currently has full admin access: search provider settings,
+  download destinations, the works. This is unlike Sonarr/Radarr/Prowlarr/
+  Lidarr/qBittorrent, which all have their own real login already (see
+  "What's in place" above) - LazyLibrarian just doesn't, and nothing else
+  in this repo currently covers for it. Set `http_user`/`http_pass` in
+  its config (Config > Interface in its own web UI), or add a Caddy
+  `basic_auth` block the way Radicale has one, before treating this
+  subdomain as anything other than fully public.
 - **Generate real secrets.** `_scripts/gui-installer.ps1` does this for you
   (a distinct cryptographically-random value per service - see
   CHANGELOG.md). If you fill in `.env` files by hand instead, use
