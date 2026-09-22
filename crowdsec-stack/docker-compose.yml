@@ -3,8 +3,12 @@
 # Run _scripts/enable-crowdsec.ps1 to turn it on - see that script and
 # SETUP.md for why this needs more manual, sequential setup in your
 # actual Cloudflare account than any other optional stack in this repo
-# (a Cloudflare Worker has to be deployed through their GitHub
-# integration before the bouncer below has anywhere to push decisions).
+# (a broad-permission Cloudflare API token has to be created first). The
+# cloudflare-bouncer service below runs in CrowdSec's "Daemon Mode" - it
+# deploys its own Cloudflare Worker, KV namespace, and Worker Routes on
+# startup using that token, and tears them down again on a clean stop.
+# No separate GitHub-based installer needed or wanted - that's a
+# different, alternative CrowdSec setup path this repo doesn't use.
 #
 # Why this exists: Fail2Ban (security-stack/) is real, but its ban
 # action can't reach the real Windows host's network stack under Docker
