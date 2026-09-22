@@ -6,28 +6,33 @@ Turns on CrowdSec (+ its Cloudflare bouncer) after initial setup, without re-run
 
 .DESCRIPTION
 gui-installer.ps1 can't fully configure this stack up front the way it
-does for most others: the Cloudflare bouncer needs a Worker deployed
-in your own Cloudflare account (through their GitHub/GitLab
-integration - see SETUP.md), and the bouncer's own API key can only be
-generated after the crowdsec engine is already running. That's an
-inherently sequential, partly-manual process, so it gets its own script
-instead - same reasoning as enable-email.ps1 for Mailu.
+does for most others: the bouncer's own CrowdSec API key can only be
+generated after the crowdsec engine is already running, and the
+Cloudflare API token is your own account's credential to create. That's
+an inherently sequential, partly-manual process, so it gets its own
+script instead - same reasoning as enable-email.ps1 for Mailu.
+
+The Cloudflare bouncer runs in what CrowdSec calls "Daemon Mode": the
+container deploys its own Cloudflare Worker, KV namespace, and Worker
+Routes on startup via the API token, and tears them down again on a
+clean stop. No separate GitHub-based installer needed - that's a
+different, alternative CrowdSec setup path this repo doesn't use.
 
 What this does, in order:
   1. Writes crowdsec-stack\.env and deploys the crowdsec engine alone
      (log parsing/detection only - no Cloudflare involvement yet, and no
-     host-network access needed, so nothing here needs the manual steps
+     host-network access needed, so nothing here needs the manual step
      below to be useful on its own).
   2. Waits for it to become healthy.
-  3. Confirms you've already deployed the Cloudflare Worker (SETUP.md
-     walks through this - a one-time step in your own Cloudflare/GitHub
+  3. Confirms you've created the broad-permission Cloudflare API token
+     SETUP.md walks through (a one-time step in your own Cloudflare
      account this script cannot do on your behalf).
-  4. Prompts for the broad-permission Cloudflare API token SETUP.md has
-     you create, auto-generates the bouncer's Cloudflare account/zone
-     config from it, mints the bouncer's own CrowdSec API key via the
-     now-running engine, and merges the two into
+  4. Prompts for that token, auto-generates the bouncer's Cloudflare
+     account/zone config from it, mints the bouncer's own CrowdSec API
+     key via the now-running engine, and merges the two into
      crowdsec-stack\cloudflare-bouncer.yaml.
-  5. Deploys the bouncer.
+  5. Deploys the bouncer, which then deploys the actual Worker/KV/Routes
+     to your Cloudflare account itself on its own first startup.
 
 Safe to stop after step 1-2 and come back later for the Cloudflare half -
 nothing here is destructive, and the engine is useful on its own in the
@@ -115,19 +120,20 @@ if ($continueToCloudflare -ne "y") {
 }
 
 # ---------- Step 2: Cloudflare bouncer ----------
+# This bouncer runs in CrowdSec's "Daemon Mode": the container itself
+# deploys its own Cloudflare Worker, KV namespace, and Worker Routes on
+# startup (via the token below), and tears them down again on a clean
+# stop. No separate GitHub-based installer needed or wanted - that's a
+# different, alternative setup path, and using both would create two
+# competing Worker deployments.
 
 Write-Host ""
-Write-Host "Before continuing, confirm you've already done this in your own" -ForegroundColor White
-Write-Host "Cloudflare/GitHub account (see SETUP.md's CrowdSec section):" -ForegroundColor White
-Write-Host "  1. Deployed the Remediation Worker via Cloudflare's Self-Hosted" -ForegroundColor White
-Write-Host "     Installer (a one-time GitHub/GitLab integration - this script" -ForegroundColor White
-Write-Host "     cannot do this step for you, it needs your own account)." -ForegroundColor White
-Write-Host "  2. Created a Cloudflare API token with the broad permission set" -ForegroundColor White
-Write-Host "     SETUP.md lists (Workers KV/Scripts Edit, Turnstile Edit," -ForegroundColor White
-Write-Host "     Account Settings/Analytics Read, Zone DNS/Workers Routes/Zone" -ForegroundColor White
-Write-Host "     Read) - this is a DIFFERENT, broader token than the DNS-only" -ForegroundColor White
-Write-Host "     one caddy\.env already has." -ForegroundColor White
-$ready = Read-Host "Done both? (y/N)"
+Write-Host "Before continuing, confirm you've created a Cloudflare API token with" -ForegroundColor White
+Write-Host "the broad permission set SETUP.md lists (Workers KV/Scripts Edit," -ForegroundColor White
+Write-Host "Turnstile Edit, Account Settings/Analytics Read, Zone DNS/Workers" -ForegroundColor White
+Write-Host "Routes/Zone Read) - this is a DIFFERENT, broader token than the" -ForegroundColor White
+Write-Host "DNS-only one caddy\.env already has." -ForegroundColor White
+$ready = Read-Host "Done? (y/N)"
 if ($ready -ne "y") {
     Write-Host "Come back once that's done - the engine keeps running as-is." -ForegroundColor Cyan
     exit 0
@@ -208,5 +214,18 @@ Write-Host "  Done" -ForegroundColor Green
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Green
 Write-Host ""
 Write-Host "Confirm it's actually syncing decisions: '$docker logs crowdsec-cloudflare-bouncer'" -ForegroundColor White
-Write-Host "should show it polling the LAPI and pushing to Cloudflare with no errors." -ForegroundColor White
+Write-Host "should show it deploying the Worker/KV/Routes, then polling the LAPI and" -ForegroundColor White
+Write-Host "pushing decisions with no errors." -ForegroundColor White
+Write-Host ""
+Write-Host "Two things to do now that the Worker Route actually exists:" -ForegroundColor Cyan
+Write-Host "  1. Cloudflare dashboard -> your zone -> Worker Routes -> the route this" -ForegroundColor White
+Write-Host "     bouncer just created -> Edit -> set Fail Mode to FAIL OPEN. It's" -ForegroundColor White
+Write-Host "     created Fail Closed by default, meaning a Worker error or Cloudflare" -ForegroundColor White
+Write-Host "     quota overrun would show visitors an error page instead of your site." -ForegroundColor White
+Write-Host "  2. Know the tradeoff: this container deploys/tears down that Worker on" -ForegroundColor White
+Write-Host "     every start/stop, and Watchtower auto-updates it - so every update" -ForegroundColor White
+Write-Host "     causes a brief (typically seconds) window with no Worker protecting" -ForegroundColor White
+Write-Host "     the zone. Caddy's own security headers/rate limiting still apply" -ForegroundColor White
+Write-Host "     underneath regardless - this is a temporary loss of one extra layer," -ForegroundColor White
+Write-Host "     not a bare-exposure window." -ForegroundColor White
 Write-Host ""

@@ -75,36 +75,45 @@ if so; steps 2 and 4 are shared across every domain on one tunnel.
 
 **Want CrowdSec's Cloudflare bouncer set up too (optional - the thing
 that can actually ban an attacker on this host, unlike Fail2Ban - see
-SECURITY.md)?** This needs its own separate manual setup in your
-Cloudflare/GitHub account, independent of everything above - it's not
-part of the wizard, and `_scripts/enable-crowdsec.ps1` can't do these
-two steps for you either, since they need your own account:
+SECURITY.md)?** This bouncer runs in what CrowdSec calls "Daemon Mode" -
+the running container deploys its own Cloudflare Worker, KV namespace,
+and Worker Routes on startup via the API token below, and tears them
+down again on a clean stop. **You do not need CrowdSec's GitHub-based
+"Self-Hosted Installer"** - that's a different, alternative setup path
+for people who don't want to run a container for this at all; using
+both would create two competing Worker deployments. The only manual,
+one-time step in your own account is the token itself:
 
-1. **Deploy the Remediation Worker.** Follow [CrowdSec's Self-Hosted
-   Installer guide](https://docs.crowdsec.net/u/bouncers/cloudflare-workers/#self-hosted-setup) -
-   it clones a small installer into your GitHub (or GitLab) account and
-   deploys it as a Cloudflare Worker via a one-click button, then walks
-   you through a 3-step web wizard (paste your API token from the next
-   step, point it at CrowdSec, pick which zones/domains to protect).
-   After installation, set the Worker Route's **Fail Mode to FAIL OPEN**
-   (in the installer's zone settings) - this means a Worker error or a
-   Cloudflare quota overrun lets traffic through instead of taking your
-   whole site down.
-2. **Create a new, broader Cloudflare API token** - this is a
-   *different* token from `CLOUDFLARE_API_TOKEN` above (that one is
-   DNS-only; this one needs Workers KV/Scripts Edit, Turnstile Edit,
-   Account Settings/Analytics Read, and Zone DNS/Workers Routes/Zone
-   Read - [this pre-filled link](https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22turnstile%22%2C%22type%22%3A%22edit%22%7D%5D&name=CrowdSec+Cloudflare+bouncer)
+1. **Create a broader Cloudflare API token** - this is a *different*
+   token from `CLOUDFLARE_API_TOKEN` above (that one is DNS-only; this
+   one needs Workers KV/Scripts Edit, Turnstile Edit, Account
+   Settings/Analytics Read, and Zone DNS/Workers Routes/Zone Read -
+   [this pre-filled link](https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_kv_storage%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22workers_scripts%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22turnstile%22%2C%22type%22%3A%22edit%22%7D%5D&name=CrowdSec+Cloudflare+bouncer)
    from CrowdSec's own docs sets most of these for you - review and add
-   the Read-only ones before creating it). Keep this token somewhere
-   safe for a minute; `enable-crowdsec.ps1` asks for it once and doesn't
-   store it anywhere itself.
+   the Read-only ones before creating it). Keep it somewhere safe for a
+   minute; `enable-crowdsec.ps1` asks for it once and doesn't store it
+   anywhere itself.
+2. Run `_scripts/enable-crowdsec.ps1` - it deploys the engine, mints the
+   bouncer's own API key, generates the Cloudflare config from your
+   token, and starts the bouncer, which then deploys the Worker/KV/
+   Routes itself on its own first startup.
+3. **After that first startup, switch the new Worker Route's Fail Mode
+   to FAIL OPEN** (Cloudflare dashboard -> your zone -> Worker Routes ->
+   the route the bouncer just created -> Edit) - can't be done ahead of
+   time, since the route doesn't exist until step 2 creates it. Fail
+   Closed (Cloudflare's default for a new route) means a Worker error or
+   a plan quota overrun shows visitors an error page instead of your
+   site; Fail Open lets traffic through to Caddy normally instead.
 
-Once both are done, run `_scripts/enable-crowdsec.ps1` - it handles
-everything else (deploying the engine, minting the bouncer's own API
-key, wiring the two tokens together). See that script's own comments
-for exactly what it does and in what order; it's safe to stop partway
-and come back later.
+**One real tradeoff worth knowing before turning this on**: because the
+bouncer deploys and tears down that Cloudflare-side infrastructure on
+every start/stop, and Watchtower auto-updates this container like most
+others in this repo, every auto-update causes a brief window (typically
+seconds) where the Worker doesn't exist and that zone is unprotected by
+it - not by design, just a consequence of how "Daemon Mode" manages its
+own Cloudflare-side state. Caddy's own security headers/rate limiting
+still apply underneath regardless, so this isn't a bare-exposure window,
+just a temporary loss of this one extra layer.
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for what to check if any of
 this doesn't come up cleanly - a lot of it (real DNS, a real Cloudflare
