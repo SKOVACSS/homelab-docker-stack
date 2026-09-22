@@ -20,8 +20,13 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     volumes:
+      # Custom jails/filters/actions go under /data/jail.d, /data/filter.d,
+      # /data/action.d - this image's own documented convention (see
+      # github.com/crazy-max/docker-fail2ban#custom-jails-actions-and-filters),
+      # not the plain /etc/fail2ban/jail.d this repo used before, which
+      # this image never actually reads custom files from.
       - ./fail2ban/data:/data
-      - ./fail2ban/config:/etc/fail2ban/jail.d
+      - caddy_caddy-data:/caddy-logs:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/log:/var/log:ro
     environment:
@@ -100,3 +105,14 @@ services:
 volumes:
   fail2ban-data:
     driver: local
+  # Caddy's own access-log volume, shared in read-only so Fail2Ban's
+  # caddy jail (fail2ban/data/jail.d/caddy.local) can read it directly -
+  # see that file for why this is used instead of the more common
+  # /var/lib/docker/containers approach. Referenced by its actual live
+  # name (`docker volume ls`), which docker compose auto-generates as
+  # <project-name>_<volume-name> since caddy/docker-compose.yml doesn't
+  # pin an explicit `name:` for it - do not rename this without also
+  # updating (or explicitly naming) the volume in caddy/docker-compose.yml,
+  # or compose will create a new empty volume instead of finding it.
+  caddy_caddy-data:
+    external: true

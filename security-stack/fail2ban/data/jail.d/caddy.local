@@ -1,0 +1,33 @@
+# Jail definition - see filter.d/caddy.conf for the matching logic.
+#
+# chain = DOCKER-USER, not the default INPUT: this container's traffic is
+# all container-to-container (Caddy is only reachable through Docker
+# networking, cloudflared/LAN clients never hit the host's real network
+# stack the way an SSH daemon would) - the image's own docs are explicit
+# that DOCKER-USER is correct for jails protecting a containerized
+# service, same as their own traefik example, while INPUT is for
+# something like sshd that binds the host's real network directly.
+#
+# logpath points at Caddy's own access log, shared in read-only via the
+# caddy_caddy-data volume (mounted in security-stack/docker-compose.yml)
+# - not via this image's /var/lib/docker/containers mount. Docker's own
+# json-file log driver double-JSON-encodes each line as a string (with
+# escaped quotes) when a container's stdout is captured that way, which
+# would have needed a second layer of unescaping in the regex above for
+# no real benefit; mounting Caddy's actual log file directly avoids that
+# entirely and gives a clean, single-encoded JSON line to match against.
+#
+# backend = polling, not the default auto-detected inotify: this log
+# file lives on a volume mounted from a DIFFERENT container than the one
+# writing to it, and inotify is documented to be unreliable across that
+# kind of cross-container bind-mount boundary in Docker - polling is
+# slightly less efficient but actually reliable here.
+[caddy]
+enabled = true
+filter = caddy
+logpath = /caddy-logs/access.log
+backend = polling
+chain = DOCKER-USER
+bantime = 3600
+findtime = 600
+maxretry = 5

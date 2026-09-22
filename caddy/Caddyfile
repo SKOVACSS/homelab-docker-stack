@@ -39,6 +39,46 @@
   tls_resolvers 10.2.0.1
 
   order rate_limit after basic_auth
+
+  # Without this, every request Caddy sees - whether it came through
+  # cloudflared or hit the host's own 80/443 directly - looks like it
+  # came from cloudflared's own container IP, because that's the actual
+  # TCP peer for tunnel traffic (cloudflared terminates the tunnel, then
+  # proxies to Caddy over caddy-network). Confirmed live before this fix:
+  # {http.request.remote} was cloudflared's IP (172.20.0.3) for every
+  # single visitor, no matter their real IP. That silently broke three
+  # things at once - rate limiting's per-client key (shared across every
+  # real visitor instead of actually per-client), every X-Real-IP header
+  # forwarded to backend apps (their own login-attempt/ban logic saw the
+  # same wrong shared IP for everyone), and Fail2Ban (even if it could
+  # ban on this host - see TROUBLESHOOTING.md - it would have banned
+  # cloudflared's IP, taking down the site for everyone).
+  # 172.20.0.0/16 is caddy-network's actual subnet (confirmed via
+  # `docker network inspect caddy-network`) - trusting it specifically,
+  # not a blanket range, means only cloudflared's traffic gets its
+  # forwarded header trusted; a LAN client hitting 80/443 directly still
+  # gets treated as itself, correctly, with nothing to unwrap.
+  # trusted_proxies is a `servers` sub-option, not top-level - confirmed
+  # live: Caddy rejects it as "unrecognized global option" at the top
+  # level (caddyserver.com/docs/caddyfile/options lists it under
+  # "Server Options", inside `servers { ... }`).
+  servers {
+    trusted_proxies static 172.20.0.0/16
+  }
+
+  # No `log` directive existed anywhere in this file before - Caddy was
+  # producing zero access logs for actual site traffic (only its own
+  # internal admin-API healthcheck hits were ever logged). This is the
+  # default logger every site block below inherits unless it sets its
+  # own; written to the same named volume Caddy already uses for TLS
+  # state, so no new mount was needed.
+  log {
+    output file /data/access.log {
+      roll_size 50mb
+      roll_keep 5
+    }
+    format json
+  }
 }
 
 # Security header middleware (applied to all routes)
@@ -112,6 +152,7 @@
 # Sonarr - TV shows automation
 sonarr.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit sonarr
   reverse_proxy sonarr:8989
 }
@@ -119,6 +160,7 @@ sonarr.{$DOMAIN} {
 # Radarr - Movie automation
 radarr.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit radarr
   reverse_proxy radarr:7878
 }
@@ -126,6 +168,7 @@ radarr.{$DOMAIN} {
 # Prowlarr - Indexer manager
 prowlarr.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit prowlarr
   reverse_proxy prowlarr:9696
 }
@@ -133,6 +176,7 @@ prowlarr.{$DOMAIN} {
 # Lidarr - Music automation
 lidarr.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit lidarr
   reverse_proxy lidarr:8686
 }
@@ -140,6 +184,7 @@ lidarr.{$DOMAIN} {
 # LazyLibrarian - Book/ebook automation
 lazylibrarian.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit lazylibrarian
   reverse_proxy lazylibrarian:5299
 }
@@ -147,6 +192,7 @@ lazylibrarian.{$DOMAIN} {
 # Calibre-Web-Automated - ebook library, conversion, and Send-to-Kindle
 calibre.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit calibre
   reverse_proxy calibre-web-automated:8083
 }
@@ -154,6 +200,7 @@ calibre.{$DOMAIN} {
 # qBittorrent - Torrent client WebUI (VPN-routed via gluetun's network namespace)
 qbit.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit qbit
   reverse_proxy gluetun:{$QBIT_PORT} {
     header_up X-Real-IP {http.request.remote}
@@ -165,6 +212,7 @@ qbit.{$DOMAIN} {
 # PASSWORD), so no Caddy basic_auth layer here either.
 slskd.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit slskd
   reverse_proxy gluetun:{$SLSKD_WEBUI_PORT} {
     header_up X-Real-IP {http.request.remote}
@@ -174,6 +222,7 @@ slskd.{$DOMAIN} {
 # Seerr - lets family/friends request movies/shows without asking directly
 requests.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit requests
   reverse_proxy seerr:5055 {
     header_up X-Real-IP {http.request.remote}
@@ -185,6 +234,7 @@ requests.{$DOMAIN} {
 # Plex - Commercial media server
 plex.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy plex:32400 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -193,6 +243,7 @@ plex.{$DOMAIN} {
 # Jellyfin - Open-source media server
 jellyfin.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy jellyfin:8096 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -201,6 +252,7 @@ jellyfin.{$DOMAIN} {
 # Immich - Google Photos replacement
 photos.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy immich-server:2283 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -211,6 +263,7 @@ photos.{$DOMAIN} {
 # Navidrome - Spotify replacement
 music.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit music
   reverse_proxy navidrome:4533 {
     header_up X-Real-IP {http.request.remote}
@@ -222,6 +275,7 @@ music.{$DOMAIN} {
 # Nextcloud - Google Drive/Calendar/Contacts replacement
 nextcloud.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy nextcloud:80 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -230,6 +284,7 @@ nextcloud.{$DOMAIN} {
 # Syncthing - Dropbox replacement (P2P)
 sync.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy syncthing:8384 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -240,6 +295,7 @@ sync.{$DOMAIN} {
 # Paperless-ngx - Evernote replacement
 papers.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit papers
   reverse_proxy paperless-ngx:8000 {
     header_up X-Real-IP {http.request.remote}
@@ -249,6 +305,7 @@ papers.{$DOMAIN} {
 # Wallabag - Pocket replacement
 read.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit wallabag
   reverse_proxy wallabag:80 {
     header_up X-Real-IP {http.request.remote}
@@ -258,6 +315,7 @@ read.{$DOMAIN} {
 # Trilium (TriliumNext) - OneNote replacement
 notes.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy trilium:8080 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -272,6 +330,7 @@ notes.{$DOMAIN} {
 # Consider Vikunja as a maintained alternative if this matters to you.
 boards.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit boards
   reverse_proxy focalboard:8000 {
     header_up X-Real-IP {http.request.remote}
@@ -292,6 +351,7 @@ boards.{$DOMAIN} {
 # one above), since this is genuinely family-facing rather than admin-only.
 cal.{$DOMAIN} {
   import security_headers
+  log
   basic_auth {
     {$RADICALE_AUTH_USER} {$RADICALE_AUTH_HASH}
   }
@@ -305,6 +365,7 @@ cal.{$DOMAIN} {
 # Portainer - Container management UI
 portainer.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit portainer
   reverse_proxy portainer:9000 {
     header_up X-Real-IP {http.request.remote}
@@ -314,6 +375,7 @@ portainer.{$DOMAIN} {
 # Uptime Kuma - Service monitoring
 uptime.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy uptime-kuma:3001 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -322,6 +384,7 @@ uptime.{$DOMAIN} {
 # Vaultwarden - Password manager (Bitwarden alternative)
 vault.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit vault
   reverse_proxy vaultwarden:80 {
     header_up X-Real-IP {http.request.remote}
@@ -332,6 +395,7 @@ vault.{$DOMAIN} {
 # all in this one instance - see CHANGELOG.md)
 grafana.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit grafana
   reverse_proxy grafana:3000 {
     header_up X-Real-IP {http.request.remote}
@@ -347,6 +411,7 @@ grafana.{$DOMAIN} {
 # rather than the container's own directly-published host port.
 gotify.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit gotify
   reverse_proxy gotify:80 {
     header_up X-Real-IP {http.request.remote}
@@ -358,6 +423,7 @@ gotify.{$DOMAIN} {
 # Authentik - central login portal (also used for OIDC integrations)
 auth.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit auth
   reverse_proxy authentik-server:9000 {
     header_up X-Real-IP {http.request.remote}
@@ -382,6 +448,7 @@ auth.{$DOMAIN} {
 # introduced here, only surfaced by actually testing the container).
 mailadmin.{$MAIL_DOMAIN} {
   import security_headers
+  log
   import rate_limit mailadmin
   reverse_proxy mailu-admin:8080 {
     header_up X-Real-IP {http.request.remote}
@@ -391,6 +458,7 @@ mailadmin.{$MAIL_DOMAIN} {
 # Mailu webmail (Roundcube-successor webmail client)
 webmail.{$MAIL_DOMAIN} {
   import security_headers
+  log
   reverse_proxy mailu-webmail:80 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -415,6 +483,7 @@ http://mail.{$MAIL_DOMAIN} {
 # UI goes through here, same firewall model as every other admin panel.
 pihole.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit pihole
   reverse_proxy pihole:80 {
     header_up X-Real-IP {http.request.remote}
@@ -431,6 +500,7 @@ pihole.{$DOMAIN} {
 # basic_auth layer.
 chat.{$DOMAIN} {
   import security_headers
+  log
   import rate_limit chat
   reverse_proxy open-webui:8080 {
     header_up X-Real-IP {http.request.remote}
@@ -442,6 +512,7 @@ chat.{$DOMAIN} {
 # Homepage - single landing page linking to every service in this repo
 home.{$DOMAIN} {
   import security_headers
+  log
   reverse_proxy homepage:3000 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -452,6 +523,7 @@ home.{$DOMAIN} {
 # Dashboard (optional: simple status page)
 dashboard.{$DOMAIN} {
   import security_headers
+  log
   file_server {
     root /var/www/html
   }
@@ -464,6 +536,7 @@ dashboard.{$DOMAIN} {
 # of its own since it holds nothing sensitive, just links + text.
 family.{$DOMAIN} {
   import security_headers
+  log
   root * /srv/family-guide
   file_server
 }

@@ -25,9 +25,17 @@ credentials-export.csv
 # Docker/runtime state that shouldn't be versioned
 **/gluetun/
 **/wireguard/config/
-**/fail2ban/data/
 immich-app/library/
 immich-app/postgres/
+
+# Fail2Ban's persistent ban database and auto-created action.d scaffolding
+# (crazymax/fail2ban creates this on first run, empty unless you add a
+# custom action) - genuine runtime state, not config. jail.d/ and
+# filter.d/ under the same fail2ban/data/ directory ARE real config
+# (this image's own convention - see security-stack/docker-compose.yml)
+# and are deliberately NOT excluded here.
+**/fail2ban/data/db/
+**/fail2ban/data/action.d/
 
 # Homepage bind-mounts ./config directly and writes these itself at
 # runtime (a sample kubernetes.yaml stub and its own log file) - not
