@@ -358,6 +358,35 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # Recyclarr - syncs TRaSH Guides' community-maintained Custom Formats and
+  # Quality Profiles into Sonarr/Radarr on a schedule, so a search doesn't
+  # just grab the first result: releases get scored (reject cam/telesync/
+  # upscaled/fake releases outright, prefer well-regarded groups, correct
+  # HDR handling, etc). See media-stack/recyclarr/recyclarr.yml.example
+  # and TROUBLESHOOTING.md for how this fits with indexer priority.
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr:8
+    restart: unless-stopped
+    container_name: recyclarr
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ:-UTC}
+      - CRON_SCHEDULE=@daily
+    volumes:
+      - ./recyclarr:/config
+    networks:
+      - media-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
   # Readarr (book automation) has been removed: hotio's upstream repo was
   # archived June 2025 and officially retired - it never left beta in its
   # whole lifetime and will not be fixed. See CHANGELOG.md. If you want
