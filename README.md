@@ -1,5 +1,14 @@
 # Homelab Docker Stack
 
+Most self-hosted setups leave you to debug your own DNS-01 propagation
+failures, VPN routing quirks, and reverse-proxy auth conflicts as they come
+up. This one already has - [TROUBLESHOOTING.md](TROUBLESHOOTING.md) and
+[CHANGELOG.md](CHANGELOG.md) document the real incidents behind the config,
+not just the config itself, and [SECURITY.md](SECURITY.md) says plainly what's
+covered and what still needs a decision from you. If you already know what
+you want to run - Sonarr/Radarr, Nextcloud, a password manager, your own
+email - and would rather not spend a weekend on the plumbing, start here.
+
 A self-hosted homelab: media automation, private cloud storage, photo backup,
 password manager, email, monitoring, and a VPN/brute-force-protected front
 door — all behind one reverse proxy with real HTTPS. Designed to be portable
@@ -97,3 +106,15 @@ cd _scripts
 # Optional: turn on the email server later if you skipped it above
 .\enable-email.ps1
 ```
+
+## Contributing
+
+This tracks my own setup first, so I maintain it primarily for that - but
+issues and PRs are welcome, especially fixes to something TROUBLESHOOTING.md
+gets wrong or a platform quirk PLATFORM.md doesn't cover yet. No formal
+process: open an issue if you hit something this doesn't explain, or a PR if
+you've already fixed it.
+
+## License
+
+[MIT](LICENSE)
