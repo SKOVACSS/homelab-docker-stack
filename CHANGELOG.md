@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.7.1 - Fix Caddy's rate limit throttling normal Sonarr/Radarr/Prowlarr/Lidarr usage (2026-09-22)
+
+`caddy/Caddyfile`'s shared `rate_limit` snippet allowed only 30
+requests/minute per client on every arr app plus qBittorrent and Seerr.
+That sounds generous until you remember these are SPA dashboards:
+Sonarr/Radarr/Prowlarr/Lidarr each fire 15-30+ API calls just loading
+their status page, and qBittorrent/Seerr poll every few seconds for live
+queue/activity updates. Confirmed live via Caddy's own logs
+(`"msg":"rate limit exceeded","zone":"sonarr_zone"`) that normal
+single-user browsing tripped this within seconds of opening a tab -
+surfacing to the user as Sonarr's "Failed to load system status from
+API", indistinguishable from the app actually being down. This is likely
+what "these apps keep becoming inaccessible" was actually describing,
+more than a one-off.
+
+Also worth noting: `order rate_limit after basic_auth` (set globally,
+above the snippet) means this limiter runs *after* login is already
+checked, so it was never actually providing brute-force protection
+either - a wrong password gets rejected by `basic_auth` before ever
+reaching the rate counter. It's pure defense-in-depth against abuse, not
+an auth guard.
+
+Raised the shared zone to 600 events/minute - well above realistic
+dashboard-polling volume while still bounding runaway abuse. Confirmed
+live via Caddy's admin API (`/config/`) that every zone (`sonarr_zone`,
+`radarr_zone`, `prowlarr_zone`, `lidarr_zone`, `qbit_zone`,
+`requests_zone`) picked up `max_events: 600` after a `caddy reload`.
+
 ## 1.7.0 - Automatic, vendor-agnostic GPU hardware acceleration (2026-09-21)
 
 Generalizes 1.6.9's manual Intel Arc GPU wiring into something that works
