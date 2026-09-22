@@ -38,6 +38,8 @@ services:
       ARR_AUTH_HASH: ${ARR_AUTH_HASH}
       RADICALE_AUTH_USER: ${RADICALE_AUTH_USER}
       RADICALE_AUTH_HASH: ${RADICALE_AUTH_HASH}
+      QBIT_AUTH_USER: ${QBIT_AUTH_USER}
+      QBIT_AUTH_HASH: ${QBIT_AUTH_HASH}
     networks:
       - caddy-network
     healthcheck:

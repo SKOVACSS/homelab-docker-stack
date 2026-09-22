@@ -46,6 +46,15 @@ services:
       - /dev/dri:/dev/dri
 
   vaapi-wsl: # use this for VAAPI if you're running Immich in WSL2
+    # Needs /dev/dri to exist on the host, LIBVA_DRIVER_NAME=d3d12 or not -
+    # confirmed live: ffmpeg's VAAPI backend hard-requires a /dev/dri render
+    # node to initialize ("No available render device for DRM render
+    # node"), even with this env var set and /dev/dxg mounted. On hosts
+    # where /dev/dri doesn't exist (Docker Desktop's WSL2 backend commonly
+    # doesn't, as of this writing - see hwaccel.ml.yml's
+    # openvino-wsl-dxgonly comment for the same finding), _scripts/detect-
+    # gpu.ps1 falls back to cpu for transcoding rather than using this
+    # profile - there is currently no working dxg-only VAAPI path.
     devices:
       - /dev/dri:/dev/dri
       - /dev/dxg:/dev/dxg

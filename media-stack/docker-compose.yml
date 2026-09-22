@@ -274,12 +274,19 @@ services:
     image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
     restart: unless-stopped
     container_name: plex
+    # PLEX_HWACCEL is written by _scripts/detect-gpu.ps1 (run automatically
+    # by deploy.ps1) into .env - defaults to cpu if unset or no GPU is
+    # usable. Hardware transcoding also requires a Plex Pass subscription
+    # to actually activate, independent of whether the device is mapped in.
+    extends:
+      file: hwaccel.transcoding.yml
+      service: ${PLEX_HWACCEL:-cpu}
     environment:
       - PLEX_UID=1000
       - PLEX_GID=1000
       - TZ=${TZ:-UTC}
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN}
-      - ADVERTISE_IP=http://${PLEX_DOMAIN}:443/
+      - ADVERTISE_IP=https://${PLEX_DOMAIN}:443/
     volumes:
       - plex-config:/config
       - ${MEDIA_MOVIES}:/movies
@@ -318,6 +325,14 @@ services:
     image: jellyfin/jellyfin:12.1
     restart: unless-stopped
     container_name: jellyfin
+    # JELLYFIN_HWACCEL is written by _scripts/detect-gpu.ps1 (run
+    # automatically by deploy.ps1) into .env - defaults to cpu if unset or
+    # no GPU is usable. Still needs Dashboard > Playback > Transcoding set
+    # to match in Jellyfin's own admin UI - the device being mapped in
+    # only makes hardware transcoding possible, not automatic.
+    extends:
+      file: hwaccel.transcoding.yml
+      service: ${JELLYFIN_HWACCEL:-cpu}
     environment:
       - PUID=1000
       - PGID=1000
