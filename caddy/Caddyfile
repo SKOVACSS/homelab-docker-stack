@@ -147,6 +147,21 @@ qbit.{$DOMAIN} {
   import qbit_auth
   reverse_proxy gluetun:{$QBIT_PORT} {
     header_up X-Real-IP {http.request.remote}
+    # basic_auth validates this Authorization header and then, unlike
+    # you'd expect, still forwards it upstream by default. qBittorrent's
+    # own WebUI sees it and tries to use it as a login attempt against
+    # ITS OWN separate password - which never matches (it's Caddy's
+    # credential, not qBittorrent's), so it counts as a failed login.
+    # This happened on every single request, guaranteeing qBittorrent's
+    # own "ban after N failed logins" feature would eventually (often
+    # within minutes) ban whatever IP Caddy's reverse_proxy connects
+    # from - which every real user shares, since they all arrive via
+    # Caddy. Confirmed live: reproduced "Your IP address has been banned"
+    # on demand just by forwarding this header, and reproduced a clean
+    # login by stripping it. This was likely the actual cause of
+    # qbit.stevenks.com intermittently becoming totally inaccessible
+    # (previously misattributed to Cloudflare WAF/rate limiting).
+    header_up -Authorization
   }
 }
 
