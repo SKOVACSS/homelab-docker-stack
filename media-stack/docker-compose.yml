@@ -270,6 +270,56 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # Unpackerr - Sonarr/Radarr/Lidarr can natively import a completed
+  # download, but none of them know how to extract an archive (multi-part
+  # RAR, zip, etc). Unpackerr bridges that gap: it polls each *arr's queue
+  # API, and once an item shows as fully downloaded there (qBittorrent
+  # itself never reports a torrent "complete" until every part/piece,
+  # including every split-RAR volume, has finished and hash-checked), it
+  # extracts any archive found at that item's download path. The *arr
+  # apps' own existing import scan (already running on its normal
+  # interval) then picks up the extracted media file exactly like it does
+  # any other completed download - no separate "transfer" step to build.
+  # DELETE_ORIG is deliberately left at its default (false): this stack
+  # downloads over BitTorrent, and deleting the source archive right after
+  # extraction would corrupt an in-progress seed.
+  unpackerr:
+    image: golift/unpackerr:0.16.1
+    restart: unless-stopped
+    container_name: unpackerr
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ:-UTC}
+      - UN_SONARR_0_URL=http://sonarr:8989
+      - UN_SONARR_0_API_KEY=${SONARR_API_KEY}
+      - UN_SONARR_0_PATHS_0=/downloads
+      - UN_SONARR_0_PROTOCOLS=torrent
+      - UN_RADARR_0_URL=http://radarr:7878
+      - UN_RADARR_0_API_KEY=${RADARR_API_KEY}
+      - UN_RADARR_0_PATHS_0=/downloads
+      - UN_RADARR_0_PROTOCOLS=torrent
+      - UN_LIDARR_0_URL=http://lidarr:8686
+      - UN_LIDARR_0_API_KEY=${LIDARR_API_KEY}
+      - UN_LIDARR_0_PATHS_0=/downloads
+      - UN_LIDARR_0_PROTOCOLS=torrent
+    volumes:
+      # Same host folder, same container path (/downloads) as qBittorrent
+      # and all three *arr apps above - Unpackerr matches archives to
+      # queue items by this path, so it must line up exactly.
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+    networks:
+      - media-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
   plex:
     image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
     restart: unless-stopped
