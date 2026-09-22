@@ -171,12 +171,25 @@ if ([string]::IsNullOrWhiteSpace($cfToken)) {
 Write-Host ""
 Write-Host "Auto-generating Cloudflare account/zone config from that token..." -ForegroundColor White
 $genPath = "$stackPath\cloudflare-bouncer.generated.yaml"
-& $docker run --rm crowdsecurity/cloudflare-worker-bouncer -g $cfToken 2>$null | Out-File $genPath -Encoding UTF8
+$genErrPath = "$stackPath\cloudflare-bouncer.generate-error.log"
+# Stderr goes to a real file, not $null - a previous version of this
+# script swallowed it entirely, which meant a real failure (wrong token,
+# a Cloudflare-side rejection, anything) showed nothing but a generic
+# "failed" message with no way to actually diagnose it. Confirmed live:
+# even a deliberately invalid token produces a specific, useful error
+# here ("failed to list accounts: Invalid request headers (6003)").
+& $docker run --rm crowdsecurity/cloudflare-worker-bouncer -g $cfToken 2>$genErrPath | Out-File $genPath -Encoding UTF8
 if (-not (Test-Path $genPath) -or (Get-Item $genPath).Length -eq 0) {
-    Write-Host "❌ Generation failed or produced an empty file - check the token's" -ForegroundColor Red
-    Write-Host "   permissions match SETUP.md's list exactly." -ForegroundColor Red
+    Write-Host "❌ Generation failed - here's the actual error:" -ForegroundColor Red
+    if (Test-Path $genErrPath) {
+        Get-Content $genErrPath | ForEach-Object { Write-Host "   $_" -ForegroundColor Red }
+    }
+    Write-Host "   Double-check the token's permissions against SETUP.md's list -" -ForegroundColor Red
+    Write-Host "   every one of the nine, exact permission level and resource type." -ForegroundColor Red
+    Remove-Item $genErrPath -Force -ErrorAction SilentlyContinue
     exit 1
 }
+Remove-Item $genErrPath -Force -ErrorAction SilentlyContinue
 
 Write-Host "Minting the bouncer's CrowdSec API key..." -ForegroundColor White
 $lapiKey = (& $docker exec crowdsec cscli -oraw bouncers add cloudflarebouncer 2>$null | Select-Object -Last 1).Trim()
