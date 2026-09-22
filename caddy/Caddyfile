@@ -53,14 +53,26 @@
   header -Server
 }
 
-# Rate limiting middleware (protect against brute force).
+# Rate limiting middleware (defense-in-depth against abuse/DoS - actual
+# login brute-forcing is already stopped by basic_auth, which runs BEFORE
+# this per the "order rate_limit after basic_auth" directive above, so a
+# bad password never even reaches this counter).
 # Each call site passes a unique zone name (import rate_limit <name>) so
 # multiple site blocks don't collide on one shared zone definition.
+# events was originally 30/min, which sounds generous until you remember
+# these are all SPA dashboards: Sonarr/Radarr/Prowlarr/Lidarr each fire
+# 15-30+ API calls just loading the status page, and qBittorrent/Seerr
+# poll every few seconds for live queue/activity updates. Confirmed live
+# via Caddy's own logs ("rate limit exceeded", zone sonarr_zone) that normal
+# single-user browsing was tripping this within seconds of opening a tab,
+# surfacing to the user as "Failed to load system status from API" -
+# indistinguishable from the app actually being down. Raised well above
+# realistic dashboard-polling volume while still bounding runaway abuse.
 (rate_limit) {
   rate_limit {
     zone {args[0]}_zone {
       key    {remote_host}
-      events 30
+      events 600
       window 1m
     }
   }
