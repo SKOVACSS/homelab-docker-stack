@@ -803,3 +803,134 @@ and per-profile settings respectively, not container env vars). Both need
 the one-time web UI setup documented in SETUP.md - there's no way to
 pre-bake either of them into `.env`/`docker-compose.yml` the way this
 repo does for most other apps.
+
+## Vulkan/`dzn` doesn't actually work on Docker Desktop + WSL2 + Intel Arc
+
+`ai-stack`'s chat backend was originally set up on llama.cpp's
+`server-vulkan` image, on the theory that Mesa's WSL2-specific `dzn`
+driver (translates Vulkan calls to D3D12 over `/dev/dxg`, the same device
+Immich's OpenVINO machine learning already uses successfully - see the
+GPU video transcoding entry above) would give it real GPU acceleration
+without the `/dev/dri` requirement that rules out llama.cpp's SYCL
+(`server-intel`) variant on this host. Public reports suggested this
+combination works elsewhere. It doesn't work here, confirmed directly
+rather than left as an assumption:
+
+- `/dev/dxg` mounts into the container fine, and mounting
+  `/usr/lib/wsl:/usr/lib/wsl` (same as Immich's `openvino-wsl-dxgonly`
+  hwaccel profile) does make `libd3d12.so`/`libdxcore.so` available.
+- But that alone isn't enough - the actual Vulkan-to-D3D12 translation
+  (Mesa's `dzn` ICD, a `.so` plus a `/usr/share/vulkan/icd.d/*.json`
+  manifest) has to be *compiled into Mesa itself* on the Linux side.
+  Checked directly inside the running container
+  (`dpkg -L mesa-vulkan-drivers`): Ubuntu 26.04's `mesa-vulkan-drivers`
+  package (26.0.8) ships ICDs for `asahi`, `gfxstream`, `intel_hasvk`,
+  `intel` (ANV, needs `/dev/dri`), `lvp` (CPU software fallback),
+  `nouveau`, `radeon`, and `virtio` - no `dzn` anywhere in the package,
+  not even as an unregistered file.
+- Result: `llama-server`'s own logs showed `warning: no usable GPU found,
+  --gpu-layers option will be ignored` every startup, silently falling
+  back to CPU inference.
+
+**Resolution**: switched to Intel's official `intel/vllm` XPU image,
+which uses Level-Zero/oneAPI instead of Vulkan - a completely separate
+compute path (distinct from the Vulkan/VAAPI graphics path Mesa's
+`dzn`/ANV drivers serve) that already worked for Immich's OpenVINO ML on
+this identical `/dev/dxg`-only host. Confirmed by actually running
+inference rather than just checking device detection - device detection
+alone wouldn't have been enough, since Battlemage/B580 has open,
+unresolved GitHub issues for GPU-fault crashes on first inference in
+other tools (e.g. `ollama/ollama#14854`):
+
+- `sycl-ls` inside the `intel/vllm` container shows the B580 as
+  `[level_zero:gpu][level_zero:0] ... Intel(R) Graphics [0xe20b]`, and
+  `torch.xpu.is_available()` returns `True` - same `/dev/dxg` +
+  `/usr/lib/wsl:/usr/lib/wsl` mounts as the Vulkan attempt above, this
+  time actually recognized.
+- A real model (Qwen2.5-0.5B-Instruct first, to isolate the GPU question
+  from model-sizing questions) loaded onto the GPU, compiled via
+  `torch.compile`, and returned an actual generated chat completion with
+  no crash - confirming the GPU path itself works end-to-end, not just
+  that the device is visible.
+- **Sizing the real model took two failed attempts**, both genuine VRAM
+  budget issues rather than driver problems: Qwen2.5-14B-Instruct-AWQ
+  loaded its ~9.4GB of weights onto the GPU fine, but vLLM's own runtime
+  overhead (activation buffers, `torch.compile` scratch space - heavier
+  than llama.cpp's) left only 0.15GB free for KV cache against a
+  12GB-card budget, not enough to serve a single request even at a
+  4096-token context (`ValueError: No available memory for the cache
+  blocks`). Dropped to Qwen2.5-7B-Instruct-AWQ (~5GB weights), which
+  comfortably serves an 8192-token context with `--gpu-memory-utilization
+  0.9` - confirmed with a real completion request, not just a successful
+  model load. If sizing a different model, budget for vLLM's overhead
+  being meaningfully larger than weight size alone suggests, especially
+  on a 12GB card.
+
+`ai-stack/docker-compose.yml` now runs `intel/vllm:0.17.0-xpu` instead of
+`llama.cpp:server-vulkan` - if you're reading this and it still says
+`server-vulkan`, something regressed; the CPU fallback described above
+was never the intended end state.
+
+## Docker VMM: GPU passthrough support is undocumented, not confirmed working or broken
+
+Docker Desktop's new unified hypervisor backend (**Docker VMM**, public
+beta since v4.86, GA targeted end of October 2026) doesn't currently
+change anything about the GPU findings above, but it's worth writing
+down why "just switch backends" wasn't the answer: Docker's own GPU
+support documentation still states hardware acceleration is
+WSL2-backend-only, Docker VMM's own release notes and docs don't mention
+GPU passthrough in either direction (neither "supported" nor
+"unsupported"), and no community reports of anyone testing a GPU
+workload under it were found as of this writing. That's an absence of
+evidence, not evidence it doesn't work - worth revisiting once it
+reaches GA and has real-world reports, not something to preemptively
+switch to now on the hope it happens to fix the `dzn` gap above.
+
+## Outbound TCP port 53 appears blocked - a real risk for future cert renewals
+
+Discovered while verifying the `chat.{$DOMAIN}` route for `ai-stack`:
+Caddy's DNS-01 certificate issuance for that new domain repeatedly failed
+with `dial tcp 172.64.34.71:53: connect: connection refused` (Cloudflare's
+authoritative nameserver). Confirmed this isn't a Caddy/container-specific
+problem - it's a host-level networking condition:
+
+- `Test-NetConnection -ComputerName 172.64.34.71 -Port 53` (TCP) fails
+  directly from the Windows host itself, outside any container.
+- Same failure against `1.1.1.1:53` (TCP) - not specific to Cloudflare's
+  nameserver IP.
+- `Test-NetConnection -ComputerName 172.64.34.71 -Port 443` (TCP)
+  **succeeds** against the exact same IP - this is specific to port 53,
+  not a broader connectivity problem.
+- Normal DNS resolution (`Resolve-DnsName`, which uses UDP) works fine -
+  this only affects TCP:53, which is what certmagic (Caddy's ACME
+  library) uses specifically to query authoritative nameservers directly
+  during DNS-01 propagation checks, bypassing recursive resolver caches.
+- No outbound-blocking Windows Firewall rule was found for port 53 in
+  either direction - the block is happening upstream (router or ISP,
+  Starlink in this deployment's case), not in Windows itself.
+
+**Why this hasn't broken anything yet**: this server sits behind
+Cloudflare Tunnel with Cloudflare's own Universal SSL terminating the
+public-facing connection - browsers validate *Cloudflare's* certificate,
+not Caddy's, and the tunnel's connection to Caddy doesn't require Caddy
+to hold a valid publicly-trusted cert. Confirmed directly: `chat.
+{$DOMAIN}` served real traffic (HTTP 200, actual page content) through
+the tunnel the entire time Caddy's own DNS-01 attempts for that domain
+kept failing and retrying in the background.
+
+**Why it's still worth fixing**: every one of this deployment's 30+
+other domains already has a valid, previously-issued cert - they're not
+affected *today* because they don't need to redo the DNS-01 challenge
+until their existing cert nears renewal. When that happens (Let's
+Encrypt certs are 90 days), each one will hit this same
+connection-refused failure. Caddy retries indefinitely
+(`max_duration":2592000` = 30 days) so a renewal isn't silently lost
+forever, but a cert can still expire if this isn't resolved before the
+retry window runs out. Not something this repo's config can fix on its
+own - needs investigating at the router/ISP level (a firmware update, a
+security feature blocking outbound TCP:53 specifically, or an ISP-side
+policy). A possible Caddy-side mitigation worth trying if the underlying
+network block can't be resolved: setting a `resolvers` override in the
+`acme_dns` config to use a recursive UDP resolver instead of querying
+authoritative nameservers directly over TCP - untested as of this
+writing.

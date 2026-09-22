@@ -406,6 +406,22 @@ pihole.{$DOMAIN} {
   }
 }
 
+# ========== AI ==========
+
+# Open WebUI - chat frontend for vllm (ai-stack), GPU-accelerated via
+# Level-Zero/XPU - see TROUBLESHOOTING.md. vllm itself has no route -
+# it's a backend API only this container needs to reach, same reasoning
+# as immich-machine-learning not getting one either. Uses its own
+# built-in login (first account created becomes admin), no Caddy
+# basic_auth layer.
+chat.{$DOMAIN} {
+  import security_headers
+  import rate_limit chat
+  reverse_proxy open-webui:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # ========== DASHBOARD ==========
 
 # Homepage - single landing page linking to every service in this repo
