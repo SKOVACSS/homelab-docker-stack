@@ -204,6 +204,12 @@ services:
       - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER}
       - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
       - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      # Missing this caused "CSRF verification failed" on every login
+      # attempt - confirmed live. Paperless (Django) derives its
+      # CSRF_TRUSTED_ORIGINS/ALLOWED_HOSTS from this, and without it,
+      # Django doesn't trust POSTs arriving via Caddy's reverse proxy on
+      # this domain even though the login page itself loads fine.
+      - PAPERLESS_URL=https://papers.${DOMAIN}
       - PAPERLESS_DBHOST=paperless-db
       - PAPERLESS_DBPASS=${PAPERLESS_DB_PASS}
       - PAPERLESS_REDIS=redis://paperless-redis:6379

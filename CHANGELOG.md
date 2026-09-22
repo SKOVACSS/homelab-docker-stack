@@ -1,5 +1,66 @@
 # Changelog
 
+## 1.8.0 - Homepage SSO via Authentik, and a systemic secret-generation bug (2026-09-22)
+
+Two unrelated fixes bundled together since both surfaced in the same
+session while restoring a backup-migrated deployment.
+
+**Homepage now requires login, via Authentik SSO.** It had no
+authentication of its own configured - anyone reaching `home.{$DOMAIN}`
+saw a full directory of every service in this stack with zero
+credentials. Homepage supports OIDC login natively (since v2.0), and
+since this repo already runs Authentik, that's a real supported
+integration rather than another bolted-on Caddy `basic_auth` layer.
+`dashboard/docker-compose.yml` now sets `HOMEPAGE_AUTH_ENABLED`,
+`HOMEPAGE_OIDC_ISSUER`/`CLIENT_ID`/`CLIENT_SECRET` pointing at an OAuth2
+Provider + Application created in Authentik (name/slug `homepage`,
+redirect URI `https://home.{$DOMAIN}/api/auth/callback/homepage-oidc`).
+
+**`Generate-SecurePassword`'s charset included a literal `$`** -
+`!@#$%^&*` - used for every general secret this repo generates (roughly
+19-21 per deployment). Docker Compose's own `${VAR}` `.env` interpolation
+treats a bare `$` as the start of a variable reference: a password like
+`...UMe$nJGLkNnrR` silently truncates to `...UMe` wherever it's actually
+read, since `$nJGLkNnrR` doesn't match any real variable. Statistically,
+about a third of all generated secrets in any given deployment hit this
+- confirmed live as the actual cause of a completely broken Authentik
+bootstrap admin login (the credential the wizard told you to use never
+matched what the container actually received). Audited every live
+`.env` afterward and found five more secrets silently truncated the same
+way, most self-consistent (an app and its own database both reading the
+identical truncated value, so nothing outwardly broke - just weaker than
+the intended length) but still worth fixing. Removed `$` from the
+charset entirely - simpler and more robust than doubling it at every
+call site that writes one of these into a `.env` file, which is an easy
+step to forget (see `caddy/Caddyfile`'s bcrypt hashes, which already
+need exactly that and are the one place it's unavoidable, since bcrypt's
+own hash format contains `$` regardless of the input password).
+
+## 1.7.4 - Fix Gotify's login username and Paperless's CSRF rejection (2026-09-22)
+
+Two more restored-backup/first-deploy gaps found and fixed the same way
+as everything else this session - confirmed live, not assumed.
+
+**Gotify**: `GOTIFY_DEFAULTUSER_USER` is not a real Gotify config key
+(silently ignored) - the actual login name only ever comes from
+`GOTIFY_DEFAULTUSER_NAME`, which `notification-stack/docker-compose.yml`
+had hardcoded to `Administrator` regardless of `GOTIFY_ADMIN_USER`'s
+value. The password was always correct; only the username the
+credentials export told you to use (`admin`) never matched what Gotify
+actually created on first boot. Fixed the compose file for future
+deployments (`GOTIFY_DEFAULTUSER_NAME=${GOTIFY_ADMIN_USER}`) - an
+already-existing account needs renaming via the API or web UI instead,
+since this env var only applies on first-ever startup against an empty
+database.
+
+**Paperless-ngx**: had no `PAPERLESS_URL` set, which Django (Paperless's
+framework) needs to correctly derive `CSRF_TRUSTED_ORIGINS`/
+`ALLOWED_HOSTS` behind a reverse proxy. Without it, every login attempt
+failed with "CSRF verification failed" even though the login page itself
+loaded fine - Django trusted the page load but not the POST arriving via
+Caddy on this domain. Added `PAPERLESS_URL=https://papers.${DOMAIN}` to
+`privacy-stack/docker-compose.yml`.
+
 ## 1.7.3 - Drop redundant Caddy logins from Sonarr/Radarr/Prowlarr/Lidarr/qBittorrent (2026-09-22)
 
 These five apps were each gated by two separate logins: a Caddy-level
