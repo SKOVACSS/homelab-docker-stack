@@ -673,28 +673,29 @@ function Show-Step4 {
         $script:data.VaultwardenAdminToken   = Generate-SecurePassword 32
         $script:data.ImmichDbPassword        = Generate-SecurePassword
         $script:data.PiholeWebPassword       = Generate-SecurePassword
-        $script:data.ArrAuthPassword         = Generate-SecurePassword
+        # Radicale's own auth is disabled entirely (RADICALE_AUTH_TYPE=none),
+        # so this Caddy-level basic-auth is its only real gate. Sonarr/
+        # Radarr/Prowlarr/Lidarr and qBittorrent used to get a similar
+        # Caddy-level login generated here too - removed once confirmed each
+        # already has its own real, mandatory login (set on first visit to
+        # each app's own UI), making a second Caddy-level credential pure
+        # redundant friction with worse autofill than each app's own login
+        # form. See TROUBLESHOOTING.md if you're restoring a backup where
+        # that first-run login was already set up long ago and isn't
+        # remembered - each app's login can be reset via its own API.
         $script:data.RadicaleAuthPassword    = Generate-SecurePassword
-        # Separate from ArrAuthPassword on purpose: qBittorrent controls what
-        # gets downloaded (and, if abused, could leak download activity or
-        # be pointed at unwanted content) - a materially worse outcome than
-        # someone reaching the Arr apps' library management UI, so it isn't
-        # worth sharing one login across both risk levels.
-        $script:data.QbitAuthPassword        = Generate-SecurePassword
 
-        $script:statusLabel.Text = "Generating secrets... hashing three of them via Docker, one moment"
+        $script:statusLabel.Text = "Generating secrets... hashing one of them via Docker, one moment"
         $script:statusLabel.Refresh()
         try {
-            $script:data.ArrAuthHash      = Get-CaddyPasswordHash -PlainSecret $script:data.ArrAuthPassword
             $script:data.RadicaleAuthHash = Get-CaddyPasswordHash -PlainSecret $script:data.RadicaleAuthPassword
-            $script:data.QbitAuthHash     = Get-CaddyPasswordHash -PlainSecret $script:data.QbitAuthPassword
         } catch {
-            Show-Error "Failed to hash the Sonarr/Radarr/Radicale/qBittorrent passwords via Docker - is Docker Desktop running?`n`n$_"
+            Show-Error "Failed to hash the Radicale password via Docker - is Docker Desktop running?`n`n$_"
             $script:statusLabel.Text = "Ready to generate"
             return
         }
 
-        $secretCount = if ($script:data.SetupEmail) { 23 } else { 21 }
+        $secretCount = if ($script:data.SetupEmail) { 21 } else { 19 }
         $emailNote = if ($script:data.SetupEmail) { "" } else { "`n(Email server setup skipped - run _scripts\enable-email.ps1 later if that changes.)" }
         $script:statusLabel.Text = @"
 ✓ Generated $secretCount unique secrets (one per service/database - no reuse)
@@ -753,7 +754,7 @@ function Show-Step5 {
     } else {
         "Mail Domain: $($script:data.MailDomain) (separate from Domain - needs`nits own Cloudflare Public Hostname rules and DNS-edit permission too)"
     }
-    $secretCountText = if ($script:data.SetupEmail) { "22 unique secure secrets" } else { "20 unique secure secrets" }
+    $secretCountText = if ($script:data.SetupEmail) { "21 unique secure secrets" } else { "19 unique secure secrets" }
     $plexClaimText = if ([string]::IsNullOrEmpty($script:data.PlexToken)) {
         "Plex Claim Token: not set - claim it manually after deploying at`nhttp://<this-pc>:32400/web (sign in with your Plex account there)"
     } else {
@@ -950,9 +951,7 @@ BOOTSTRAP_TOKEN=$($script:data.AuthentikBootstrapToken)
     # arr_auth or radicale_auth was consequently unauthenticatable with ANY
     # password. .Replace() is a plain literal find-and-replace with no
     # substitution-pattern semantics, so it actually doubles the '$'.
-    $arrAuthHashEscaped = $script:data.ArrAuthHash.Replace('$', '$$')
     $radicaleAuthHashEscaped = $script:data.RadicaleAuthHash.Replace('$', '$$')
-    $qbitAuthHashEscaped = $script:data.QbitAuthHash.Replace('$', '$$')
 
     $mailDomainLine = if ($script:data.SetupEmail) {
         "# Same as DOMAIN unless you entered a separate Mail Domain in step 1 -`n# must match DOMAIN in email-stack\.env exactly either way.`nMAIL_DOMAIN=$($script:data.MailDomain)"
@@ -968,17 +967,12 @@ QBIT_PORT=8080
 CLOUDFLARE_API_TOKEN=$($script:data.CloudflareApiToken)
 CLOUDFLARE_TUNNEL_TOKEN=$($script:data.CloudflareTunnelToken)
 $mailDomainLine
-# Shared login for Sonarr/Radarr/Prowlarr/Lidarr - see arr_auth in
-# caddy/Caddyfile. Every `$` below is doubled deliberately - see comment
-# above, don't "clean up" this into a single $.
-ARR_AUTH_USER=admin
-ARR_AUTH_HASH=$arrAuthHashEscaped
+# Radicale's own auth is disabled entirely, so this Caddy-level login is
+# its only real gate - see cal.{`$DOMAIN} in caddy/Caddyfile. Every `$`
+# below is doubled deliberately - see comment above, don't "clean up"
+# this into a single $.
 RADICALE_AUTH_USER=family
 RADICALE_AUTH_HASH=$radicaleAuthHashEscaped
-# Separate login from ARR_AUTH above on purpose - see qbit_auth in
-# caddy/Caddyfile and the comment on QbitAuthPassword's generation.
-QBIT_AUTH_USER=admin
-QBIT_AUTH_HASH=$qbitAuthHashEscaped
 "@
     $caddyEnv | Out-File "$appRoot\caddy\.env" -Encoding UTF8 -Force
 
@@ -1198,8 +1192,11 @@ function Export-Credentials {
     $rows.Add((New-CredRow "Vaultwarden Admin Panel" "https://vault.$d/admin" "" $script:data.VaultwardenAdminToken "Token-based admin panel login, no username"))
     $rows.Add((New-CredRow "Immich Database" "" "postgres" $script:data.ImmichDbPassword "Internal Postgres password - not a login page"))
     $rows.Add((New-CredRow "Pi-hole" "https://pihole.$d" "" $script:data.PiholeWebPassword "Password-only login, no username"))
-    $rows.Add((New-CredRow "Sonarr / Radarr / Prowlarr / Lidarr" @("https://sonarr.$d", "https://radarr.$d", "https://prowlarr.$d", "https://lidarr.$d") "admin" $script:data.ArrAuthPassword "Shared Caddy basic-auth login - autofills on all four sites"))
-    $rows.Add((New-CredRow "qBittorrent" "https://qbit.$d" "admin" $script:data.QbitAuthPassword "Caddy basic-auth in front of qBittorrent's WebUI - deliberately a separate login from the Arr stack above. qBittorrent's OWN WebUI login (Tools > Options > Web UI) is separate again and defaults to a random temporary password printed in its container logs on first start - set a permanent one there too the first time you log in."))
+    $rows.Add((New-CredRow "Sonarr" "https://sonarr.$d" "" "" "Set your own account on first visit (Settings > General > Security), then fill in here"))
+    $rows.Add((New-CredRow "Radarr" "https://radarr.$d" "" "" "Set your own account on first visit (Settings > General > Security), then fill in here"))
+    $rows.Add((New-CredRow "Prowlarr" "https://prowlarr.$d" "" "" "Set your own account on first visit (Settings > General > Security), then fill in here"))
+    $rows.Add((New-CredRow "Lidarr" "https://lidarr.$d" "" "" "Set your own account on first visit (Settings > General > Security), then fill in here"))
+    $rows.Add((New-CredRow "qBittorrent" "https://qbit.$d" "admin" "" "Defaults to a random temporary password printed in its container logs on first start (Tools > Options > Web UI to set a permanent one) - no Caddy-level login in front of it anymore, this is its only gate"))
     $rows.Add((New-CredRow "Radicale (Calendar/Contacts)" "https://cal.$d" "family" $script:data.RadicaleAuthPassword "Caddy basic-auth in front of Radicale, which has no auth of its own"))
     $rows.Add((New-CredRow "ProtonVPN" "https://account.protonvpn.com" $script:data.ProtonUsername $script:data.ProtonPassword "Used by media-stack's gluetun VPN routing"))
     $rows.Add((New-CredRow "Portainer" "https://portainer.$d" "" "" "Set your own password on first visit, then fill in here"))

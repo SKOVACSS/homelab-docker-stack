@@ -28,18 +28,18 @@ services:
       # DOMAIN otherwise, so leaving it unset is the same as before this
       # existed. See the EMAIL section of ./Caddyfile and SETUP.md.
       MAIL_DOMAIN: ${MAIL_DOMAIN:-${DOMAIN}}
-      # Basic-auth credentials for apps that ship with no real auth of
-      # their own once reverse-proxied (see arr_auth in ./Caddyfile and
-      # the CALENDAR/CONTACTS section) - gui-installer.ps1 generates both
-      # the plaintext password (in credentials-export.csv) and this
-      # bcrypt hash (via `caddy hash-password`) together, so the hash is
-      # never typed by hand.
-      ARR_AUTH_USER: ${ARR_AUTH_USER}
-      ARR_AUTH_HASH: ${ARR_AUTH_HASH}
+      # Basic-auth credentials for Radicale (see the CALENDAR/CONTACTS
+      # section in ./Caddyfile) - its own auth is disabled entirely, so
+      # this is its only real gate. gui-installer.ps1 generates both the
+      # plaintext password (in credentials-export.json) and this bcrypt
+      # hash (via `caddy hash-password`) together, so the hash is never
+      # typed by hand. Sonarr/Radarr/Prowlarr/Lidarr and qBittorrent used
+      # to have a similar ARR_AUTH_*/QBIT_AUTH_* pair here too - removed
+      # once confirmed each already has its own real, mandatory login,
+      # making Caddy's copy pure redundant friction with worse autofill
+      # than each app's own login form.
       RADICALE_AUTH_USER: ${RADICALE_AUTH_USER}
       RADICALE_AUTH_HASH: ${RADICALE_AUTH_HASH}
-      QBIT_AUTH_USER: ${QBIT_AUTH_USER}
-      QBIT_AUTH_HASH: ${QBIT_AUTH_HASH}
     networks:
       - caddy-network
     healthcheck:
