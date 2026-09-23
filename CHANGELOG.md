@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.15.0 - Radarr/Sonarr quality-profile automation, LAN-direct DNS (2026-09-23)
+
+**Added `_scripts/configure-quality-profiles.ps1`**: Radarr/Sonarr's
+stock "Ultra-HD" profile - the one Seerr's 4K requests actually use -
+ships allowing ONLY 2160p releases with no fallback. If no 2160p
+release exists for a title, the request just sits unfulfilled forever;
+confirmed live against a real request stuck exactly this way. Worse,
+Seerr only had one Radarr/Sonarr server each with no dedicated 4K
+entry, so that 2160p-only profile was silently the default for every
+request, not just ones a user explicitly marked 4K. This script
+(idempotent, safe to re-run) fixes both: enables 720p/1080p as
+lower-priority fallback in Ultra-HD, turns on `upgradeAllowed` so it
+keeps hunting for real 4K afterward, and splits Seerr into a genuine
+standard + is4k-flagged server pair so ordinary requests never touch a
+2160p tier at all. Also imports the complete custom-format scoring
+template that was sitting unused in this repo's own "UHD Bluray + WEB"
+profile (every format scored 0 in the actually-active profile before
+this), adds two new custom formats for hybrid Dolby Vision+HDR10
+detection and a trusted-release-group allowlist, and applies
+movie-vs-episode-appropriate max size caps to both apps' Quality
+Definitions - a TV series' total size is open-ended (unknown season
+count) in a way a single movie's never is, so it gets a meaningfully
+tighter per-minute ceiling.
+
+**Added `_scripts/enable-lan-direct-dns.ps1`**: confirmed live that a
+device on the same LAN as the Docker host - the host itself included -
+resolves every `*.{$DOMAIN}` app to Cloudflare's public proxy IP by
+default, round-tripping each request out to the internet and back for
+no reason. `caddy/docker-compose.yml` already publishes 80/443 to the
+host specifically to allow a direct LAN connection; this script adds
+the missing half, a wildcard local DNS override in Pi-hole (dnsmasq's
+`address=/domain/ip` via Pi-hole v6's `FTLCONF_misc_dnsmasq_lines`) so
+devices using Pi-hole as their resolver get the LAN IP back instead.
+Remote/WAN access is untouched - that still goes through the tunnel
+exactly as before. Auto-detects the host's real LAN IP, filtering out
+VPN/virtual adapters by name (a VPN tunnel can land in the same private
+ranges as a real LAN, confirmed live: ProtonVPN's own tunnel here is
+10.2.0.2, right alongside the real adapter's 192.168.0.149).
+
 ## 1.14.0 - Local LLM chat, GPU-accelerated via vLLM's Level-Zero/XPU backend (2026-09-22)
 
 **Added a new `ai-stack`**: vLLM (Intel's official XPU-enabled image) +

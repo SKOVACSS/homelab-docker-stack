@@ -73,6 +73,22 @@ services:
       # this, Pi-hole only answers queries from localhost inside its own
       # container, not from other devices on your network.
       - FTLCONF_dns_listeningMode=ALL
+      # LAN-direct access: without this, every device on your own
+      # network - including this Docker host itself - resolves
+      # *.{$DOMAIN} to Cloudflare's public IP and round-trips every
+      # request out to the internet and back, even though the app is
+      # running a few feet away. caddy/docker-compose.yml already
+      # publishes 80/443 straight to this host specifically to make a
+      # direct LAN connection possible; this is the other half - a
+      # wildcard local DNS override so LAN clients actually resolve to
+      # this host instead of Cloudflare's proxy IP. Empty (a no-op) by
+      # default - run _scripts/enable-lan-direct-dns.ps1 to set it, which
+      # writes PIHOLE_DNSMASQ_LINES here in dns-stack\.env from your
+      # domain and this host's detected LAN IP. Dots become underscores
+      # for FTLCONF_ env vars, but the key itself already has an
+      # underscore (dnsmasq_lines) - confirmed live this still resolves
+      # correctly against Pi-hole v6's config schema.
+      - FTLCONF_misc_dnsmasq_lines=${PIHOLE_DNSMASQ_LINES:-}
       - FTLCONF_dns_upstreams=dns-resolver#5053
     volumes:
       - pihole-data:/etc/pihole

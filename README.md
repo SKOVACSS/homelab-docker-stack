@@ -23,7 +23,7 @@ family and friends.
 |---|---|
 | `caddy/` | Reverse proxy - HTTPS, security headers, rate limiting - plus Cloudflare Tunnel for remote access with zero port forwarding (works behind CGNAT). Every other stack routes through this one. |
 | `authentik/` | Single sign-on (SSO) for the whole lab. |
-| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent and slskd (both VPN-routed via gluetun), LazyLibrarian + Calibre-Web-Automated (ebook automation and Send-to-Kindle), Plex, Jellyfin, Seerr (movie/show requests). |
+| `media-stack/` | Sonarr, Radarr, Prowlarr, Lidarr, qBittorrent and slskd (both VPN-routed via gluetun), LazyLibrarian + Calibre-Web-Automated (ebook automation and Send-to-Kindle), Plex, Jellyfin, Seerr (movie/show requests). Run `_scripts/configure-quality-profiles.ps1` after these are up to fix a stock Radarr/Sonarr default that leaves 4K requests unfulfilled forever if no 2160p release exists (no 720p/1080p fallback out of the box), and to split Seerr into real standard vs. 4K request tracks. Idempotent - safe to re-run any time. |
 | `privacy-stack/` | Nextcloud, Navidrome, Syncthing, Paperless-ngx, Wallabag, Trilium, Focalboard, OnlyOffice, Radicale. |
 | `immich-app/` | Google Photos replacement. |
 | `ai-stack/` | vLLM (Intel XPU/Level-Zero backend) + Open WebUI - local, GPU-accelerated LLM chat, no data leaving the house. |
@@ -34,7 +34,7 @@ family and friends.
 | `utilities/` | Portainer, Vaultwarden, Prometheus + Loki + node-exporter, Grafana (Prometheus/Loki/InfluxDB, alerting to Gotify), Uptime Kuma, Watchtower, Diun (new-version notifications). |
 | `notification-stack/` | Gotify (push notifications for backup/health/security alerts). |
 | `dashboard/` | Homepage - single landing page linking to every service above, with live stat widgets for several of them. Gated behind Authentik SSO, same as everything else that isn't deliberately public. |
-| `dns-stack/` | Pi-hole (network-wide ad/tracker blocking) + dnscrypt-proxy (encrypted upstream DNS). |
+| `dns-stack/` | Pi-hole (network-wide ad/tracker blocking) + dnscrypt-proxy (encrypted upstream DNS). Run `_scripts/enable-lan-direct-dns.ps1` any time after this and `caddy/` are both up - without it, devices on your own network resolve every `*.{$DOMAIN}` app to Cloudflare's public IP and round-trip each request out to the internet and back, even though it's running a few feet away. |
 | `family-guide/` | A plain-language, no-login static page for non-technical family members - links and short how-tos for the household-facing apps only (Photos, Movies & Shows, Seerr requests, Music, Files, Books/Kindle, the AI assistant, Passwords, Email). Not its own Compose stack - served directly by Caddy (`family.{$DOMAIN}`), see `caddy/Caddyfile`. |
 
 Each stack (except `family-guide/`, which is plain static files with no
