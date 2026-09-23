@@ -343,7 +343,10 @@ services:
     networks:
       - media-network
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8191/health"]
+      # wget isn't in this image (confirmed live: "executable file not
+      # found in $PATH") - curl is. Was silently failing every check
+      # since deployment; the service itself was fine the whole time.
+      test: ["CMD", "curl", "-sf", "http://localhost:8191/health"]
       interval: 30s
       timeout: 10s
       retries: 5

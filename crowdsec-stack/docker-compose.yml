@@ -106,6 +106,18 @@ services:
       - ./cloudflare-bouncer.yaml:/etc/crowdsec/bouncers/crowdsec-cloudflare-worker-bouncer.yaml:ro
     networks:
       - crowdsec-network
+    # Prometheus metrics must be enabled in cloudflare-bouncer.yaml
+    # (prometheus.enabled: true, port 2112) for this to work - it's a
+    # functional check (the HTTP server actually responds), not just a
+    # "did the process exit" check, matching crowdsec's own healthcheck
+    # above. Not published to the host - checked from inside the
+    # container's own network namespace only.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:2112/metrics"]
+      start_period: 30s
+      interval: 30s
+      timeout: 10s
+      retries: 5
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
