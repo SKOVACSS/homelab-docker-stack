@@ -69,6 +69,10 @@ services:
       # Custom scenario the stock crowdsecurity/caddy collection doesn't
       # cover - see scenarios/caddy-generic-auth-fail.yaml for why.
       - ./scenarios/caddy-generic-auth-fail.yaml:/etc/crowdsec/scenarios/caddy-generic-auth-fail.yaml:ro
+      # Exempts specific apps' own known-legitimate-but-bursty traffic
+      # from scenario detection entirely - see
+      # whitelists/homelab-known-apps.yaml for why.
+      - ./whitelists/homelab-known-apps.yaml:/etc/crowdsec/parsers/s02-enrich/homelab-known-apps.yaml:ro
     networks:
       - crowdsec-network
     healthcheck:

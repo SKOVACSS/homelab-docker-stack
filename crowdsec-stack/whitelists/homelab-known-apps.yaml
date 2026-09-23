@@ -1,0 +1,40 @@
+# Custom whitelist, not from CrowdSec's hub - exempts specific apps'
+# own known-legitimate-but-bursty traffic patterns from scenario
+# detection entirely, rather than banning the client that triggered
+# them. Confirmed live: Syncthing's web UI fetches dozens of small
+# template fragments (/syncthing/core/*.html, one request per modal/
+# dialog it might need) on a single page load - completely normal, but
+# it looks exactly like crowdsecurity/http-crawl-non_statics' "many
+# distinct non-static paths in a burst" heuristic for a scripted
+# crawler. On a home network behind CGNAT where every device shares one
+# public IP, that false positive doesn't just affect whoever opened
+# Syncthing - it bans the whole household from every app behind Caddy
+# until the decision expires.
+#
+# CrowdSec's whitelist mechanism is global once a request matches - it
+# skips ALL scenario processing for that request, not just the one that
+# false-positived here. In practice that's fine for these entries
+# specifically: none of them resemble what the OTHER scenarios
+# (http-probing, http-cve-probing, http-sensitive-files, etc.) are
+# actually looking for, so nothing else was realistically going to
+# catch this traffic anyway.
+#
+# Matched by path prefix, not hostname - works regardless of what
+# subdomain a given deployment maps each app to (see Caddyfile), and
+# keeps this file free of any actual domain name.
+#
+# If another app's own frontend shows this same pattern later, add its
+# path prefix here rather than reaching for a broader IP-level
+# allowlist - see CHANGELOG.md for how this one was actually found
+# (CrowdSec's own alert history, `cscli alerts list -a`, not guesswork).
+#
+# Bind-mounted directly into /etc/crowdsec/parsers/s02-enrich/ alongside
+# the hub-managed whitelists.yaml (see docker-compose.yml) - `cscli hub
+# upgrade` only touches items it tracks by name in the hub index, so a
+# hand-authored file with no hub entry is left alone by it.
+name: homelab/known-apps-whitelist
+description: "Exempt specific apps' own known-legitimate traffic patterns from scenario detection"
+whitelist:
+  reason: "known app frontend behavior, not actual crawling/probing"
+  expression:
+    - "evt.Parsed.target_uri startsWith '/syncthing/'"

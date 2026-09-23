@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.15.1 - CrowdSec whitelist for Syncthing's own crawl-like UI traffic (2026-09-23)
+
+**Added `crowdsec-stack/whitelists/homelab-known-apps.yaml`**: confirmed
+live that Syncthing's web UI - loading dozens of small template
+fragments (`/syncthing/core/*.html`, one per modal/dialog it might
+need) on a single page load - trips
+`crowdsecurity/http-crawl-non_statics`'s "many distinct non-static
+paths in a burst" heuristic, even though it's completely normal
+frontend behavior, not scanning. On a home network behind CGNAT where
+every device shares one public IP, that false positive doesn't just
+affect whoever opened Syncthing - it bans the *entire household* from
+every app behind Caddy until the decision expires (confirmed live:
+exactly this happened, `cscli alerts list -a` also turned up a second,
+earlier instance of the same household IP getting banned the day
+before for an unrelated reason, `homelab/caddy-generic-auth-fail` -
+this is a real, recurring risk of the shared-IP/CGNAT setup, not a
+one-off).
+
+Whitelisted by URL path prefix, not hostname, so it holds regardless
+of what subdomain a given deployment maps Syncthing to. CrowdSec's
+whitelist mechanism exempts a match from every scenario, not just the
+one that false-positived here - acceptable in this case since nothing
+about Syncthing's actual paths resembles what any of the other
+scenarios are looking for. Verified live: re-sent the exact burst
+pattern that triggered the original ban and confirmed zero alerts
+this time, `cscli alerts list -a` empty.
+
+If this happens again for a different app, `cscli alerts list -a` is
+how to actually find it - real history, not guesswork.
+
 ## 1.15.0 - Radarr/Sonarr quality-profile automation, LAN-direct DNS (2026-09-23)
 
 **Added `_scripts/configure-quality-profiles.ps1`**: Radarr/Sonarr's
