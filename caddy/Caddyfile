@@ -432,6 +432,16 @@ auth.{$DOMAIN} {
 
 # ========== EMAIL ==========
 #
+# email-stack was never turned on (no email-stack\.env - see that
+# stack's docker-compose.yml comment), so mailu-admin/mailu-webmail/
+# mailu-front don't exist. These 3 routes used to reverse_proxy to them
+# anyway: Caddy still had live TLS certs for mailadmin./webmail.{$DOMAIN}
+# and dutifully proxied to a backend that was never running, i.e. a
+# real, publicly-reachable 502 for anyone who found those hostnames -
+# dangling attack surface for a feature that was never actually
+# deployed. Commented out until Mailu is actually running (run
+# _scripts\enable-email.ps1 first) - uncomment then.
+#
 # All three routes below use {$MAIL_DOMAIN}, not {$DOMAIN} - deliberately
 # a separate variable (defaults to the same value as DOMAIN if you never
 # set it - see docker-compose.yml). This matters if your main domain
@@ -446,23 +456,23 @@ auth.{$DOMAIN} {
 # Confirmed live: mailu-admin's gunicorn binds :8080 internally, not :80
 # (this route was pointed at :80 before - a pre-existing bug, not
 # introduced here, only surfaced by actually testing the container).
-mailadmin.{$MAIL_DOMAIN} {
-  import security_headers
-  log
-  import rate_limit mailadmin
-  reverse_proxy mailu-admin:8080 {
-    header_up X-Real-IP {http.request.remote}
-  }
-}
+# mailadmin.{$MAIL_DOMAIN} {
+#   import security_headers
+#   log
+#   import rate_limit mailadmin
+#   reverse_proxy mailu-admin:8080 {
+#     header_up X-Real-IP {http.request.remote}
+#   }
+# }
 
 # Mailu webmail (Roundcube-successor webmail client)
-webmail.{$MAIL_DOMAIN} {
-  import security_headers
-  log
-  reverse_proxy mailu-webmail:80 {
-    header_up X-Real-IP {http.request.remote}
-  }
-}
+# webmail.{$MAIL_DOMAIN} {
+#   import security_headers
+#   log
+#   reverse_proxy mailu-webmail:80 {
+#     header_up X-Real-IP {http.request.remote}
+#   }
+# }
 
 # Mailu front - HTTP only, deliberately no TLS block on this site. Caddy
 # must NOT obtain its own certificate for this hostname: mailu-front runs
@@ -472,9 +482,9 @@ webmail.{$MAIL_DOMAIN} {
 # This block exists only to let front's Let's Encrypt HTTP-01 challenge
 # through; the actual encrypted mail protocols (SMTP/IMAP/POP3) bypass
 # Caddy entirely via mailu-front's own directly-published ports.
-http://mail.{$MAIL_DOMAIN} {
-  reverse_proxy mailu-front:80
-}
+# http://mail.{$MAIL_DOMAIN} {
+#   reverse_proxy mailu-front:80
+# }
 
 # ========== DNS ==========
 
@@ -502,6 +512,20 @@ chat.{$DOMAIN} {
   import security_headers
   log
   import rate_limit chat
+  # Same DNS-01 solver as the global default (acme_dns cloudflare, same
+  # token, same tls_resolvers) but with a longer propagation_timeout -
+  # this and family.{$DOMAIN} below are the only two sites still
+  # obtaining a FIRST certificate (every other site's cert already
+  # exists and is just renewing), and both were timing out waiting for
+  # 10.2.0.1 to reflect a brand-new TXT record within the default
+  # window even though Let's Encrypt's own validation succeeded once
+  # it got the chance - a timing race, not a broken solver.
+  tls {
+    dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    resolvers 10.2.0.1
+    propagation_timeout 5m
+    propagation_delay 10s
+  }
   reverse_proxy open-webui:8080 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -537,6 +561,12 @@ dashboard.{$DOMAIN} {
 family.{$DOMAIN} {
   import security_headers
   log
+  tls {
+    dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    resolvers 10.2.0.1
+    propagation_timeout 5m
+    propagation_delay 10s
+  }
   root * /srv/family-guide
   file_server
 }
