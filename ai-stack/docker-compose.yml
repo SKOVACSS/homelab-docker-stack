@@ -115,6 +115,17 @@ services:
       - OPENAI_API_KEYS=none
       - ENABLE_OLLAMA_API=false
       - WEBUI_URL=https://chat.${DOMAIN}
+      # "Continue with Authentik" (authentik/blueprints/app-logins.yaml).
+      # Accounts match by email, so an existing account is reused. New
+      # users still start as "pending" until an admin approves them.
+      - ENABLE_OAUTH_SIGNUP=true
+      - OAUTH_MERGE_ACCOUNTS_BY_EMAIL=true
+      - OAUTH_PROVIDER_NAME=Authentik
+      - OPENID_PROVIDER_URL=https://auth.${DOMAIN}/application/o/open-webui/.well-known/openid-configuration
+      - OAUTH_CLIENT_ID=open-webui
+      - OAUTH_CLIENT_SECRET=${OPENWEBUI_OIDC_CLIENT_SECRET}
+      - OAUTH_SCOPES=openid email profile
+      - OPENID_REDIRECT_URI=https://chat.${DOMAIN}/oauth/oidc/callback
     volumes:
       - open-webui-data:/app/backend/data
     depends_on:

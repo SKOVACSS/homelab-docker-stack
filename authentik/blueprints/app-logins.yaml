@@ -1,0 +1,178 @@
+# Authentik blueprint - "Sign in with Authentik" inside apps that support
+# OpenID Connect themselves: Nextcloud, Paperless-ngx, Open WebUI and
+# Portainer. Same pattern as grafana.yaml: secrets and domain come from the
+# worker's environment (authentik/.env), and each secret must match the
+# same variable in the app's own stack .env.
+#
+# Nextcloud, Paperless and Open WebUI are household apps, so any Authentik
+# user may sign in (the app decides what they can see). Portainer controls
+# every container, so it's limited to "authentik Admins".
+#
+# App-side setup:
+#   Nextcloud  - _scripts/configure-nextcloud-oidc.ps1 (user_oidc app)
+#   Paperless  - privacy-stack/docker-compose.yml (PAPERLESS_SOCIALACCOUNT_PROVIDERS)
+#   Open WebUI - ai-stack/docker-compose.yml (OAUTH_* / OPENID_*)
+#   Portainer  - Settings -> Authentication -> OAuth, by hand (Portainer
+#                keeps it in its database; values in utilities/.env).
+version: 1
+metadata:
+  name: Homelab - App logins (OIDC)
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  # ---------- Nextcloud ----------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: nextcloud-provider
+    identifiers:
+      name: Nextcloud
+    attrs:
+      name: Nextcloud
+      client_type: confidential
+      client_id: nextcloud
+      client_secret: !Env NEXTCLOUD_OIDC_CLIENT_SECRET
+      # Authentik only allows the grant types listed here (an empty list
+      # refuses every login - seen live: "Invalid grant_type").
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      # Nextcloud usernames = Authentik usernames, so an existing Nextcloud
+      # account with the same name is the one you land in.
+      sub_mode: user_username
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://nextcloud.%s/apps/user_oidc/code", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: nextcloud
+    attrs:
+      name: Nextcloud
+      slug: nextcloud
+      provider: !KeyOf nextcloud-provider
+      meta_launch_url: !Format ["https://nextcloud.%s/", !Env DOMAIN]
+      meta_description: Files, calendar, contacts
+      policy_engine_mode: any
+
+  # ---------- Paperless-ngx ----------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: paperless-provider
+    identifiers:
+      name: Paperless
+    attrs:
+      name: Paperless
+      client_type: confidential
+      client_id: paperless
+      client_secret: !Env PAPERLESS_OIDC_CLIENT_SECRET
+      # Authentik only allows the grant types listed here (an empty list
+      # refuses every login - seen live: "Invalid grant_type").
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://papers.%s/accounts/oidc/authentik/login/callback/", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: paperless
+    attrs:
+      name: Paperless
+      slug: paperless
+      provider: !KeyOf paperless-provider
+      meta_launch_url: !Format ["https://papers.%s/", !Env DOMAIN]
+      meta_description: Scanned documents
+      policy_engine_mode: any
+
+  # ---------- Open WebUI ----------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: open-webui-provider
+    identifiers:
+      name: Open WebUI
+    attrs:
+      name: Open WebUI
+      client_type: confidential
+      client_id: open-webui
+      client_secret: !Env OPENWEBUI_OIDC_CLIENT_SECRET
+      # Authentik only allows the grant types listed here (an empty list
+      # refuses every login - seen live: "Invalid grant_type").
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://chat.%s/oauth/oidc/callback", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: open-webui
+    attrs:
+      name: AI Chat
+      slug: open-webui
+      provider: !KeyOf open-webui-provider
+      meta_launch_url: !Format ["https://chat.%s/", !Env DOMAIN]
+      meta_description: Local AI chat
+      policy_engine_mode: any
+
+  # ---------- Portainer ----------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: portainer-provider
+    identifiers:
+      name: Portainer
+    attrs:
+      name: Portainer
+      client_type: confidential
+      client_id: portainer
+      client_secret: !Env PORTAINER_OIDC_CLIENT_SECRET
+      # Authentik only allows the grant types listed here (an empty list
+      # refuses every login - seen live: "Invalid grant_type").
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://portainer.%s/", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    id: portainer-app
+    identifiers:
+      slug: portainer
+    attrs:
+      name: Portainer
+      slug: portainer
+      provider: !KeyOf portainer-provider
+      meta_launch_url: !Format ["https://portainer.%s/", !Env DOMAIN]
+      meta_description: Container management
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf portainer-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+    attrs:
+      order: 0
+      enabled: true
+      negate: false
+      timeout: 30

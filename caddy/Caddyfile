@@ -181,6 +181,26 @@
 # friction for zero benefit. Each app now gets exactly one login: its
 # own. See TROUBLESHOOTING.md for the qBittorrent self-ban issue this
 # same basic_auth layer caused, which is also moot now that it's gone.
+#
+# Those admin apps (and Syncthing, Uptime Kuma, Pi-hole, slskd) now sit
+# behind the `authentik` snippet below instead. It's an SSO wall rather
+# than a second password prompt: one Authentik sign-in (password manager
+# friendly, MFA-capable) covers every admin subdomain for 24h, and only
+# "authentik Admins" get through (authentik/blueprints/admin-apps.yaml).
+#
+# Usage: `import authentik [exempt paths...]`. List each app's API paths
+# as exempt - they're already guarded by the app's API key, and Homepage
+# widgets and phone apps (nzb360, LunaSea...) can't do a browser login.
+(authentik) {
+  # Authentik's sign-in callback and assets, served for every protected site.
+  reverse_proxy /outpost.goauthentik.io/* authentik-server:9000
+  @authentik_required not path /outpost.goauthentik.io/* {args[:]}
+  forward_auth @authentik_required authentik-server:9000 {
+    uri /outpost.goauthentik.io/auth/caddy
+    copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email X-Authentik-Name X-Authentik-Uid
+    trusted_proxies private_ranges
+  }
+}
 
 # ========== MEDIA APPS ==========
 
@@ -189,6 +209,7 @@ sonarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit sonarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy sonarr:8989
 }
 
@@ -197,6 +218,7 @@ radarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit radarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy radarr:7878
 }
 
@@ -205,6 +227,7 @@ prowlarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit prowlarr
+  import authentik /api/* /*/api /*/download /ping
   reverse_proxy prowlarr:9696
 }
 
@@ -213,6 +236,7 @@ lidarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit lidarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy lidarr:8686
 }
 
@@ -221,6 +245,7 @@ lazylibrarian.{$DOMAIN} {
   import security_headers
   log
   import rate_limit lazylibrarian
+  import authentik /api*
   reverse_proxy lazylibrarian:5299
 }
 
@@ -237,6 +262,7 @@ qbit.{$DOMAIN} {
   import security_headers
   log
   import rate_limit qbit
+  import authentik /api/*
   reverse_proxy gluetun:{$QBIT_PORT} {
     header_up X-Real-IP {http.request.remote}
   }
@@ -249,6 +275,7 @@ slskd.{$DOMAIN} {
   import security_headers
   log
   import rate_limit slskd
+  import authentik /api/*
   reverse_proxy gluetun:{$SLSKD_WEBUI_PORT} {
     header_up X-Real-IP {http.request.remote}
   }
@@ -355,6 +382,7 @@ nextcloud.{$DOMAIN} {
 sync.{$DOMAIN} {
   import security_headers
   log
+  import authentik /rest/*
   reverse_proxy syncthing:8384 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -446,6 +474,7 @@ portainer.{$DOMAIN} {
 uptime.{$DOMAIN} {
   import security_headers
   log
+  import authentik /api/push/* /api/badge/*
   reverse_proxy uptime-kuma:3001 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -565,6 +594,7 @@ pihole.{$DOMAIN} {
   import security_headers
   log
   import rate_limit pihole
+  import authentik /api/*
   reverse_proxy pihole:80 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -618,6 +648,7 @@ home.{$DOMAIN} {
 dashboard.{$DOMAIN} {
   import security_headers
   log
+  import authentik
   file_server {
     root /var/www/html
   }
