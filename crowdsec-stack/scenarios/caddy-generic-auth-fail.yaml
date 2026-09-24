@@ -27,7 +27,17 @@
 type: leaky
 name: homelab/caddy-generic-auth-fail
 description: "Repeated 401/403 from the same client across any app behind Caddy"
-filter: "evt.Meta.log_type == 'http_access-log' && (evt.Meta.http_status == '401' || evt.Meta.http_status == '403')"
+#
+# Two exclusions, both from a real household ban:
+# - Responses Caddy's own CrowdSec bouncer sent (no Via header - never
+#   proxied to an app). Counting those turned any ban self-renewing:
+#   every retry from the banned client was itself a 403, so an app
+#   polling in the background re-banned the household indefinitely.
+# - qBittorrent 403s. Its WebUI answers every poll with 403 once its
+#   session is gone (e.g. after a container restart), and an open tab
+#   polls about once a second - 15 in 8s. A failed qBittorrent login is
+#   a 200 "Fails.", not a 401/403, so this never hides a brute force.
+filter: "evt.Meta.log_type == 'http_access-log' && (evt.Meta.http_status == '401' || evt.Meta.http_status == '403') && 'Via' in evt.Unmarshaled.caddy.resp_headers && !(evt.Meta.target_fqdn startsWith 'qbit.' && evt.Meta.http_status == '403')"
 groupby: "evt.Meta.source_ip"
 capacity: 15
 leakspeed: "60s"

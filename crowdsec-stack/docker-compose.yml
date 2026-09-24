@@ -93,3 +93,33 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # ========== HOUSEHOLD ALLOWLIST: never ban ourselves ==========
+  # Keeps the home connection's current (dynamic) public IP on a CrowdSec
+  # allowlist - see household-allowlist.sh for why and the tradeoff.
+  # Shares crowdsec's network namespace so cscli reaches the LAPI on
+  # localhost with crowdsec's own credentials (config mounted read-only).
+  # The data volume is needed too: cscli reads allowlists via the LAPI
+  # but writes them straight to the database - confirmed live, without
+  # it `allowlists add` silently wrote to a throwaway DB in this
+  # container and the real allowlist stayed empty.
+  household-allowlist:
+    image: crowdsecurity/crowdsec:slim
+    restart: unless-stopped
+    container_name: crowdsec-household-allowlist
+    entrypoint: ["/bin/sh", "/household-allowlist.sh"]
+    network_mode: "service:crowdsec"
+    depends_on:
+      crowdsec:
+        condition: service_healthy
+    volumes:
+      - crowdsec-config:/etc/crowdsec:ro
+      - crowdsec-data:/var/lib/crowdsec/data
+      - ./household-allowlist.sh:/household-allowlist.sh:ro
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+
