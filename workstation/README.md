@@ -72,11 +72,32 @@ comes from Fedora, RPM Fusion, Microsoft or GitHub during setup.
    the initramfs, the built-in keyboard may not work at the passphrase
    prompt.
 
+## USB kit (no internet needed to start)
+
+If the Mac can't get online yet, copy these onto a USB stick (any format
+works - that's why everything below is run with `bash`, not `./`):
+
+```
+wifi-fix.sh                     # offline Wi-Fi fix - run this first
+net-diagnose.sh                 # writes net-report-*.txt onto the stick
+firmware/brcmfmac43602-pcie.txt # used by wifi-fix.sh
+fedora-macbook-setup.sh         # everything else (needs internet)
+enable-remote-management.ps1    # for the Windows host (from _scripts/)
+```
+
+On the Mac: plug the stick in, open it in Dolphin, right-click an empty
+spot -> *Open Terminal Here*, then `bash wifi-fix.sh --ssid "YourNetwork"`.
+Once online, `bash fedora-macbook-setup.sh ...` as in step 3 below.
+
+Nothing else can usefully go on the stick: the speaker driver compiles
+against the running kernel's source, which it downloads during the build,
+and every other package comes from Fedora/RPM Fusion/Microsoft.
+
 ## 3. Post-install script
 
 ```bash
 git clone https://github.com/SKOVACSS/homelab-docker-stack.git
-cd homelab-docker-stack/workstation
+cd homelab-docker-stack/workstation   # or the USB kit folder
 ./fedora-macbook-setup.sh --server 192.168.1.50 --user YourWindowsUser \
                           --wg-conf ~/Downloads/peer2.conf
 ```
@@ -139,32 +160,27 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
 
 ## Known gaps on this model
 
-- **Wi-Fi (Touch Bar models)** - the BCM43602's firmware misdetects the
-  country, so only 2.4 GHz networks show up and connecting often fails
-  (`...was not in the scan list`, or an endless password prompt). In
-  order, until one works:
-  1. Connect to a **2.4 GHz** network from a terminal, which also avoids
-     the scan-list race:
-     `nmcli device wifi rescan; nmcli --ask device wifi connect "SSID"`
-  2. Disable the firmware's WPA offload and NetworkManager's MAC
-     randomization, forget the network, and reboot (the setup script
-     makes the same settings; this is how to get online to run it). This
-     is what fixed "password incorrect" on WPA2 on a `MacBookPro13,2`:
-     ```bash
-     echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf
-     printf '[device]\nwifi.scan-rand-mac-address=no\n\n[connection]\nwifi.cloned-mac-address=permanent\n' | sudo tee /etc/NetworkManager/conf.d/90-brcmfmac.conf
-     sudo nmcli connection delete "SSID"
-     sudo reboot
-     ```
-     Then `nmcli --ask device wifi connect "SSID"`. On a weak signal it
-     can sit at "connected, no internet" for a minute or two while it
-     gets an address - give it time before troubleshooting further.
-  3. Set the router (or a guest network) to **WPA2**, not WPA3/mixed.
-  4. Still failing: a board NVRAM file (`brcmfmac43602-pcie.txt`) that
-     fixes the country detection exists, but reported results vary
-     between boards - see
-     [Dunedan/mbp-2016-linux](https://github.com/Dunedan/mbp-2016-linux#wi-fi).
-     Use Ethernet/tethering in the meantime.
+- **Wi-Fi (Touch Bar models)** - linux-firmware ships the BCM43602's
+  firmware but not its board calibration (NVRAM) file, so the firmware's
+  country detection never completes: 2.4 GHz only, weak signal, and WPA
+  handshakes that time out and show up as "password incorrect" or
+  `...was not in the scan list`. **`wifi-fix.sh` fixes this offline** -
+  run it from a USB stick before you have internet:
+  ```bash
+  bash wifi-fix.sh --ssid "YourNetwork"
+  ```
+  It installs the NVRAM (`firmware/brcmfmac43602-pcie.txt`, extracted from
+  Apple's Boot Camp driver - see its header), disables the firmware's
+  broken WPA offload (`feature_disable=0x82000`) and NetworkManager's MAC
+  randomization and Wi-Fi power saving, reloads the driver and reconnects.
+  `--undo` reverts all of it; `--no-nvram` applies everything else, to
+  tell which part helps. Reports differ between boards on the NVRAM, so if
+  Wi-Fi gets *worse*, try `--undo` then `--no-nvram`.
+
+  If it's connected but has no internet, give it a minute or two on a
+  weak signal, then run `bash net-diagnose.sh`: it writes a report next
+  to itself (so onto the USB stick) that you can read on another machine.
+  The router should be on **WPA2**, not WPA3/mixed.
 - **Speakers (13" Touch Bar, `MacBookPro13,2`)** - listed as not working
   upstream, even with the `snd_hda_macbookpro` driver the script builds.
   Plan on USB/Bluetooth audio or headphones.

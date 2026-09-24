@@ -69,34 +69,14 @@ STATE_DIR=/var/lib/homelab-workstation
 sudo mkdir -p "$STATE_DIR"
 
 # ---------------------------------------------------------------------------
-step "Wi-Fi driver quirk (Touch Bar models' BCM43602)"
-# The Touch Bar models' BCM43602 firmware gets the country code wrong: only
-# 2.4 GHz networks show up and WPA logins fail or loop on the password
-# prompt. Disabling the firmware's WPA offload features (0x82000) is the
-# widely reported fix for the login failures. It's written first so it's
-# in place however you got online to run this; it takes effect at the next
-# reboot rather than reloading the driver mid-run and dropping your
-# connection. Non-Touch-Bar models use a BCM4350 that doesn't need it.
-BRCM43602=0
-for dev in /sys/bus/pci/devices/*; do
-  if [ "$(cat "$dev/vendor")" = "0x14e4" ] && [ "$(cat "$dev/device")" = "0x43ba" ]; then BRCM43602=1; fi
-done
-if [ "$BRCM43602" -eq 1 ]; then
-  echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf >/dev/null
-  # brcmfmac also mishandles NetworkManager's randomized MAC addresses
-  # (scan and per-connection). Together with the line above, this is what
-  # got a MacBookPro13,2 from "password incorrect" on WPA2 to connected.
-  sudo tee /etc/NetworkManager/conf.d/90-brcmfmac.conf >/dev/null <<'EOF2'
-[device]
-wifi.scan-rand-mac-address=no
-
-[connection]
-wifi.cloned-mac-address=permanent
-EOF2
-  ok "brcmfmac feature_disable=0x82000 + MAC randomization off (active after reboot) - 5 GHz may still not appear; see README"
-else
-  ok "no BCM43602 found - not needed"
-fi
+step "Wi-Fi fix (Touch Bar models' BCM43602)"
+# Same fixes as running wifi-fix.sh by hand (NVRAM calibration file, WPA
+# offload off, no MAC randomization, no power saving) - done first so
+# they're in place however you got online to run this. --no-reload: they
+# take effect at the next reboot rather than dropping the connection this
+# script is about to download over.
+if bash "$(dirname "${BASH_SOURCE[0]}")/wifi-fix.sh" --no-reload; then :
+else warn "wifi-fix.sh didn't apply (not a BCM43602 Mac, or files missing) - continuing"; fi
 
 # ---------------------------------------------------------------------------
 step "Updating the system"
@@ -195,16 +175,6 @@ for dev in /sys/bus/pci/devices/*; do
     ok "d3cold disabled on $(basename "$dev")"
   fi
 done
-
-# ---------------------------------------------------------------------------
-step "Wi-Fi power saving off (Broadcom BCM43602 stability)"
-sudo tee /etc/NetworkManager/conf.d/90-wifi-powersave-off.conf >/dev/null <<'EOF'
-[connection]
-# 2 = disable. brcmfmac on the BCM43602 drops out / stalls with it on.
-wifi.powersave = 2
-EOF
-sudo systemctl reload NetworkManager || true
-ok "applied (takes full effect on next Wi-Fi reconnect)"
 
 # ---------------------------------------------------------------------------
 step "Caps Lock -> Esc (the Touch Bar's Esc is unreliable on Linux)"
