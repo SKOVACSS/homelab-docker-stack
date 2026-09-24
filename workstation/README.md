@@ -80,7 +80,7 @@ works - that's why everything below is run with `bash`, not `./`):
 ```
 wifi-fix.sh                     # offline Wi-Fi fix - run this first
 net-diagnose.sh                 # writes net-report-*.txt onto the stick
-firmware/brcmfmac43602-pcie.txt # used by wifi-fix.sh
+firmware/brcmfmac43602-pcie.txt # only used by wifi-fix.sh --nvram
 fedora-macbook-setup.sh         # everything else (needs internet)
 enable-remote-management.ps1    # for the Windows host (from _scripts/)
 ```
@@ -160,27 +160,34 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
 
 ## Known gaps on this model
 
-- **Wi-Fi (Touch Bar models)** - linux-firmware ships the BCM43602's
-  firmware but not its board calibration (NVRAM) file, so the firmware's
-  country detection never completes: 2.4 GHz only, weak signal, and WPA
-  handshakes that time out and show up as "password incorrect" or
-  `...was not in the scan list`. **`wifi-fix.sh` fixes this offline** -
-  run it from a USB stick before you have internet:
+- **Wi-Fi (Touch Bar models)** - the BCM43602 is poorly supported: 2.4 GHz
+  only, a weak signal, WPA2 logins failing as "password incorrect" or
+  `...was not in the scan list`, and firmware that occasionally hangs.
+  **`wifi-fix.sh` handles what can be handled, offline** - run it from a
+  USB stick before you have internet:
   ```bash
   bash wifi-fix.sh --ssid "YourNetwork"
   ```
-  It installs the NVRAM (`firmware/brcmfmac43602-pcie.txt`, extracted from
-  Apple's Boot Camp driver - see its header), disables the firmware's
-  broken WPA offload (`feature_disable=0x82000`) and NetworkManager's MAC
-  randomization and Wi-Fi power saving, and forgets the saved network. Then **shut down fully** and power on - reloading the driver in place, or a warm restart, can leave this chip's firmware crashed ("dongle is not responding").
-  `--undo` reverts all of it; `--no-nvram` applies everything else, to
-  tell which part helps. Reports differ between boards on the NVRAM, so if
-  Wi-Fi gets *worse*, try `--undo` then `--no-nvram`.
+  It disables the firmware's broken WPA offload (`feature_disable=0x82000`)
+  and NetworkManager's MAC randomization and Wi-Fi power saving, reloads
+  the driver and reconnects. On a `MacBookPro13,2` that took WPA2 from
+  "password incorrect" to connected. `--undo` reverts it.
 
-  If it's connected but has no internet, give it a minute or two on a
-  weak signal, then run `bash net-diagnose.sh`: it writes a report next
-  to itself (so onto the USB stick) that you can read on another machine.
-  The router should be on **WPA2**, not WPA3/mixed.
+  **Not by default: the board NVRAM file** (`firmware/brcmfmac43602-pcie.txt`,
+  `--nvram`). It's reported to fix 5 GHz and signal strength on some
+  boards, but on a `MacBookPro13,2` it crashed the firmware on every load,
+  cold boot included ("dongle is not responding", "Firmware has halted or
+  crashed"), leaving no Wi-Fi device at all until it was removed.
+
+  If Wi-Fi drops and won't come back, the firmware has probably hung
+  (`sudo dmesg | grep brcmf` shows "timed out waiting for txstatus" /
+  "bus is down"); reloading the driver recovers it without a reboot:
+  `sudo modprobe -r brcmfmac_wcc brcmfmac; sudo modprobe brcmfmac`.
+  Connected but no internet: give it a minute or two on a weak signal,
+  then `bash net-diagnose.sh`, which writes a report next to itself (so
+  onto the USB stick). Keep the router on **WPA2**, not WPA3/mixed. For
+  a connection you can rely on, a Linux-supported USB Wi-Fi adapter or
+  USB-C Ethernet sidesteps this chip entirely.
 - **Speakers (13" Touch Bar, `MacBookPro13,2`)** - listed as not working
   upstream, even with the `snd_hda_macbookpro` driver the script builds.
   Plan on USB/Bluetooth audio or headphones.
