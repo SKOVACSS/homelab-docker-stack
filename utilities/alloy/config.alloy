@@ -1,0 +1,40 @@
+// Grafana Alloy - ships every container's stdout/stderr to Loki, so
+// Grafana's Loki datasource actually has something in it. (Loki ran with
+// no log shipper at all before this - an empty, dormant datastore.)
+// Promtail is end-of-life; Alloy is Grafana's replacement for it.
+//
+// In Grafana: Explore -> Loki -> {container="sonarr"} or {stack="media-stack"}.
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = []
+
+  // "/sonarr" -> container="sonarr"
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  // Compose project, e.g. stack="media-stack"
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "stack"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

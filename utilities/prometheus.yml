@@ -7,9 +7,12 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
+  # Caddy serves metrics on an internal-only :9180 listener (see the
+  # Caddyfile) - never the admin API on :2019, which can reconfigure
+  # Caddy and stays bound to localhost. Reached over caddy-network.
   - job_name: 'caddy'
     static_configs:
-      - targets: ['caddy:2019']
+      - targets: ['caddy:9180']
     metrics_path: '/metrics'
 
   # To scrape the Docker daemon's own metrics, enable them first:

@@ -1,0 +1,11 @@
+{
+  "type": "http",
+  "name": "Vaultwarden",
+  "url": "http://vaultwarden:80/alive",
+  "parent_name": "apps",
+  "interval": 60,
+  "retry_interval": 60,
+  "max_retries": 3,
+  "accepted_statuscodes": ["200-399"],
+  "notification_name_list": ["gotify"]
+}
