@@ -234,11 +234,35 @@ deciding whether to bump a pin.
 
 ## Scheduling daily backups
 
+`-Full` is what actually protects app state (every *arr/Seerr/qBittorrent
+database and setting lives in a Docker volume, not in this repo); the
+plain backup only copies `.env` files. Running `clean` afterward keeps
+the last 5:
 ```powershell
 $action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
-  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\backup.ps1`" -Action backup"
+  -Argument "-NoProfile -ExecutionPolicy Bypass -Command `"& '$PSScriptRoot\backup.ps1' -Action backup -Full; & '$PSScriptRoot\backup.ps1' -Action clean`""
 $trigger = New-ScheduledTaskTrigger -Daily -At 2:00AM
 Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Homelab_Daily_Backup"
+```
+
+## configure-qbittorrent.ps1
+
+```powershell
+.\configure-qbittorrent.ps1 [-MaxActiveDownloads 10] [-PrivateTrackers pretome] [-PrivateRatio 0.8] [-PrivateSeedMinutes 3720] [-Quiet]
+```
+
+Reasserts the qBittorrent queue/seeding policy (10 active downloads by default,
+unlimited seeds, public torrents stop when complete) and, for private
+trackers, sets a per-torrent seeding minimum and resumes any torrent
+that stopped short of it - a hit-and-run guard. See the script header
+for the full policy. Hourly is a good schedule; it also undoes any
+change to these settings made by hand in the WebUI, so change the
+script instead:
+```powershell
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\configure-qbittorrent.ps1`" -Quiet"
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Homelab_Configure_qBittorrent"
 ```
 
 ## Troubleshooting

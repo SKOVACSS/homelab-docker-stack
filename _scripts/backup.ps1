@@ -46,8 +46,23 @@ param(
     # script rather than passing them as script parameters, since the set
     # of variables needed depends entirely on which backend you pick.
     [string]$ResticRepository = "",
-    [string]$ResticPassword = ""
+    [string]$ResticPassword = "",
+
+    # -Full skips volumes matching this regex: caches that re-download
+    # themselves on demand (Hugging Face / Immich ML models - ~22GB of
+    # the ~35GB total on this host) and anonymous volumes (64-hex names,
+    # left behind by image-declared VOLUMEs, not app state). Pass "" to
+    # back up everything.
+    [string]$ExcludeVolumes = '(hf-cache|model-cache)$|^[0-9a-f]{64}$'
 )
+
+# Scheduled tasks don't inherit Docker Desktop's PATH entry on every
+# setup - confirmed live on this host, where `docker` is on neither the
+# machine nor the user PATH, so a scheduled -Full run found no volumes.
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    $dockerBin = "C:\Program Files\Docker\Docker\resources\bin"
+    if (Test-Path "$dockerBin\docker.exe") { $env:Path += ";$dockerBin" }
+}
 
 $appRoot = Split-Path -Parent $PSScriptRoot
 $backupRoot = $BackupRoot
@@ -287,6 +302,11 @@ function Create-Backup {
         New-Item -ItemType Directory -Path $volumesPath -Force | Out-Null
         
         $volumes = docker volume ls --quiet
+        if ($ExcludeVolumes) {
+            $skipped = @($volumes | Where-Object { $_ -match $ExcludeVolumes })
+            $volumes = @($volumes | Where-Object { $_ -notmatch $ExcludeVolumes })
+            if ($skipped.Count) { Write-Host "  (skipping $($skipped.Count) cache/anonymous volume(s) - see -ExcludeVolumes)" -ForegroundColor DarkGray }
+        }
         foreach ($vol in $volumes) {
             Write-Host "  → Backing up volume: $vol" -ForegroundColor White
             $volPath = Join-Path $volumesPath $vol
