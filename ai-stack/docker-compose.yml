@@ -104,6 +104,11 @@ services:
     restart: unless-stopped
     container_name: open-webui
     environment:
+      # Only applies on Open WebUI's FIRST start - after that, the value saved
+      # in its own database (Admin Settings -> Connections) wins. Confirmed
+      # live: an old saved http://llama-server:8080/v1 silently overrode
+      # this, leaving "no models available". Change it in the admin UI (or
+      # the `config` table in webui.db), not only here.
       - OPENAI_API_BASE_URLS=http://vllm:8000/v1
       # vLLM doesn't check this, but Open WebUI expects a non-empty
       # value before it'll treat the backend as configured.

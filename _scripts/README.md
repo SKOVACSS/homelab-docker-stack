@@ -292,3 +292,18 @@ bash validate-stacks.sh
 Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
 Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
 ```
+
+## configure-prowlarr.ps1
+
+```powershell
+.\configure-prowlarr.ps1 [-Quiet]
+```
+
+Applies the Prowlarr indexer policy kept in the script's `$IndexerPolicy`:
+which indexers are enabled, which proxy tags they use (`flaresolverr` for
+Cloudflare challenges, `vpn` for sites that ban the home IP outright),
+the two proxies themselves (both ride gluetun's VPN), and private-tracker
+seeding minimums that Radarr/Sonarr attach to every torrent they grab.
+Idempotent - only writes what differs - then syncs indexers to the apps.
+Prowlarr tests an indexer before saving it, so a site that is down at
+the moment is skipped with a warning; re-run later.
