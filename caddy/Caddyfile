@@ -30,13 +30,27 @@
 # This IP is specific to this ProtonVPN client's current tunnel - if it
 # changes (reconnect, different server), check the "ProtonVPN" network
 # adapter's assigned DNS server (ipconfig /all) and update this.
+#
+# 1.1.1.1 is the fallback for when the host's ProtonVPN is disconnected
+# (10.2.0.1 then times out - seen live after a reboot left ProtonVPN off).
+# Zone detection tries each resolver in order, but certmagic's
+# propagation check queries the first one only and fails outright, so
+# that check is skipped (propagation_timeout -1) in favour of a fixed
+# wait: Cloudflare publishes the TXT record within seconds, and Let's
+# Encrypt retries validation itself. This is a global cert_issuer rather
+# than acme_ca/acme_dns/tls_resolvers because only the issuer block
+# accepts the propagation options - and it covers renewals of every
+# existing cert, not just new sites.
 
 # Global settings
 {
   email {$ACME_EMAIL}
-  acme_ca https://acme-v02.api.letsencrypt.org/directory
-  acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
-  tls_resolvers 10.2.0.1
+  cert_issuer acme https://acme-v02.api.letsencrypt.org/directory {
+    dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    resolvers 10.2.0.1 1.1.1.1
+    propagation_delay 60s
+    propagation_timeout -1
+  }
 
   order rate_limit after basic_auth
   # Wake on-demand containers before proxying to them (see Sablier below).
@@ -262,6 +276,30 @@ plex.{$DOMAIN} {
 }
 
 # Jellyfin - Open-source media server
+# Browser remote desktop into this server (remote-stack's Guacamole).
+# Guacamole itself redirects to Authentik and only admins get through -
+# see remote-stack/docker-compose.yml. Asleep until opened (Sablier); the
+# 4h idle window is long because a desktop session is one long-lived
+# websocket, which Sablier only sees as a single request - a short window
+# could stop Guacamole in the middle of someone's session.
+remote.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit remote
+  sablier http://sablier:10000 {
+    group remote
+    session_duration 4h
+    dynamic {
+      display_name "Remote Desktop"
+      theme hacker-terminal
+      refresh_frequency 3s
+    }
+  }
+  reverse_proxy guacamole:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 jellyfin.{$DOMAIN} {
   import security_headers
   log
@@ -544,20 +582,6 @@ chat.{$DOMAIN} {
   import security_headers
   log
   import rate_limit chat
-  # Same DNS-01 solver as the global default (acme_dns cloudflare, same
-  # token, same tls_resolvers) but with a longer propagation_timeout -
-  # this and family.{$DOMAIN} below are the only two sites still
-  # obtaining a FIRST certificate (every other site's cert already
-  # exists and is just renewing), and both were timing out waiting for
-  # 10.2.0.1 to reflect a brand-new TXT record within the default
-  # window even though Let's Encrypt's own validation succeeded once
-  # it got the chance - a timing race, not a broken solver.
-  tls {
-    dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    resolvers 10.2.0.1
-    propagation_timeout 5m
-    propagation_delay 10s
-  }
   # On demand: the AI stack (vllm + open-webui, ~2.6GB) stays stopped
   # until someone opens this site. Browsers get a "starting" page that
   # refreshes itself - vLLM loading the model onto the GPU takes 1-3
@@ -607,12 +631,6 @@ dashboard.{$DOMAIN} {
 family.{$DOMAIN} {
   import security_headers
   log
-  tls {
-    dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    resolvers 10.2.0.1
-    propagation_timeout 5m
-    propagation_delay 10s
-  }
   root * /srv/family-guide
   file_server
 }
