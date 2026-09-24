@@ -25,6 +25,9 @@ Add a monitor by dropping in a file like this, then restart `autokuma`:
   never the public domain - keeps this repo domain-free, and a check
   doesn't depend on Cloudflare being up. Uptime Kuma has to share a
   Docker network with the target (it's on `caddy-network` and `utilities`).
+- IDs are global across monitors, groups and notifications - a monitor
+  file named `gotify.json` once collided with the `gotify` notification
+  and the two overwrote each other on every sync.
 - Groups: `media`, `apps`, `infra`. Notification: `gotify`, defined on
   the autokuma container's labels so its token comes from `.env`.
 - **Don't monitor Sablier-managed apps** (Jellyfin, chat/Open WebUI):

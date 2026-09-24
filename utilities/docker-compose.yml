@@ -212,6 +212,13 @@ services:
       - AUTOKUMA__KUMA__USERNAME=${UPTIME_KUMA_USERNAME:-}
       - AUTOKUMA__KUMA__PASSWORD=${UPTIME_KUMA_PASSWORD:-}
       - AUTOKUMA__STATIC_MONITORS=/autokuma/monitors
+      # Default is every 5s. AutoKuma 2.0.0 re-saves the Gotify
+      # notification on EVERY sync - Uptime Kuma v2 returns it with extra
+      # fields (plus a nested copy of itself), so the comparison never
+      # matches (notification support is "experimental" upstream, issue
+      # #81). Harmless, but at 5s that was ~17,000 writes/day; 5 minutes
+      # makes it negligible and monitor file changes still apply quickly.
+      - AUTOKUMA__SYNC_INTERVAL=300
     volumes:
       - ./autokuma/monitors:/autokuma/monitors:ro
       # Read-only: AutoKuma only reads container labels (the notification
@@ -225,8 +232,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "kuma.gotify.notification.name=Gotify"
-      - "kuma.gotify.notification.active=true"
-      - 'kuma.gotify.notification.config={"name": "Gotify", "type": "gotify", "gotifyserverurl": "http://gotify:80", "gotifyapplicationToken": "${GOTIFY_TOKEN:-}", "gotifyPriority": 8}'
+      - 'kuma.gotify.notification.config={"type": "gotify", "gotifyserverurl": "http://gotify:80", "gotifyapplicationToken": "${GOTIFY_TOKEN:-}", "gotifyPriority": 8}'
     deploy:
       resources:
         limits:
