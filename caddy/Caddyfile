@@ -643,6 +643,62 @@ dash.{$DOMAIN} {
   }
 }
 
+# ========== FAMILY STACK ==========
+# family-stack/docker-compose.yml. Each app signs in with Authentik itself,
+# except Stirling-PDF, which sits behind the Authentik wall.
+
+audiobooks.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit audiobooks
+  reverse_proxy audiobookshelf:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+recipes.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit recipes
+  reverse_proxy mealie:9000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Actual runs the whole budget engine in the browser (web workers + SQLite
+# compiled to WebAssembly) and sends its own isolation headers, so the
+# shared Content-Security-Policy is dropped here rather than loosened for
+# every site.
+budget.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit budget
+  reverse_proxy actual:5006 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+pdf.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit pdf
+  import authentik
+  # On demand: stopped until someone opens it, stops again after 1h idle.
+  sablier http://sablier:10000 {
+    group pdf
+    session_duration 1h
+    dynamic {
+      display_name "PDF tools"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
+  reverse_proxy stirling-pdf:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # Family dashboard (second Homepage) - household apps only, same look.
 home.{$DOMAIN} {
   import security_headers

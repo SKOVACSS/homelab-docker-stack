@@ -48,6 +48,32 @@ entries:
       enabled: true
       negate: false
       timeout: 30
+  # Household exception: Stirling-PDF (pdf.DOMAIN, family-stack) has no
+  # login of its own, so it uses the same Caddy wall - but with its own
+  # single-site provider and no group binding, so any Authentik user gets
+  # in. The outpost matches a request's exact host before falling back to
+  # the domain-level provider above.
+  - model: authentik_providers_proxy.proxyprovider
+    id: pdf-tools-provider
+    identifiers:
+      name: PDF tools
+    attrs:
+      name: PDF tools
+      mode: forward_single
+      external_host: !Format ["https://pdf.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: pdf-tools
+    attrs:
+      name: PDF tools
+      slug: pdf-tools
+      provider: !KeyOf pdf-tools-provider
+      meta_launch_url: !Format ["https://pdf.%s/", !Env DOMAIN]
+      meta_description: Merge, sign, compress and convert PDFs
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -56,3 +82,4 @@ entries:
     attrs:
       providers:
         - !KeyOf admin-apps-provider
+        - !KeyOf pdf-tools-provider

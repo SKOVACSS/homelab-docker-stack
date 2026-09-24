@@ -161,6 +161,32 @@
         description: Ebook library & Send-to-Kindle
         server: my-docker
         container: calibre-web-automated
+    - Audiobookshelf:
+        icon: audiobookshelf.png
+        href: "https://audiobooks.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Audiobooks & podcasts
+        server: my-docker
+        container: audiobookshelf
+
+- Household:
+    - Mealie:
+        icon: mealie.png
+        href: "https://recipes.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Recipes & meal plans
+        server: my-docker
+        container: mealie
+    - Actual Budget:
+        icon: actual-budget.png
+        href: "https://budget.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Household budget
+        server: my-docker
+        container: actual
+    - Stirling-PDF:
+        icon: stirling-pdf.png
+        href: "https://pdf.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: PDF tools (sleeps when idle)
+        server: my-docker
+        container: stirling-pdf
 
 - AI:
     - Open WebUI:
