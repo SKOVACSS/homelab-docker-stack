@@ -60,3 +60,6 @@ Thumbs.db
 *.swp
 .vscode/
 .idea/
+
+# Per-server memory of which chat models check-model-updates.ps1 already suggested.
+ai-stack/model-check-state.json
