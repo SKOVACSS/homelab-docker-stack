@@ -1,32 +1,30 @@
 # CrowdSec Stack - optional. Off by default, same pattern as email-stack:
 # no .env here means deploy.ps1 skips this stack entirely, nothing starts.
-# Run _scripts/enable-crowdsec.ps1 to turn it on - see that script and
-# SETUP.md for why this needs more manual, sequential setup in your
-# actual Cloudflare account than any other optional stack in this repo
-# (a broad-permission Cloudflare API token has to be created first). The
-# cloudflare-bouncer service below runs in CrowdSec's "Daemon Mode" - it
-# deploys its own Cloudflare Worker, KV namespace, and Worker Routes on
-# startup using that token, and tears them down again on a clean stop.
-# No separate GitHub-based installer needed or wanted - that's a
-# different, alternative CrowdSec setup path this repo doesn't use.
+# Run _scripts/enable-crowdsec.ps1 to turn it on.
 #
 # Why this exists: Fail2Ban (security-stack/) is real, but its ban
 # action can't reach the real Windows host's network stack under Docker
-# Desktop - see TROUBLESHOOTING.md. This stack's cloudflare-bouncer bans
-# at Cloudflare's edge via their API instead of local iptables, which
-# isn't subject to that limitation at all - it can actually block an
-# attacker on this host, today.
+# Desktop - see TROUBLESHOOTING.md. Enforcement here happens inside
+# Caddy instead (caddy-crowdsec-bouncer, compiled into caddy/Dockerfile),
+# which sees the real client IP via trusted_proxies and needs no host
+# network access at all - it can actually block an attacker on this host.
 #
-# crowdsec (the engine) has no such limitation - it's just log parsing
-# and decision-making, no host network access needed - so it's useful on
-# its own even without ever setting up the Cloudflare bouncer half, if
-# you just want CrowdSec's community threat-intel enrichment and a nicer
-# detection engine than Fail2Ban's regex-only approach.
+# This used to enforce at Cloudflare's edge via the cloudflare-worker-
+# bouncer (a Worker + KV namespace). Retired: the free Workers KV quota
+# (1000 writes/day) ran out within seconds of a normal decision sync,
+# and its Daemon Mode redeploys the Worker on every restart - which
+# needs a KV write, so after quota exhaustion it crash-looped until the
+# UTC reset. The Caddy bouncer keeps decisions in memory, has no quota,
+# and can use CrowdSec's full community blocklist too.
 
 networks:
   crowdsec-network:
     driver: bridge
     name: crowdsec-network
+  # Owned by the caddy stack - see media-stack's same external reference.
+  caddy-network:
+    name: caddy-network
+    external: true
 
 volumes:
   crowdsec-config:
@@ -75,6 +73,9 @@ services:
       - ./whitelists/homelab-known-apps.yaml:/etc/crowdsec/parsers/s02-enrich/homelab-known-apps.yaml:ro
     networks:
       - crowdsec-network
+      # So Caddy's built-in bouncer can reach this LAPI at
+      # http://crowdsec:8080 (see caddy/crowdsec.d/).
+      - caddy-network
     healthcheck:
       test: ["CMD", "cscli", "lapi", "status"]
       start_period: 30s
@@ -92,43 +93,3 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  # ========== CLOUDFLARE BOUNCER: Actual Enforcement ==========
-  # Pushes crowdsec's decisions to the Cloudflare Worker/KV setup deployed
-  # via SETUP.md's manual steps - this is what actually bans, at
-  # Cloudflare's edge, not this host. Needs cloudflare-bouncer.yaml (real
-  # config, gitignored - see cloudflare-bouncer.yaml.example) generated
-  # by enable-crowdsec.ps1, which requires the crowdsec engine above to
-  # already be running (its LAPI issues this bouncer's API key).
-  cloudflare-bouncer:
-    image: crowdsecurity/cloudflare-worker-bouncer
-    restart: unless-stopped
-    container_name: crowdsec-cloudflare-bouncer
-    depends_on:
-      crowdsec:
-        condition: service_healthy
-    volumes:
-      - ./cloudflare-bouncer.yaml:/etc/crowdsec/bouncers/crowdsec-cloudflare-worker-bouncer.yaml:ro
-    networks:
-      - crowdsec-network
-    # Prometheus metrics must be enabled in cloudflare-bouncer.yaml
-    # (prometheus.enabled: true, port 2112) for this to work - it's a
-    # functional check (the HTTP server actually responds), not just a
-    # "did the process exit" check, matching crowdsec's own healthcheck
-    # above. Not published to the host - checked from inside the
-    # container's own network namespace only.
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:2112/metrics"]
-      start_period: 30s
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M

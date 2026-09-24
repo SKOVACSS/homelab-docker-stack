@@ -32,8 +32,9 @@ radarr:
     base_url: http://radarr:7878
     api_key: CHANGE_ME_SAME_AS_RADARR_API_KEY_IN_ENV
 
-    quality_definition:
-      type: movie
+    # No quality_definition here on purpose: _scripts/configure-quality-profiles.ps1
+    # sets custom per-quality max sizes, and Recyclarr's daily sync would
+    # overwrite them with TRaSH defaults (confirmed live - it did).
 
     quality_profiles:
       - trash_id: d1d67249d3890e49bc12e275d989a7e9 # HD Bluray + WEB
@@ -54,8 +55,7 @@ sonarr:
     base_url: http://sonarr:8989
     api_key: CHANGE_ME_SAME_AS_SONARR_API_KEY_IN_ENV
 
-    quality_definition:
-      type: series
+    # No quality_definition here - same reason as the radarr section above.
 
     quality_profiles:
       - trash_id: 72dae194fc92bf828f32cde7744e51a1 # WEB-1080p

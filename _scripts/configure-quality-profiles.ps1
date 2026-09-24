@@ -189,6 +189,8 @@ function Find-QualityIdByName {
     # as shadowing PowerShell's own automatic variable of that name.
     param($QualityProfile, [string]$Name)
     foreach ($item in $QualityProfile.items) {
+        # Group wrappers (e.g. "WEB 1080p") are valid cutoffs too, by group id.
+        if (-not $item.quality -and $item.name -eq $Name) { return $item.id }
         if ($item.quality -and $item.quality.name -eq $Name) { return $item.quality.id }
         if ($item.items) {
             foreach ($child in $item.items) {
@@ -209,6 +211,21 @@ $fallbackQualityNames = @(
 )
 $remuxQualityNames = @('Remux-1080p', 'Remux-2160p', 'Bluray-1080p Remux', 'Bluray-2160p Remux')
 
+# Last-resort tiers for older titles that were simply never released in
+# HD (confirmed live: requests sat unfulfilled with only DVD/480p/YTS
+# releases available). Allowed in BOTH Seerr-facing profiles; ranking
+# still prefers anything higher, and upgrades replace these later if a
+# better release ever appears. DVD-R/BR-DISK (raw disc images) stay out.
+$lastResortQualityNames = @('SDTV', 'DVD', 'WEBDL-480p', 'WEBRip-480p', 'WEB 480p', 'Bluray-480p', 'Bluray-576p')
+
+# Release groups/encodes TRaSH marks "unwanted" at -10000 are still
+# better than nothing for these old titles - soften them to a penalty
+# that only loses to real alternatives, with the profile minimum set
+# just low enough to admit them. Truly unusable formats (BR-DISK, 3D,
+# extras, upscales) keep -10000 and stay rejected.
+$lastResortScores = @{ 'LQ' = -400; 'LQ (Release Title)' = -400; 'x265 (no HDR/DV)' = -400; 'x265 (HD)' = -400 }
+$lastResortMinScore = -1000
+
 function Set-UltraHdProfile {
     param([string]$App, [string]$Container, [int]$Port, [string]$ApiKey, [string]$CutoffQualityName)
 
@@ -219,7 +236,7 @@ function Set-UltraHdProfile {
         return
     }
 
-    foreach ($item in $uhd.items) { Set-AllowedByName $item $fallbackQualityNames $true }
+    foreach ($item in $uhd.items) { Set-AllowedByName $item ($fallbackQualityNames + $lastResortQualityNames) $true }
     foreach ($item in $uhd.items) { Set-AllowedByName $item $remuxQualityNames $false }
     $uhd.upgradeAllowed = $true
     $uhd.cutoff = Find-QualityIdByName $uhd $CutoffQualityName
@@ -240,7 +257,7 @@ function Get-OrCreateStandardProfile {
     $profiles = Invoke-ArrApi $Container $Port $ApiKey GET '/api/v3/qualityprofile' | ConvertFrom-Json -Depth 20
     $std = $profiles | Where-Object { $_.name -eq 'HD - 720p/1080p' } | Select-Object -First 1
     if ($std) {
-        Write-Host "✅ ${App}: 'HD - 720p/1080p' profile already exists (id $($std.id))" -ForegroundColor Green
+        Set-StandardProfileLadder $App $Container $Port $ApiKey $std
         return $std.id
     }
 
@@ -260,7 +277,34 @@ function Get-OrCreateStandardProfile {
 
     $created = Invoke-ArrApi $Container $Port $ApiKey POST '/api/v3/qualityprofile' (ConvertTo-CompactJson $new) | ConvertFrom-Json -Depth 20
     Write-Host "✅ ${App}: created 'HD - 720p/1080p' profile (id $($created.id))" -ForegroundColor Green
+    Set-StandardProfileLadder $App $Container $Port $ApiKey $created
     return $created.id
+}
+
+function Set-StandardProfileLadder {
+    # Standard (non-4K) Seerr profile: last-resort tiers allowed, and
+    # upgrades ON but capped at 1080p WEB - so a DVD-era fallback gets
+    # replaced automatically if an HD release ever shows up, without the
+    # standard track ever climbing into 4K.
+    param([string]$App, [string]$Container, [int]$Port, [string]$ApiKey, $StdProfile)
+    foreach ($item in $StdProfile.items) { Set-AllowedByName $item $lastResortQualityNames $true }
+    $StdProfile.upgradeAllowed = $true
+    $StdProfile.cutoff = try { Find-QualityIdByName $StdProfile 'WEB 1080p' } catch { Find-QualityIdByName $StdProfile 'Bluray-1080p' }
+    $null = Invoke-ArrApi $Container $Port $ApiKey PUT "/api/v3/qualityprofile/$($StdProfile.id)" (ConvertTo-CompactJson $StdProfile)
+    Write-Host "✅ ${App}: 'HD - 720p/1080p' - last-resort SD tiers allowed, upgrades on (cutoff 1080p)" -ForegroundColor Green
+}
+
+function Set-LastResortScoring {
+    # Softens only the formats in $lastResortScores and lowers the
+    # profile minimum - edits scores in place (no append), so re-runs
+    # can't duplicate formatItems entries.
+    param([string]$App, [string]$Container, [int]$Port, [string]$ApiKey, [string]$ProfileName)
+    $p = Invoke-ArrApi $Container $Port $ApiKey GET '/api/v3/qualityprofile' | ConvertFrom-Json -Depth 20 | Where-Object { $_.name -eq $ProfileName } | Select-Object -First 1
+    if (-not $p) { Write-Host "⚠️  ${App}: no '$ProfileName' profile - skipping last-resort scoring." -ForegroundColor Yellow; return }
+    foreach ($fi in $p.formatItems) { if ($lastResortScores.ContainsKey($fi.name)) { $fi.score = $lastResortScores[$fi.name] } }
+    $p.minFormatScore = $lastResortMinScore
+    $null = Invoke-ArrApi $Container $Port $ApiKey PUT "/api/v3/qualityprofile/$($p.id)" (ConvertTo-CompactJson $p)
+    Write-Host "✅ ${App}: '$ProfileName' - LQ/x265 softened to last resort, min score $lastResortMinScore" -ForegroundColor Green
 }
 
 function Set-QualityDefinitionMaxSizes {
@@ -338,10 +382,12 @@ $radarrFormatNameScores = @{
     'TrueHD' = 2750; 'DTS-HD MA' = 2500; 'FLAC' = 2250; 'PCM' = 2250; 'DTS-HD HRA' = 2000
     'DD+' = 1750; 'DTS-ES' = 1500; 'DTS' = 1250; 'AAC' = 1000; 'DD' = 750
     'HDR' = 500; 'BCORE' = 15; 'CRiT' = 20; 'MA' = 20
-    'x265 (no HDR/DV)' = -10000; '3D' = -10000; 'Bad Dual Groups' = -10000
+    '3D' = -10000; 'Bad Dual Groups' = -10000
     'Black and White Editions' = -10000; 'BR-DISK' = -10000; 'Extras' = -10000
-    'Generated Dynamic HDR' = -10000; 'Line/Mic Dubbed' = -10000; 'LQ' = -10000
-    'LQ (Release Title)' = -10000; 'Sing-Along Versions' = -10000; 'Upscaled' = -10000
+    'Generated Dynamic HDR' = -10000; 'Line/Mic Dubbed' = -10000
+    'Sing-Along Versions' = -10000; 'Upscaled' = -10000
+    # LQ / LQ (Release Title) / x265 come from $lastResortScores (merged
+    # below) - penalized, not blocked.
     'Hybrid DV+HDR10' = 1500
     # Large enough that a genuine release (which also matches Hybrid
     # DV+HDR10 and/or HDR) clears the LQ blocklist's -10000 with a
@@ -350,6 +396,7 @@ $radarrFormatNameScores = @{
     # nets negative and stays rejected.
     'Trusted HDR/DV Groups' = 8500
 }
+foreach ($k in $lastResortScores.Keys) { $radarrFormatNameScores[$k] = $lastResortScores[$k] }
 
 $allFormats = Invoke-ArrApi radarr $radarrPort $radarrKey GET '/api/v3/customformat' | ConvertFrom-Json -Depth 20
 $uhdProfile = Invoke-ArrApi radarr $radarrPort $radarrKey GET '/api/v3/qualityprofile' | ConvertFrom-Json -Depth 20 | Where-Object { $_.name -eq 'Ultra-HD' } | Select-Object -First 1
@@ -380,10 +427,12 @@ if ($uhdProfile) {
         $newFormatItems += [PSCustomObject]@{ format = $fmt.id; name = $fmt.name; score = $score }
     }
     $uhdProfile.formatItems = $newFormatItems
+    $uhdProfile.minFormatScore = $lastResortMinScore
     $null = Invoke-ArrApi radarr $radarrPort $radarrKey PUT "/api/v3/qualityprofile/$($uhdProfile.id)" (ConvertTo-CompactJson $uhdProfile)
     Write-Host "✅ Radarr: Ultra-HD custom format scores applied" -ForegroundColor Green
 }
 
+Set-LastResortScoring Radarr radarr $radarrPort $radarrKey 'HD - 720p/1080p'
 Set-QualityDefinitionMaxSizes Radarr radarr $radarrPort $radarrKey @{ '720p' = 70; '1080p' = 130; '2160p' = 200 }
 
 # ---------- Sonarr ----------
@@ -395,6 +444,8 @@ $sonarrPort = 8989
 
 Set-UltraHdProfile Sonarr sonarr $sonarrPort $sonarrKey 'HDTV-2160p' | Out-Null
 $sonarrStdProfileId = Get-OrCreateStandardProfile Sonarr sonarr $sonarrPort $sonarrKey
+Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'Ultra-HD'
+Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'HD - 720p/1080p'
 Set-QualityDefinitionMaxSizes Sonarr sonarr $sonarrPort $sonarrKey @{ '720p' = 35; '1080p' = 75; '2160p' = 135 }
 
 # ---------- Seerr ----------

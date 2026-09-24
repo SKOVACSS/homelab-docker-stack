@@ -32,9 +32,22 @@
 # the hub-managed whitelists.yaml (see docker-compose.yml) - `cscli hub
 # upgrade` only touches items it tracks by name in the hub index, so a
 # hand-authored file with no hub entry is left alone by it.
+#
+# Second entry: app clients that talk to these hosts are machine-driven
+# (Plex/Jellyfin/Immich/Navidrome apps, Nextcloud/CalDAV/WebDAV sync,
+# Wallabag/Paperless mobile apps) - they burst dozens of distinct API
+# and thumbnail requests, and WebDAV/CalDAV answers every first request
+# with a 401 challenge by design, so both http-crawl-non_statics and
+# the custom auth-fail scenario false-positive on normal remote use.
+# Matched by hostname prefix only (no domain in this file). Guarded so
+# scanner behavior still counts even on these hosts: 404s (the signal
+# http-probing/http-sensitive-files key on) and well-known attack paths
+# are never whitelisted. Vaultwarden is deliberately NOT listed - it's
+# the highest-value brute-force target.
 name: homelab/known-apps-whitelist
 description: "Exempt specific apps' own known-legitimate traffic patterns from scenario detection"
 whitelist:
-  reason: "known app frontend behavior, not actual crawling/probing"
+  reason: "known app client behavior, not actual crawling/probing"
   expression:
     - "evt.Parsed.target_uri startsWith '/syncthing/'"
+    - "any(['plex.', 'jellyfin.', 'photos.', 'music.', 'nextcloud.', 'cal.', 'sync.', 'requests.', 'read.', 'papers.'], {evt.Meta.target_fqdn startsWith #}) && evt.Meta.http_status != '404' && !(evt.Meta.http_path matches '(?i)(/[.]env|/[.]git|wp-(admin|login|content|includes)|xmlrpc|[.]php|/etc/passwd|[.][.]/|%2e%2e)')"

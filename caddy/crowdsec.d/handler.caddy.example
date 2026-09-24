@@ -1,0 +1,4 @@
+# Template - _scripts/enable-crowdsec.ps1 copies this to handler.caddy
+# (gitignored alongside global.caddy). Imported by the Caddyfile's
+# (security_headers) snippet, i.e. every site block.
+crowdsec

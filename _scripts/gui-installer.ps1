@@ -252,14 +252,13 @@ function Show-Step1 {
     # email above but more so: even checked, this can only start the
     # detection engine (log parsing, no host network access needed, so
     # nothing here needs external setup to be useful on its own). The
-    # Cloudflare bouncer half - the part that actually bans an attacker,
-    # since Fail2Ban's own ban action can't reach the real host under
-    # Docker Desktop (see TROUBLESHOOTING.md) - needs a Cloudflare Worker
-    # deployed through YOUR OWN Cloudflare/GitHub account first, which
-    # this wizard cannot do on your behalf. See _scripts/enable-crowdsec.ps1
-    # and SETUP.md for that half, whether or not this box is checked.
+    # Caddy bouncer half - the part that actually bans an attacker, since
+    # Fail2Ban's own ban action can't reach the real host under Docker
+    # Desktop (see TROUBLESHOOTING.md) - needs a bouncer key minted by the
+    # already-running engine, so it always goes through
+    # _scripts/enable-crowdsec.ps1, whether or not this box is checked.
     $script:crowdsecSetupCheckbox = New-Object System.Windows.Forms.CheckBox
-    $script:crowdsecSetupCheckbox.Text = "Set up CrowdSec engine now (detection only - Cloudflare bouncer is a separate manual step either way)"
+    $script:crowdsecSetupCheckbox.Text = "Set up CrowdSec engine now (detection only - enable-crowdsec.ps1 turns on blocking)"
     $script:crowdsecSetupCheckbox.Top = 515
     $script:crowdsecSetupCheckbox.Left = 20
     $script:crowdsecSetupCheckbox.Width = 650
@@ -794,7 +793,7 @@ function Show-Step5 {
     }
 
     $crowdsecStatusText = if ($script:data.SetupCrowdSec) {
-        "CrowdSec engine: will be set up (detection only). Its Cloudflare`nbouncer still needs _scripts\enable-crowdsec.ps1 either way - see SETUP.md."
+        "CrowdSec engine: will be set up (detection only). Blocking (the Caddy`nbouncer) still needs _scripts\enable-crowdsec.ps1 afterward."
     } else {
         "CrowdSec: NOT set up now - crowdsec-stack\.env will not be written.`nRun _scripts\enable-crowdsec.ps1 any time later to turn it on."
     }
@@ -884,7 +883,7 @@ Click "Create .env Files" to proceed
         Create-EnvFiles
         $credPath = Export-Credentials
         $emailReminder = if ($script:data.SetupEmail) { "" } else { "`n`nEmail server (Mailu) setup was skipped - run .\enable-email.ps1 any time later to turn it on, no need to redo this wizard." }
-        $crowdsecReminder = if ($script:data.SetupCrowdSec) { "`n`nCrowdSec engine is set up - its Cloudflare bouncer (the part that actually bans an attacker) still needs .\enable-crowdsec.ps1 for the manual Cloudflare Worker setup - see SETUP.md." } else { "`n`nCrowdSec (Fail2Ban's detection is real, but can't actually block anything under Docker Desktop - see TROUBLESHOOTING.md) was skipped - run .\enable-crowdsec.ps1 any time later to turn it on." }
+        $crowdsecReminder = if ($script:data.SetupCrowdSec) { "`n`nCrowdSec engine is set up - its Caddy bouncer (the part that actually bans an attacker) still needs .\enable-crowdsec.ps1." } else { "`n`nCrowdSec (Fail2Ban's detection is real, but can't actually block anything under Docker Desktop - see TROUBLESHOOTING.md) was skipped - run .\enable-crowdsec.ps1 any time later to turn it on." }
         $credReminder = "`n`nA password-manager-ready credentials file was also written to:`n$credPath`n`nImport it as Bitwarden JSON - in Vaultwarden: Tools -> Import Data -> Bitwarden (json). In Proton Pass: Settings -> Import -> Bitwarden -> select this file (Proton Pass's Bitwarden importer only accepts JSON/ZIP, not CSV - confirmed live). Then delete that file - it's plaintext and not safe to leave sitting on disk."
 
         if ($script:autoDeployCheckbox.Checked) {
@@ -1099,9 +1098,9 @@ TZ=$($script:data.Timezone)
 
     # Same "no .env = skipped, present-but-unconfigured" pattern as email
     # above. Only writes the engine's .env (TZ, nothing secret) - the
-    # Cloudflare bouncer half always needs _scripts\enable-crowdsec.ps1
-    # regardless of this checkbox, since it needs a Cloudflare Worker
-    # deployed through your own account first (see that script/SETUP.md).
+    # Caddy bouncer half always needs _scripts\enable-crowdsec.ps1
+    # regardless of this checkbox, since its key can only be minted by
+    # the running engine.
     if ($script:data.SetupCrowdSec) {
         "TZ=$($script:data.Timezone)" | Out-File "$appRoot\crowdsec-stack\.env" -Encoding UTF8 -Force
     }

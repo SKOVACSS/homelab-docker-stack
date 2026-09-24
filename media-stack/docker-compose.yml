@@ -46,7 +46,11 @@ services:
       # openvpn (default) uses PROTON_OPENVPN_*; set to "wireguard" in .env to
       # use PROTON_WIREGUARD_KEY instead (see gluetun's ProtonVPN docs).
       - VPN_TYPE=${VPN_TYPE:-openvpn}
-      - OPENVPN_USER=${PROTON_OPENVPN_USERNAME}
+      # +pmp is ProtonVPN's opt-in for NAT-PMP port forwarding on OpenVPN -
+      # without it, VPN_PORT_FORWARDING below times out on every connect and
+      # no peer can ever connect inbound (confirmed live: torrents crawled
+      # at <1 Mbps). Appended here so .env keeps the plain username.
+      - OPENVPN_USER=${PROTON_OPENVPN_USERNAME}+pmp
       - OPENVPN_PASSWORD=${PROTON_OPENVPN_PASSWORD}
       - SERVER_COUNTRIES=${PROTON_COUNTRIES}
       - WIREGUARD_PRIVATE_KEY=${PROTON_WIREGUARD_KEY}
@@ -54,6 +58,15 @@ services:
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,10.0.0.0/8
       - VPN_PORT_FORWARDING=on
       - VPN_PORT_FORWARDING_PROVIDER=protonvpn
+      # ProtonVPN hands out a different forwarded port on every connect, so
+      # push it into qBittorrent each time (gluetun's documented recipe).
+      # Needs qBittorrent's "bypass authentication for clients on localhost"
+      # on - safe here because localhost is gluetun's own network namespace,
+      # shared only with qbittorrent/slskd. DOWN resets the port so a
+      # reconnect re-applies cleanly (qBittorrent otherwise ignores a
+      # "change" to the port it already has after the tunnel drops).
+      - 'VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c ''wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":{{PORT}},\"current_network_interface\":\"{{VPN_INTERFACE}}\",\"random_port\":false,\"upnp\":false}" http://127.0.0.1:${QBIT_PORT:-8080}/api/v2/app/setPreferences'''
+      - 'VPN_PORT_FORWARDING_DOWN_COMMAND=/bin/sh -c ''wget -O- -nv --retry-connrefused --post-data "json={\"listen_port\":0,\"current_network_interface\":\"lo\"}" http://127.0.0.1:${QBIT_PORT:-8080}/api/v2/app/setPreferences'''
     ports:
       # BT_PORT = the BitTorrent peer port, which MUST match whatever port
       # ProtonVPN forwards you (check gluetun logs after connecting, then

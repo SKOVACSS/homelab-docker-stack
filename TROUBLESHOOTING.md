@@ -149,8 +149,8 @@ the ban action - this limitation is about where the container runs, not
 anything in its config. If the ban action matters to you on this host
 today rather than only after a future move to native Linux,
 `crowdsec-stack/` (optional, off by default - see SETUP.md and
-`_scripts/enable-crowdsec.ps1`) bans at Cloudflare's edge via API instead
-of local iptables, which isn't subject to this limitation at all.
+`_scripts/enable-crowdsec.ps1`) bans inside Caddy itself instead of via
+local iptables, which isn't subject to this limitation at all.
 
 ## Rate limiting - how it actually works
 
