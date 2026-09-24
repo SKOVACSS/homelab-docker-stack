@@ -55,7 +55,14 @@ services:
       - SERVER_COUNTRIES=${PROTON_COUNTRIES}
       - WIREGUARD_PRIVATE_KEY=${PROTON_WIREGUARD_KEY}
       - WIREGUARD_ADDRESSES=${PROTON_WIREGUARD_ADDRESSES}
-      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,10.0.0.0/8
+      # LAN only. 10.0.0.0/8 used to be here too, which routed gluetun's
+      # NAT-PMP request to the VPN gateway (10.2.0.1) out through the host
+      # instead of the tunnel - confirmed live: the Windows ProtonVPN app on
+      # the host answered it, so qBittorrent listened on a port forwarded to
+      # a different IP than its traffic exits from (2 of 312 peers inbound).
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16
+      # Only pick servers that support port forwarding.
+      - PORT_FORWARD_ONLY=on
       - VPN_PORT_FORWARDING=on
       - VPN_PORT_FORWARDING_PROVIDER=protonvpn
       # ProtonVPN hands out a different forwarded port on every connect, so
