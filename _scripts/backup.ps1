@@ -279,7 +279,10 @@ function Create-Backup {
     $configPath = Join-Path $backupPath "config"
     New-Item -ItemType Directory -Path $configPath -Force | Out-Null
     
-    Get-ChildItem $appRoot -Recurse -Filter ".env" | ForEach-Object {
+    # -Depth 1: every .env sits directly in a stack folder. A full -Recurse
+    # walked into bind-mounted app data (immich-app/library - the whole
+    # photo library) and took long enough that a scheduled run looked hung.
+    Get-ChildItem $appRoot -Depth 1 -Filter ".env" | ForEach-Object {
         $dest = Join-Path $configPath $_.FullName.Replace("$appRoot\", "")
         $dir = Split-Path -Parent $dest
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
@@ -321,7 +324,7 @@ function Create-Backup {
         Timestamp = $timestamp
         Full = $Full
         IncludedVolumes = if ($Full) { $volumes.Count } else { 0 }
-        IncludedConfigs = (Get-ChildItem $appRoot -Recurse -Filter ".env" | Measure-Object).Count
+        IncludedConfigs = (Get-ChildItem $appRoot -Depth 1 -Filter ".env" | Measure-Object).Count
     }
     
     $manifest | ConvertTo-Json | Out-File -FilePath "$backupPath\manifest.json" -Encoding UTF8 -Force

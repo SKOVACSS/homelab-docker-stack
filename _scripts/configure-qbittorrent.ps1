@@ -31,6 +31,15 @@ Radarr/Sonarr also set per-torrent limits on grab when the indexer has
 Seed Ratio/Seed Time configured in Prowlarr - this is the safety net
 for when they don't.
 
+Cleanup: turns on "Remove Completed" in Radarr's and Sonarr's
+qBittorrent download client. They then delete a torrent and its files
+only once BOTH the release is imported into the library AND qBittorrent
+has stopped it for reaching its share limit - so a private-tracker
+torrent is never removed before its seeding minimum. Downloads and the
+library are separate bind mounts, so imports are copies, not hardlinks,
+and this is what frees the duplicate space. Torrents added by hand
+(not grabbed by an *arr) are never touched.
+
 Talks to the API from inside gluetun's network namespace (where
 qBittorrent's WebUI listens on localhost), relying on qBittorrent's
 WebUI\LocalHostAuth=false - no credentials handled here at all.
@@ -102,7 +111,11 @@ $prefs = @{
     max_seeding_time_enabled          = $false
     max_inactive_seeding_time_enabled = $false
 } | ConvertTo-Json -Compress
-$null = Invoke-QbitApi 'app/setPreferences' "json=$prefs"
+# URL-encoded, not raw: Windows PowerShell 5.1 (what a scheduled task
+# runs) strips embedded double quotes from native-command arguments, and
+# qBittorrent silently ignores the resulting malformed JSON - confirmed
+# live, the run "succeeded" while every setting stayed unchanged.
+$null = Invoke-QbitApi 'app/setPreferences' "json=$([uri]::EscapeDataString($prefs))"
 Write-Info "✅ Queue: $MaxActiveDownloads active downloads, unlimited seeds; public torrents stop when complete" Green
 
 # ---------- Private-tracker seeding minimums ----------
@@ -139,3 +152,23 @@ if ($private.Count -gt 0) {
     }
 }
 Write-Info "✅ $($private.Count) private-tracker torrent(s) checked" Green
+
+# ---------- Radarr/Sonarr: remove downloads once imported + seeded ----------
+# Body goes over stdin, not as an argument (same Windows PowerShell 5.1
+# quote-stripping as above), as BOM-less UTF-8 - 5.1 otherwise pipes to
+# native commands as ASCII.
+$OutputEncoding = New-Object System.Text.UTF8Encoding $false
+foreach ($app in @(@{ Name = 'radarr'; Port = 7878 }, @{ Name = 'sonarr'; Port = 8989 })) {
+    $running = docker inspect $app.Name --format '{{.State.Running}}' 2>$null
+    if ($running -ne 'true') { continue }
+    $raw = docker exec $app.Name sh -c "grep -o '<ApiKey>[^<]*</ApiKey>' /config/config.xml" 2>$null
+    if (-not $raw) { Write-Host "⚠️  $($app.Name): couldn't read its API key - skipping cleanup setting" -ForegroundColor Yellow; continue }
+    $header = "X-Api-Key: $($raw -replace '</?ApiKey>', '')"
+    $url = "http://localhost:$($app.Port)/api/v3/downloadclient"
+    $clients = docker exec $app.Name curl -s $url -H $header | ConvertFrom-Json
+    foreach ($c in ($clients | Where-Object { $_.implementation -eq 'QBittorrent' -and -not $_.removeCompletedDownloads })) {
+        $c.removeCompletedDownloads = $true
+        $null = ($c | ConvertTo-Json -Depth 10 -Compress) | docker exec -i $app.Name curl -s -X PUT "$url/$($c.id)" -H $header -H 'Content-Type: application/json' --data-binary '@-'
+        Write-Info "✅ $($app.Name): 'Remove Completed' turned on for '$($c.name)'" Green
+    }
+}
