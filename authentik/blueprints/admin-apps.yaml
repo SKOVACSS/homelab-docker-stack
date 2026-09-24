@@ -36,7 +36,7 @@ entries:
       name: Admin apps
       slug: admin-apps
       provider: !KeyOf admin-apps-provider
-      meta_launch_url: !Format ["https://home.%s/", !Env DOMAIN]
+      meta_launch_url: !Format ["https://dash.%s/", !Env DOMAIN]
       meta_description: The *arrs, downloads, monitoring and the dashboard
       policy_engine_mode: any
   - model: authentik_policies.policybinding

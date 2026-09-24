@@ -1,0 +1,12 @@
+- greeting:
+    text_size: xl
+    text: Welcome home
+
+- datetime:
+    text_size: md
+    format:
+      dateStyle: long
+
+- search:
+    provider: duckduckgo
+    target: _blank

@@ -144,6 +144,7 @@ services:
       PAPERLESS_OIDC_CLIENT_SECRET: ${PAPERLESS_OIDC_CLIENT_SECRET:-}
       OPENWEBUI_OIDC_CLIENT_SECRET: ${OPENWEBUI_OIDC_CLIENT_SECRET:-}
       PORTAINER_OIDC_CLIENT_SECRET: ${PORTAINER_OIDC_CLIENT_SECRET:-}
+      HOMEPAGE_FAMILY_OIDC_CLIENT_SECRET: ${HOMEPAGE_FAMILY_OIDC_CLIENT_SECRET:-}
     volumes:
       # Repo-managed blueprints: applied automatically at startup and
       # whenever a file changes, so app logins are code, not UI clicks.
