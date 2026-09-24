@@ -298,10 +298,12 @@ function Set-LastResortScoring {
     # Softens only the formats in $lastResortScores and lowers the
     # profile minimum - edits scores in place (no append), so re-runs
     # can't duplicate formatItems entries.
-    param([string]$App, [string]$Container, [int]$Port, [string]$ApiKey, [string]$ProfileName)
+    param([string]$App, [string]$Container, [int]$Port, [string]$ApiKey, [string]$ProfileName, [hashtable]$ExtraScores = @{})
     $p = Invoke-ArrApi $Container $Port $ApiKey GET '/api/v3/qualityprofile' | ConvertFrom-Json -Depth 20 | Where-Object { $_.name -eq $ProfileName } | Select-Object -First 1
     if (-not $p) { Write-Host "⚠️  ${App}: no '$ProfileName' profile - skipping last-resort scoring." -ForegroundColor Yellow; return }
-    foreach ($fi in $p.formatItems) { if ($lastResortScores.ContainsKey($fi.name)) { $fi.score = $lastResortScores[$fi.name] } }
+    $scores = $lastResortScores.Clone()
+    foreach ($k in $ExtraScores.Keys) { $scores[$k] = $ExtraScores[$k] }
+    foreach ($fi in $p.formatItems) { if ($scores.ContainsKey($fi.name)) { $fi.score = $scores[$fi.name] } }
     $p.minFormatScore = $lastResortMinScore
     $null = Invoke-ArrApi $Container $Port $ApiKey PUT "/api/v3/qualityprofile/$($p.id)" (ConvertTo-CompactJson $p)
     Write-Host "✅ ${App}: '$ProfileName' - LQ/x265 softened to last resort, min score $lastResortMinScore" -ForegroundColor Green
@@ -444,8 +446,29 @@ $sonarrPort = 8989
 
 Set-UltraHdProfile Sonarr sonarr $sonarrPort $sonarrKey 'HDTV-2160p' | Out-Null
 $sonarrStdProfileId = Get-OrCreateStandardProfile Sonarr sonarr $sonarrPort $sonarrKey
-Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'Ultra-HD'
-Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'HD - 720p/1080p'
+
+# Prefer whole-season torrents: one pack per season instead of dozens of
+# per-episode grabs (better seeded for older shows, far fewer torrents).
+# Sonarr already breaks exact ties in a pack's favor; this bonus makes a
+# pack win even over a slightly better-scored single episode. It's a
+# preference, not a requirement - a season only available as individual
+# episodes still gets grabbed. Quality still ranks first, so a 1080p
+# pack never beats a 2160p episode on the 4K profile. Same definition as
+# TRaSH's "Season Pack" format (ReleaseType 3 = full season pack).
+# Multi-season "complete series" packs can't be helped here: Sonarr
+# rejects them outright ("Multi-season releases are not supported").
+$seasonPackSpec = @{
+    name = 'Season Pack'; includeCustomFormatWhenRenaming = $false
+    specifications = @(@{
+        name = 'Season Pack'; implementation = 'ReleaseTypeSpecification'
+        negate = $false; required = $false
+        fields = @(@{ name = 'value'; value = 3 })
+    })
+}
+$null = Get-OrCreateCustomFormat sonarr $sonarrPort $sonarrKey $seasonPackSpec
+$sonarrExtraScores = @{ 'Season Pack' = 200 }
+Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'Ultra-HD' $sonarrExtraScores
+Set-LastResortScoring Sonarr sonarr $sonarrPort $sonarrKey 'HD - 720p/1080p' $sonarrExtraScores
 Set-QualityDefinitionMaxSizes Sonarr sonarr $sonarrPort $sonarrKey @{ '720p' = 35; '1080p' = 75; '2160p' = 135 }
 
 # ---------- Seerr ----------
