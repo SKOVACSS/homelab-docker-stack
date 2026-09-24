@@ -1,0 +1,11 @@
+{
+  "type": "http",
+  "name": "Seerr",
+  "url": "http://seerr:5055/api/v1/status",
+  "parent_name": "media",
+  "interval": 60,
+  "retry_interval": 60,
+  "max_retries": 3,
+  "accepted_statuscodes": ["200-399"],
+  "notification_name_list": ["gotify"]
+}

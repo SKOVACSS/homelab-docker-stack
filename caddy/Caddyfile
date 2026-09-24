@@ -42,6 +42,12 @@
   # Wake on-demand containers before proxying to them (see Sablier below).
   order sablier before reverse_proxy
 
+  # Collect per-host HTTP metrics (requests, latency, status codes) for
+  # Prometheus - served by the :9180 site at the bottom of this file.
+  metrics {
+    per_host
+  }
+
   # Without this, every request Caddy sees - whether it came through
   # cloudflared or hit the host's own 80/443 directly - looks like it
   # came from cloudflared's own container IP, because that's the actual
@@ -609,4 +615,13 @@ family.{$DOMAIN} {
   }
   root * /srv/family-guide
   file_server
+}
+
+# ========== INTERNAL: Prometheus metrics ==========
+# Plain HTTP on :9180, reachable only from containers on caddy-network
+# (Prometheus scrapes caddy:9180) - the port isn't published in
+# docker-compose.yml, and it's deliberately not the admin API (:2019),
+# which can rewrite Caddy's config and stays bound to localhost.
+:9180 {
+  metrics /metrics
 }

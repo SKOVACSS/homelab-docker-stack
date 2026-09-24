@@ -1,0 +1,11 @@
+{
+  "type": "http",
+  "name": "Internet (Starlink)",
+  "url": "https://1.1.1.1/cdn-cgi/trace",
+  "parent_name": "infra",
+  "interval": 60,
+  "retry_interval": 60,
+  "max_retries": 3,
+  "accepted_statuscodes": ["200-399"],
+  "notification_name_list": ["gotify"]
+}

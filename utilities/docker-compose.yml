@@ -191,6 +191,48 @@ services:
           cpus: '0.5'
           memory: 256M
 
+  # AutoKuma - keeps Uptime Kuma's monitors in sync with files in this
+  # repo (autokuma/monitors/*.json, one file per monitor), so a fresh
+  # deploy gets every monitor and the Gotify alert automatically instead
+  # of clicking them together in the UI - Kuma sat with zero monitors
+  # before this. Checks use internal container URLs, so no domain name
+  # ever lands in the repo. See autokuma/README.md to add one.
+  #
+  # Needs the Uptime Kuma admin login you created on first visit - set
+  # UPTIME_KUMA_USERNAME and UPTIME_KUMA_PASSWORD in this stack's .env.
+  # The Gotify notification is defined by the labels below, with the
+  # token interpolated from .env (GOTIFY_TOKEN, same one Watchtower uses)
+  # so it never lands in a committed file either.
+  autokuma:
+    image: ghcr.io/bigboot/autokuma:2.0.0
+    restart: unless-stopped
+    container_name: autokuma
+    environment:
+      - AUTOKUMA__KUMA__URL=http://uptime-kuma:3001
+      - AUTOKUMA__KUMA__USERNAME=${UPTIME_KUMA_USERNAME:-}
+      - AUTOKUMA__KUMA__PASSWORD=${UPTIME_KUMA_PASSWORD:-}
+      - AUTOKUMA__STATIC_MONITORS=/autokuma/monitors
+    volumes:
+      - ./autokuma/monitors:/autokuma/monitors:ro
+      # Read-only: AutoKuma only reads container labels (the notification
+      # below is defined on this container's own labels).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - autokuma-data:/data
+    networks:
+      - utilities
+    depends_on:
+      - uptime-kuma
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "kuma.gotify.notification.name=Gotify"
+      - "kuma.gotify.notification.active=true"
+      - 'kuma.gotify.notification.config={"name": "Gotify", "type": "gotify", "gotifyserverurl": "http://gotify:80", "gotifyapplicationToken": "${GOTIFY_TOKEN:-}", "gotifyPriority": 8}'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
   # Vaultwarden - Self-hosted Bitwarden password manager
   vaultwarden:
     image: vaultwarden/server:1.37.3
@@ -229,6 +271,34 @@ services:
           cpus: '1.0'
           memory: 512M
         reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Grafana Alloy - ships every container's logs to Loki (see
+  # alloy/config.alloy). Before this Loki had no log shipper at all, so it
+  # sat empty. Read-only Docker socket: it only lists containers and
+  # tails their logs.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    restart: unless-stopped
+    container_name: alloy
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    networks:
+      - utilities
+    depends_on:
+      - loki
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
           cpus: '0.5'
           memory: 256M
 
@@ -316,6 +386,8 @@ services:
       - '--storage.tsdb.retention.time=30d'
     networks:
       - utilities
+      # To scrape Caddy's internal metrics listener (caddy:9180).
+      - caddy-network
     healthcheck:
       # Not curl (this image doesn't ship it, confirmed live) and not
       # "localhost" (resolves to ::1 in some of these minimal images,
@@ -398,4 +470,8 @@ volumes:
   prometheus-data:
     driver: local
   grafana-data:
+    driver: local
+  alloy-data:
+    driver: local
+  autokuma-data:
     driver: local

@@ -1,0 +1,11 @@
+{
+  "type": "keyword",
+  "name": "VPN (gluetun)",
+  "url": "http://gluetun:8000/v1/vpn/status",
+  "keyword": "running",
+  "parent_name": "infra",
+  "interval": 60,
+  "retry_interval": 60,
+  "max_retries": 3,
+  "notification_name_list": ["gotify"]
+}
