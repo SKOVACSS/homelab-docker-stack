@@ -1,4 +1,12 @@
 - Family:
+    - Family Dashboard:
+        # The household's own dashboard (homepage-family, ../config-family):
+        # same look as this one, household apps only.
+        icon: homepage.png
+        href: "https://home.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: What the family sees
+        server: my-docker
+        container: homepage-family
     - Family Guide:
         # Static page (family-guide/index.html, served directly by Caddy -
         # see family.{$DOMAIN} in the Caddyfile) with plain-language links

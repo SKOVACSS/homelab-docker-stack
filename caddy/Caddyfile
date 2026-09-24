@@ -633,11 +633,21 @@ chat.{$DOMAIN} {
 
 # ========== DASHBOARD ==========
 
-# Homepage - single landing page linking to every service in this repo
-home.{$DOMAIN} {
+# Admin dashboard (Homepage) - every service, live widgets. Its own
+# Authentik login admits admins only (authentik/blueprints/dashboards.yaml).
+dash.{$DOMAIN} {
   import security_headers
   log
   reverse_proxy homepage:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Family dashboard (second Homepage) - household apps only, same look.
+home.{$DOMAIN} {
+  import security_headers
+  log
+  reverse_proxy homepage-family:3000 {
     header_up X-Real-IP {http.request.remote}
   }
 }
