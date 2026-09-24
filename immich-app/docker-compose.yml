@@ -26,6 +26,14 @@ services:
       - /etc/localtime:/etc/localtime:ro
     env_file:
       - .env
+    # LAN address for the mobile app's automatic URL switching (Settings ->
+    # Networking): on home Wi-Fi it talks to http://<server LAN IP>:2283
+    # directly - full LAN speed and no Cloudflare 100MB upload cap - and
+    # falls back to photos.DOMAIN elsewhere. Unreachable from the internet
+    # (Starlink CGNAT, nothing forwarded). Docker Desktop's own firewall
+    # rule already allows inbound on published ports.
+    ports:
+      - "2283:2283"
     depends_on:
       - redis
       - database
