@@ -68,10 +68,22 @@ services:
     environment:
       # Auto-update settings
       - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_INCLUDE_STOPPED=false
+      # Include stopped containers so Sablier-managed ones (vllm,
+      # open-webui, jellyfin - asleep most of the time) still get
+      # updated; REVIVE_STOPPED=false recreates them without starting
+      # them, leaving the next request to wake them as usual.
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
       - WATCHTOWER_INCLUDE_RESTARTING=false
-      - WATCHTOWER_POLL_INTERVAL=86400
-      - WATCHTOWER_SCHEDULE=0 2 * * * *
+      # 6-field cron, SECONDS first: 0s 0m 8h = 08:00 daily in the container's
+      # TZ (UTC unless TZ is set in .env) = 4 AM Eastern. It used to
+      # be "0 2 * * * *", which is minute 2 of EVERY hour (confirmed live:
+      # "next run in 51 minutes"), so updates could restart services in
+      # the middle of the day. This keeps clear of the 2 AM backup, which
+      # tars volumes while containers run. (POLL_INTERVAL is ignored when
+      # a schedule is set, so it's gone.)
+      - WATCHTOWER_SCHEDULE=0 0 8 * * *
+      - TZ=${TZ:-UTC}
       # Off by default. To get a Gotify notification whenever Watchtower
       # updates something: create an Application in Gotify's web UI, then
       # set GOTIFY_TOKEN in this stack's .env (see .env.example) - that

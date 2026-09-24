@@ -244,6 +244,10 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     container_name: paperless-db
+    labels:
+      # Floating minor tag - Watchtower applies patch/minor updates only
+      # (a major bump still needs the tag changed by hand).
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - paperless-postgres:/var/lib/postgresql
     environment:
@@ -271,6 +275,10 @@ services:
     image: redis:8-alpine
     restart: unless-stopped
     container_name: paperless-redis
+    labels:
+      # Floating minor tag - Watchtower applies patch/minor updates only
+      # (a major bump still needs the tag changed by hand).
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - paperless-redis:/data
     networks:
@@ -344,6 +352,10 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     container_name: wallabag-db
+    labels:
+      # Floating minor tag - Watchtower applies patch/minor updates only
+      # (a major bump still needs the tag changed by hand).
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - wallabag-postgres:/var/lib/postgresql
     environment:

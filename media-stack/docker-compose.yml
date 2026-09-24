@@ -158,8 +158,15 @@ services:
       - ${MEDIA_MUSIC}:/media/music:ro
       - ${MEDIA_BOOKS}:/media/books:ro
     # NO ports: section - qBittorrent has no independent network, shares gluetun
+    # Docker's default 10s before SIGKILL is too short for qBittorrent to
+    # flush resume data for dozens of active torrents - confirmed live,
+    # forced kills left 14 torrents in "missing files"/error state. Every
+    # stop (Watchtower updates, restarts, deploys) now gets a full minute.
+    stop_grace_period: 60s
     labels:
-      - "com.centurylinklabs.watchtower.enable=false"
+      # Auto-updates on hotio's :release tag. If gluetun is updated and
+      # recreated, heal-network-dependents.ps1 re-attaches this container.
+      - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
         limits:
