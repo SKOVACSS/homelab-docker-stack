@@ -83,7 +83,17 @@ for dev in /sys/bus/pci/devices/*; do
 done
 if [ "$BRCM43602" -eq 1 ]; then
   echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf >/dev/null
-  ok "brcmfmac feature_disable=0x82000 set (active after reboot) - 5 GHz may still not appear; see README"
+  # brcmfmac also mishandles NetworkManager's randomized MAC addresses
+  # (scan and per-connection). Together with the line above, this is what
+  # got a MacBookPro13,2 from "password incorrect" on WPA2 to connected.
+  sudo tee /etc/NetworkManager/conf.d/90-brcmfmac.conf >/dev/null <<'EOF2'
+[device]
+wifi.scan-rand-mac-address=no
+
+[connection]
+wifi.cloned-mac-address=permanent
+EOF2
+  ok "brcmfmac feature_disable=0x82000 + MAC randomization off (active after reboot) - 5 GHz may still not appear; see README"
 else
   ok "no BCM43602 found - not needed"
 fi

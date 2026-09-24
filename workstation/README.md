@@ -146,12 +146,19 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
   1. Connect to a **2.4 GHz** network from a terminal, which also avoids
      the scan-list race:
      `nmcli device wifi rescan; nmcli --ask device wifi connect "SSID"`
-  2. Disable the firmware's WPA offload (the setup script makes this
-     permanent; this applies it right now, live session included):
+  2. Disable the firmware's WPA offload and NetworkManager's MAC
+     randomization, forget the network, and reboot (the setup script
+     makes the same settings; this is how to get online to run it). This
+     is what fixed "password incorrect" on WPA2 on a `MacBookPro13,2`:
      ```bash
      echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf
-     sudo modprobe -r brcmfmac_wcc; sudo modprobe -r brcmfmac; sudo modprobe brcmfmac
+     printf '[device]\nwifi.scan-rand-mac-address=no\n\n[connection]\nwifi.cloned-mac-address=permanent\n' | sudo tee /etc/NetworkManager/conf.d/90-brcmfmac.conf
+     sudo nmcli connection delete "SSID"
+     sudo reboot
      ```
+     Then `nmcli --ask device wifi connect "SSID"`. On a weak signal it
+     can sit at "connected, no internet" for a minute or two while it
+     gets an address - give it time before troubleshooting further.
   3. Set the router (or a guest network) to **WPA2**, not WPA3/mixed.
   4. Still failing: a board NVRAM file (`brcmfmac43602-pcie.txt`) that
      fixes the country detection exists, but reported results vary
