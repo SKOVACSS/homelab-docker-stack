@@ -307,3 +307,18 @@ seeding minimums that Radarr/Sonarr attach to every torrent they grab.
 Idempotent - only writes what differs - then syncs indexers to the apps.
 Prowlarr tests an indexer before saving it, so a site that is down at
 the moment is skipped with a warning; re-run later.
+
+## configure-lazylibrarian.ps1
+
+```powershell
+.\configure-lazylibrarian.ps1 [-Quiet]
+```
+
+Sets up LazyLibrarian (it ships unconfigured): library folder = Calibre-
+Web-Automated's ingest folder with copy-not-move (so torrents keep
+seeding after CWA imports and deletes its copy), qBittorrent via gluetun
+with its own `lazylibrarian` category, IRC Highway `#ebooks`, API on,
+telemetry off, and registers LazyLibrarian in Prowlarr so every book
+indexer syncs to it. Idempotent. One manual step it deliberately leaves
+to you: qBittorrent's WebUI login in LazyLibrarian -> Config ->
+Downloaders -> qBittorrent.

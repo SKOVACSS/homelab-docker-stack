@@ -493,7 +493,18 @@ services:
       - TZ=${TZ:-UTC}
     volumes:
       - lazylibrarian-config:/config
-      - ${BOOKS_INGEST_PATH}:/downloads
+      # Same host folder at the same path qBittorrent sees (/downloads),
+      # so completed book torrents in /downloads/lazylibrarian need no
+      # remote/local path mapping.
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+      # Calibre-Web-Automated's ingest folder - LazyLibrarian's library
+      # destination (EBOOK_DIR). CWA imports and then DELETES whatever
+      # lands here, so LazyLibrarian copies into it (DESTINATION_COPY)
+      # rather than moving: the original stays put and keeps seeding.
+      # Previously this folder was mounted as LazyLibrarian's *download*
+      # folder, which would have let CWA delete files out from under
+      # active torrents - a hit-and-run on a private tracker.
+      - ${BOOKS_INGEST_PATH}:/books-ingest
     networks:
       - media-network
       - caddy-network
