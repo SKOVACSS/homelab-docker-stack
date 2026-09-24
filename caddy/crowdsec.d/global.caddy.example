@@ -1,0 +1,13 @@
+# Template - _scripts/enable-crowdsec.ps1 copies this to global.caddy
+# (gitignored) with the real key filled in. Imported into the Caddyfile's
+# global options block.
+crowdsec {
+	api_url http://crowdsec:8080
+	api_key CHANGE_ME_BOUNCER_KEY_FROM_CSCLI
+	# Streaming mode (default): decisions are pulled into memory on this
+	# interval, so a request never waits on a LAPI round-trip, and a
+	# crowdsec outage fails open with the last-known ban list.
+	ticker_interval 15s
+}
+# Run the ban check before every other handler.
+order crowdsec first

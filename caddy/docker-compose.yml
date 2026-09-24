@@ -17,6 +17,9 @@ services:
       # JS, no build step, so it's served directly rather than through its
       # own container.
       - ../family-guide:/srv/family-guide:ro
+      # Optional CrowdSec bouncer config - see crowdsec.d/*.example and
+      # the Caddyfile's global block. Only *.caddy files are imported.
+      - ./crowdsec.d:/etc/caddy/crowdsec.d:ro
     environment:
       ACME_EMAIL: ${ACME_EMAIL}
       # DOMAIN, QBIT_PORT, CLOUDFLARE_API_TOKEN and MAIL_DOMAIN are read

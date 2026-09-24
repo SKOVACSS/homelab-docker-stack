@@ -66,6 +66,16 @@
     trusted_proxies static 172.20.0.0/16
   }
 
+  # CrowdSec bouncer (optional) - enforces crowdsec-stack's ban decisions
+  # in Caddy itself. The glob matches nothing on a deployment without
+  # CrowdSec (Caddy only warns on an empty glob), so this stays inert
+  # until _scripts/enable-crowdsec.ps1 writes crowdsec.d/global.caddy and
+  # crowdsec.d/handler.caddy from the committed .example templates (the
+  # real ones hold the bouncer's LAPI key and are gitignored). The
+  # handler half is imported by (security_headers) below, so every site
+  # gets it. Relies on trusted_proxies above to see the real client IP.
+  import /etc/caddy/crowdsec.d/global*.caddy
+
   # No `log` directive existed anywhere in this file before - Caddy was
   # producing zero access logs for actual site traffic (only its own
   # internal admin-API healthcheck hits were ever logged). This is the
@@ -83,6 +93,9 @@
 
 # Security header middleware (applied to all routes)
 (security_headers) {
+  # CrowdSec ban check - no-op unless enabled, see the global block.
+  import /etc/caddy/crowdsec.d/handler*.caddy
+
   # HTTPS Strict Transport Security (force HTTPS for 1 year)
   header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 

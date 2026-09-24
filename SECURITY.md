@@ -56,21 +56,15 @@ What's actually implemented, and what you still have to do yourself.
 - **`crowdsec-stack/` (optional, off by default) - actual enforcement,
   not just detection.** CrowdSec's engine reads the same Caddy access log
   as Fail2Ban (the official `crowdsecurity/caddy` collection - a real
-  parser plus community attack scenarios, not hand-rolled regex), and its
-  Cloudflare bouncer pushes decisions to a Cloudflare Worker that bans at
-  Cloudflare's edge - upstream of Docker Desktop's network isolation
-  entirely, so it can actually block an attacker on this host, today.
-  Two independent bugs in a widely-used version of this bouncer were
-  caught before building on it: the direct-API bouncer this was
-  originally scoped around was archived by CrowdSec 20 days before this
-  was built, and its official Worker-based replacement's own docs lead
-  with "works best on a paid Workers subscription" - a real cost/setup
-  consideration, not a drop-in. Needs manual one-time setup in your own
-  Cloudflare/GitHub account that nothing here can do on your behalf
-  (deploying the Worker, creating a new broad-permission API token) -
-  see SETUP.md and `_scripts/enable-crowdsec.ps1`. The engine half alone
-  (no Cloudflare bouncer) has no such dependency and is useful on its
-  own for CrowdSec's community threat-intel enrichment.
+  parser plus community attack scenarios, not hand-rolled regex), and a
+  bouncer compiled into Caddy itself rejects banned IPs with a 403 before
+  they reach any app. It keys on the real client IP (via Caddy's
+  trusted_proxies), not iptables, so Docker Desktop's network isolation
+  doesn't matter - it can actually block an attacker on this host,
+  today. It also enforces CrowdSec's community blocklist, not just local
+  detections. (This replaced a Cloudflare Worker bouncer whose free-tier
+  KV write quota ran out within seconds of each daily sync.) Turn it on
+  with `_scripts/enable-crowdsec.ps1` - no Cloudflare-side setup needed.
 - **Network segmentation.** Each stack has its own internal Docker network;
   only the specific services that need to be reachable from outside join
   the shared `caddy-network`. Databases and caches never do.
@@ -150,14 +144,11 @@ What's actually implemented, and what you still have to do yourself.
 
 ## What you need to do
 
-- **Turn on `crowdsec-stack/`'s Cloudflare bouncer if you want actual
-  brute-force blocking on this host, not just detection.** Fail2Ban's
-  detection is correct (see "What's in place" above) but its ban action
-  is structurally inert on Docker Desktop, full stop - no amount of
-  further config fixes that. The stack exists and its engine deploys
-  cleanly; the Cloudflare bouncer half needs the manual one-time
-  Cloudflare/GitHub account setup in SETUP.md first, then
-  `_scripts/enable-crowdsec.ps1`.
+- **Turn on `crowdsec-stack/` if you want actual brute-force blocking on
+  this host, not just detection.** Fail2Ban's detection is correct (see
+  "What's in place" above) but its ban action is structurally inert on
+  Docker Desktop, full stop - no amount of further config fixes that.
+  Run `_scripts/enable-crowdsec.ps1`.
 - **LazyLibrarian currently has no authentication at all - not even a
   default password to change, unlike Wallabag below.** Confirmed directly
   against the live config (`config.ini` has no `http_user`/`http_pass`

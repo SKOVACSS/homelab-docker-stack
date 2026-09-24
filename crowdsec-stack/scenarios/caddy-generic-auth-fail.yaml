@@ -11,8 +11,14 @@
 # This is the same intent Fail2Ban's caddy jail already covers (see
 # security-stack/fail2ban/data/filter.d/caddy.conf) - any 401/403 from
 # the same real client_ip, any host, any path behind Caddy, not
-# hardcoded to guessed login paths per app. capacity/leakspeed approximate
-# Fail2Ban's maxretry=5 / findtime=600s (5 events within ~10 minutes).
+# hardcoded to guessed login paths per app.
+#
+# capacity 15 / leakspeed 60s: tolerates a single burst of up to 15
+# failures, bans a sustained rate above ~1/minute. The original 5/120s
+# (mirroring Fail2Ban's maxretry=5) banned the household twice: one
+# Pi-hole page load with an expired session fires 6 parallel 401s, and
+# one client with a stale Sonarr API key fired 6. Real brute force is
+# sustained, so it still trips this well before it gets anywhere.
 #
 # Bind-mounted directly into /etc/crowdsec/scenarios/ alongside the
 # hub-managed ones (see docker-compose.yml) - `cscli hub upgrade` only
@@ -23,8 +29,8 @@ name: homelab/caddy-generic-auth-fail
 description: "Repeated 401/403 from the same client across any app behind Caddy"
 filter: "evt.Meta.log_type == 'http_access-log' && (evt.Meta.http_status == '401' || evt.Meta.http_status == '403')"
 groupby: "evt.Meta.source_ip"
-capacity: 5
-leakspeed: "120s"
+capacity: 15
+leakspeed: "60s"
 blackhole: 1m
 labels:
   confidence: 3

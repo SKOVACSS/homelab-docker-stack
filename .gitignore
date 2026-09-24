@@ -18,6 +18,9 @@ media-stack/recyclarr/cache/
 # account/zone IDs - same reasoning as .env above.
 # cloudflare-bouncer.yaml.example is the committed template.
 crowdsec-stack/cloudflare-bouncer.yaml
+# Real CrowdSec bouncer config for Caddy (holds the LAPI key) - the
+# *.caddy.example templates next to them are what gets committed.
+caddy/crowdsec.d/*.caddy
 
 # gui-installer.ps1's password-manager import file - plaintext, meant to
 # be imported into Vaultwarden/Proton Pass and then deleted, not kept.
