@@ -19,6 +19,10 @@ services:
     image: influxdb:2-alpine
     restart: unless-stopped
     container_name: influxdb
+    labels:
+      # Floating minor tag - Watchtower applies patch/minor updates only
+      # (a major bump still needs the tag changed by hand).
+      - "com.centurylinklabs.watchtower.enable=true"
     # No published port: no Caddy route, and its only consumers (Telegraf,
     # Grafana) already reach it over monitoring-network. A security audit
     # found it published to the host anyway. If you want direct `influx`
