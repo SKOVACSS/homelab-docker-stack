@@ -27,7 +27,10 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Normally in firmware/ next to this script; also accept it right beside
+# the script, in case the kit's folders got flattened while copying.
 NVRAM_SRC="$HERE/firmware/brcmfmac43602-pcie.txt"
+[ -f "$NVRAM_SRC" ] || NVRAM_SRC="$HERE/brcmfmac43602-pcie.txt"
 NVRAM_DEST=/usr/lib/firmware/brcm/brcmfmac43602-pcie.txt
 MODPROBE_CONF=/etc/modprobe.d/brcmfmac.conf
 NM_CONF=/etc/NetworkManager/conf.d/90-brcmfmac.conf
@@ -88,7 +91,7 @@ ok "BCM43602 found at $FOUND"
 # --- 1. NVRAM ----------------------------------------------------------------
 if [ "$DO_NVRAM" -eq 1 ]; then
   if [ ! -f "$NVRAM_SRC" ]; then
-    warn "$NVRAM_SRC missing - copy the whole folder, including firmware/, and re-run"
+    warn "brcmfmac43602-pcie.txt not found in $HERE/firmware/ or $HERE/ - copy it from the kit and re-run"
     exit 1
   fi
   if [ -e "$NVRAM_DEST" ] && ! sudo grep -qF "$MARKER" "$NVRAM_DEST"; then
