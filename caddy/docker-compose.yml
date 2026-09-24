@@ -79,6 +79,44 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  # Sablier - starts rarely-used, memory-heavy containers on demand and
+  # stops them after a period with no requests. Caddy's `sablier`
+  # directive (compiled in by ./Dockerfile) asks it for a group by name
+  # before proxying; containers opt in with the labels sablier.enable=true
+  # and sablier.group=<name> (currently: ai-stack's vllm + open-webui, and
+  # media-stack's jellyfin). It waits for each container's healthcheck, so
+  # every managed container needs one. Needs the Docker socket to start/
+  # stop containers - the same trust level as Portainer/Watchtower here.
+  # auto-stop-on-startup stops any managed container nobody is using when
+  # Sablier itself starts (e.g. after `deploy.ps1` brought everything up).
+  sablier:
+    image: sablierapp/sablier:1.18.0
+    restart: unless-stopped
+    container_name: sablier
+    command:
+      - start
+      - --provider.name=docker
+      - --provider.auto-stop-on-startup=true
+      # Sessions here are 30m-1h, so checking every 20s (the default) is
+      # needless churn.
+      - --sessions.expiration-interval=1m
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "/bin/sablier", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+
   # cloudflared - the actual answer to "server is behind Starlink's CGNAT":
   # makes an outbound-only connection to Cloudflare's network, so nothing
   # needs to be port-forwarded (impossible under CGNAT anyway, since you

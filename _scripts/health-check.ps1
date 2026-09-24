@@ -58,6 +58,13 @@ Say "  Docker Home Lab - Health Check" "Cyan"
 Say "═══════════════════════════════════════════════════════════════" "Cyan"
 Say ""
 
+# Scheduled tasks don't inherit Docker Desktop's PATH entry on every
+# setup - same fallback as backup.ps1 (confirmed live on this host).
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    $dockerBin = "C:\Program Files\Docker\Docker\resources\bin"
+    if (Test-Path "$dockerBin\docker.exe") { $env:Path += ";$dockerBin" }
+}
+
 # Quick "is anything running at all" check. Note: `docker ps` (even with
 # zero containers) always prints a header row in table format, so a plain
 # truthiness check on that output is always true - use -q (bare IDs, truly
@@ -102,7 +109,12 @@ foreach ($stack in $stacks) {
                 $c = $line | ConvertFrom-Json
                 $status = "$($c.State)/$($c.Health)"
 
-                if ($c.State -ne "running") {
+                if ($c.State -ne "running" -and $c.Labels -match 'sablier\.enable=true') {
+                    # Started on demand by Sablier (see caddy/docker-compose.yml)
+                    # - stopped between uses is its normal state, not a fault.
+                    Say "  💤 $($c.Name) - Sleeping (starts on demand)" "Gray"
+                    $results.Healthy += @{Stack=$stack; Container=$c.Name; Status=$status}
+                } elseif ($c.State -ne "running") {
                     Say "  ⏸️  $($c.Name) - Not Running ($($c.State))" "Yellow"
                     $results.NotRunning += @{Stack=$stack; Container=$c.Name; Status=$status}
                 } elseif ($c.Health -eq "unhealthy") {

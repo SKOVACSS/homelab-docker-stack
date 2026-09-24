@@ -22,11 +22,17 @@
 # Mode redeploy-on-restart then crash-looped). Compiled in unconditionally
 # but inert unless crowdsec.d/*.caddy exists - see the Caddyfile's global
 # block. /http is the HTTP-handler-only package.
+#
+# sablier-caddy-plugin (https://github.com/sablierapp/sablier-caddy-plugin)
+# adds the `sablier` directive: rarely-used, memory-heavy apps stay
+# stopped until a request for them arrives - see the sablier service in
+# docker-compose.yml and the chat./jellyfin. site blocks.
 FROM caddy:2.11-builder AS builder
 RUN xcaddy build \
     --with github.com/mholt/caddy-ratelimit \
     --with github.com/caddy-dns/cloudflare \
-    --with github.com/hslatman/caddy-crowdsec-bouncer/http
+    --with github.com/hslatman/caddy-crowdsec-bouncer/http \
+    --with github.com/sablierapp/sablier-caddy-plugin@v1.0.2
 
 FROM caddy:2.11.4
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
