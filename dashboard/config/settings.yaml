@@ -9,6 +9,9 @@ layout:
   Media Servers:
     style: row
     columns: 3
+  Household:
+    style: row
+    columns: 3
   Files & Collaboration:
     style: row
     columns: 3

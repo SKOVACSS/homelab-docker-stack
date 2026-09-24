@@ -37,6 +37,10 @@
         icon: calibre-web.png
         href: "https://calibre.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Ebooks & Send-to-Kindle
+    - Audiobooks:
+        icon: audiobookshelf.png
+        href: "https://audiobooks.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Audiobooks & podcasts (phone app too)
 
 - Everyday:
     - AI Chat:
@@ -47,6 +51,18 @@
         icon: vaultwarden.png
         href: "https://vault.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Your own password vault
+    - Recipes:
+        icon: mealie.png
+        href: "https://recipes.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Recipes, meal plans & shopping lists
+    - Budget:
+        icon: actual-budget.png
+        href: "https://budget.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Household budget
+    - PDF Tools:
+        icon: stirling-pdf.png
+        href: "https://pdf.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Merge, sign, compress & convert PDFs
 
 - Help:
     - Family Guide:

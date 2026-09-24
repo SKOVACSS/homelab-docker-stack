@@ -1,0 +1,159 @@
+# Family Stack - everyday household apps, all on the family dashboard
+# (home.DOMAIN) and signed in with Authentik:
+#
+#   audiobookshelf -> audiobooks.DOMAIN  Audiobooks & podcasts, with phone
+#                     apps. OIDC is set in its own UI (Settings ->
+#                     Authentication); values in authentik/blueprints/
+#                     family-apps.yaml and AUDIOBOOKSHELF_OIDC_CLIENT_SECRET.
+#   mealie         -> recipes.DOMAIN     Recipes, meal plans, shopping lists.
+#   actual         -> budget.DOMAIN      Household budgeting (Actual Budget).
+#                     The FIRST person to sign in becomes its owner and
+#                     decides who else gets access.
+#   stirling-pdf   -> pdf.DOMAIN         PDF tools (merge, sign, compress,
+#                     convert). No login of its own - Caddy's Authentik wall
+#                     admits any household account. Sleeps via Sablier.
+#
+# Stirling-PDF stays on 2.x on purpose: 3.0 (Sep 2026) is a ground-up
+# release with cloud-linked automation; revisit once it has settled.
+#
+# Needs family-stack/.env: DOMAIN, TZ, AUDIOBOOKS_PATH, PODCASTS_PATH and
+# the three *_OIDC_CLIENT_SECRET values (same as authentik/.env).
+
+networks:
+  caddy-network:
+    name: caddy-network
+    external: true
+
+volumes:
+  audiobookshelf-config:
+  audiobookshelf-metadata:
+  mealie-data:
+  actual-data:
+  stirling-configs:
+
+services:
+  audiobookshelf:
+    image: ghcr.io/advplyr/audiobookshelf:2.36.1
+    restart: unless-stopped
+    container_name: audiobookshelf
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - audiobookshelf-config:/config
+      - audiobookshelf-metadata:/metadata
+      - ${AUDIOBOOKS_PATH}:/audiobooks
+      - ${PODCASTS_PATH}:/podcasts
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:v3.28.0
+    restart: unless-stopped
+    container_name: mealie
+    environment:
+      - TZ=${TZ:-UTC}
+      - BASE_URL=https://recipes.${DOMAIN}
+      - ALLOW_SIGNUP=false
+      - MAX_WORKERS=1
+      - WEB_CONCURRENCY=1
+      # Authentik (authentik/blueprints/family-apps.yaml). Any household
+      # account can sign in; "authentik Admins" are Mealie admins.
+      - OIDC_AUTH_ENABLED=true
+      - OIDC_SIGNUP_ENABLED=true
+      - OIDC_PROVIDER_NAME=Authentik
+      - OIDC_CONFIGURATION_URL=https://auth.${DOMAIN}/application/o/mealie/.well-known/openid-configuration
+      - OIDC_CLIENT_ID=mealie
+      - OIDC_CLIENT_SECRET=${MEALIE_OIDC_CLIENT_SECRET}
+      - OIDC_ADMIN_GROUP=authentik Admins
+      - OIDC_REMEMBER_ME=true
+    volumes:
+      - mealie-data:/app/data
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:9000/api/app/about || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M
+
+  actual:
+    image: docker.io/actualbudget/actual-server:26.9.0
+    restart: unless-stopped
+    container_name: actual
+    environment:
+      # Authentik only - no separate Actual password. The first account
+      # to sign in becomes the owner (see header).
+      - ACTUAL_LOGIN_METHOD=openid
+      - ACTUAL_OPENID_ENFORCE=true
+      - ACTUAL_OPENID_DISCOVERY_URL=https://auth.${DOMAIN}/application/o/actual/.well-known/openid-configuration
+      - ACTUAL_OPENID_CLIENT_ID=actual
+      - ACTUAL_OPENID_CLIENT_SECRET=${ACTUAL_OIDC_CLIENT_SECRET}
+      - ACTUAL_OPENID_SERVER_HOSTNAME=https://budget.${DOMAIN}
+      - ACTUAL_OPENID_PROVIDER_NAME=Authentik
+    volumes:
+      - actual-data:/data
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:5006/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  stirling-pdf:
+    image: docker.io/stirlingtools/stirling-pdf:2.14.3
+    restart: unless-stopped
+    container_name: stirling-pdf
+    environment:
+      # Login happens in front of it (Caddy + Authentik), not in the app.
+      - DOCKER_ENABLE_SECURITY=false
+      - SECURITY_ENABLELOGIN=false
+      - SYSTEM_ENABLEANALYTICS=false
+      - SYSTEM_DEFAULTLOCALE=en-US
+      - LANGS=en_US
+    volumes:
+      - stirling-configs:/configs
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:8080/api/v1/info/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "sablier.enable=true"
+      - "sablier.group=pdf"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G

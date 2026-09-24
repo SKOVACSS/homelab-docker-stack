@@ -14,7 +14,7 @@ layout:
     columns: 2
   Listen & Read:
     style: row
-    columns: 2
+    columns: 3
   Everyday:
     style: row
     columns: 3
