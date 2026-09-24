@@ -15,13 +15,14 @@
 #      WPA offload.
 #   3. NetworkManager: no MAC randomization (brcmfmac mishandles it), and
 #      Wi-Fi power saving off (stalls/drops on this chip).
-# Then it reloads the driver so the changes apply without a reboot.
+# Then reboot. (Reloading the driver in place doesn't work on this chip: on
+# a MacBookPro13,2, `modprobe -r/modprobe brcmfmac` left the firmware
+# crashed - "dongle is not responding" - until a full power cycle.)
 #
-# Usage:  bash wifi-fix.sh [--ssid NAME] [--no-nvram] [--no-reload] [--undo]
-#   --ssid NAME  Forget and reconnect to this network afterwards (asks for
-#                the password).
+# Usage:  bash wifi-fix.sh [--ssid NAME] [--no-nvram] [--undo]
+#   --ssid NAME  Forget this saved network, so it's set up fresh (with the
+#                new settings) when you reconnect after the reboot.
 #   --no-nvram   Skip step 1 (e.g. to test whether it's what helps).
-#   --no-reload  Don't reload the driver now; changes apply at next reboot.
 #   --undo       Remove everything this script installed.
 
 set -euo pipefail
@@ -37,12 +38,12 @@ NM_CONF=/etc/NetworkManager/conf.d/90-brcmfmac.conf
 NM_PS_CONF=/etc/NetworkManager/conf.d/90-wifi-powersave-off.conf
 MARKER="# installed by homelab-docker-stack workstation/wifi-fix.sh"
 
-SSID=""; DO_NVRAM=1; DO_RELOAD=1; UNDO=0
+SSID=""; DO_NVRAM=1; UNDO=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ssid)      SSID="${2:?--ssid needs a value}"; shift 2 ;;
     --no-nvram)  DO_NVRAM=0; shift ;;
-    --no-reload) DO_RELOAD=0; shift ;;
+    --no-reload) shift ;;  # accepted for older callers; never reloads now
     --undo)      UNDO=1; shift ;;
     -h|--help)   sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "Unknown option: $1 (see --help)" >&2; exit 1 ;;
@@ -52,24 +53,13 @@ done
 ok()   { printf '  \033[32mOK\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33mWARN\033[0m %s\n' "$*"; }
 
-reload_driver() {
-  echo "Reloading the Wi-Fi driver (Wi-Fi drops for a few seconds)..."
-  sudo modprobe -r brcmfmac_wcc 2>/dev/null || true
-  sudo modprobe -r brcmfmac 2>/dev/null || true
-  sleep 1
-  sudo modprobe brcmfmac
-  sudo systemctl restart NetworkManager
-  sleep 5
-  ok "driver reloaded"
-}
-
 if [ "$UNDO" -eq 1 ]; then
   for f in "$MODPROBE_CONF" "$NM_CONF" "$NM_PS_CONF" "$NVRAM_DEST"; do
     if [ -f "$f" ] && sudo grep -qF "$MARKER" "$f"; then
       sudo rm -f "$f"; ok "removed $f"
     fi
   done
-  [ "$DO_RELOAD" -eq 1 ] && reload_driver
+  echo "Reboot (or shut down fully and start again) to apply."
   exit 0
 fi
 
@@ -127,26 +117,19 @@ wifi.powersave = 2
 EOF
 ok "MAC randomization and Wi-Fi power saving off"
 
-# --- Apply -------------------------------------------------------------------
-if [ "$DO_RELOAD" -eq 1 ]; then
-  reload_driver
-else
-  echo "Changes apply at next reboot."
-fi
-
-if [ -n "$SSID" ]; then
-  # A connection saved while the old settings were active keeps them
-  # (e.g. a random MAC), so start it over.
-  if nmcli -t -f NAME connection show | grep -qxF "$SSID"; then
-    sudo nmcli connection delete "$SSID" >/dev/null
-  fi
-  nmcli device wifi rescan 2>/dev/null || true
-  sleep 3
-  nmcli --ask device wifi connect "$SSID"
+# --- Finish ------------------------------------------------------------------
+if [ -n "$SSID" ] && nmcli -t -f NAME connection show 2>/dev/null | grep -qxF "$SSID"; then
+  # A connection saved under the old settings keeps them (e.g. a random MAC).
+  sudo nmcli connection delete "$SSID" >/dev/null
+  ok "forgot saved network '$SSID'"
 fi
 
 echo
-nmcli -f IN-USE,SSID,CHAN,SIGNAL,SECURITY device wifi list 2>/dev/null | head -8 || true
-echo
-echo "5 GHz networks listed above and a higher SIGNAL than before mean the NVRAM"
-echo "took effect. Still trouble? Run: bash net-diagnose.sh"
+echo "Now SHUT DOWN fully (not restart), wait 10 seconds, and power on - a"
+echo "warm restart can leave this chip's firmware stuck. Then connect with:"
+echo "    nmcli --ask device wifi connect \"${SSID:-YourNetwork}\""
+echo "5 GHz networks in 'nmcli device wifi list' and a higher SIGNAL than before"
+echo "mean the NVRAM took effect. No Wi-Fi device at all afterwards:"
+echo "    bash wifi-fix.sh --undo   then shut down/start again, and try"
+echo "    bash wifi-fix.sh --no-nvram"
+echo "Other trouble: bash net-diagnose.sh"

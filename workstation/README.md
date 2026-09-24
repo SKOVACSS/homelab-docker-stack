@@ -172,7 +172,7 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
   It installs the NVRAM (`firmware/brcmfmac43602-pcie.txt`, extracted from
   Apple's Boot Camp driver - see its header), disables the firmware's
   broken WPA offload (`feature_disable=0x82000`) and NetworkManager's MAC
-  randomization and Wi-Fi power saving, reloads the driver and reconnects.
+  randomization and Wi-Fi power saving, and forgets the saved network. Then **shut down fully** and power on - reloading the driver in place, or a warm restart, can leave this chip's firmware crashed ("dongle is not responding").
   `--undo` reverts all of it; `--no-nvram` applies everything else, to
   tell which part helps. Reports differ between boards on the NVRAM, so if
   Wi-Fi gets *worse*, try `--undo` then `--no-nvram`.
