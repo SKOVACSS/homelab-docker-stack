@@ -1,0 +1,53 @@
+{
+  "uid": "homelab-caddy",
+  "title": "Web Traffic (Caddy)",
+  "description": "Everything that reaches the apps through Caddy - request rate, status codes, latency and bandwidth per site.",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "templating": { "list": [
+    { "name": "host", "label": "Site", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "query": { "query": "label_values(caddy_http_requests_total, host)", "refId": "PrometheusVariableQueryEditor-VariableQuery" },
+      "includeAll": true, "multi": true, "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "refresh": 2 }
+  ] },
+  "panels": [
+    {
+      "type": "timeseries", "title": "Requests per minute", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (host) (rate(caddy_http_requests_total{host=~\"$host\"}[5m])) * 60", "legendFormat": "{{host}}" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"], "sortBy": "Mean", "sortDesc": true } }
+    },
+    {
+      "type": "timeseries", "title": "Responses by status class", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (class) (label_replace(rate(caddy_http_request_duration_seconds_count{host=~\"$host\"}[5m]), \"class\", \"${1}xx\", \"code\", \"(.).*\")) * 60", "legendFormat": "{{class}}" } ],
+      "fieldConfig": { "defaults": { "custom": { "stacking": { "mode": "normal" }, "fillOpacity": 30 } }, "overrides": [
+        { "matcher": { "id": "byName", "options": "5xx" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } } ] },
+        { "matcher": { "id": "byName", "options": "4xx" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } } ] },
+        { "matcher": { "id": "byName", "options": "2xx" }, "properties": [ { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } } ] }
+      ] }
+    },
+    {
+      "type": "timeseries", "title": "Latency p95 by site", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum by (host, le) (rate(caddy_http_request_duration_seconds_bucket{host=~\"$host\"}[5m])))", "legendFormat": "{{host}}" } ],
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"], "sortBy": "Mean", "sortDesc": true } }
+    },
+    {
+      "type": "timeseries", "title": "Server errors (5xx) by site", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (host, code) (rate(caddy_http_request_duration_seconds_count{host=~\"$host\", code=~\"5..\"}[5m])) * 60", "legendFormat": "{{host}} {{code}}" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] } }
+    },
+    {
+      "type": "timeseries", "title": "Bandwidth served", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (host) (rate(caddy_http_response_size_bytes_sum{host=~\"$host\"}[5m]))", "legendFormat": "{{host}}" } ],
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"], "sortBy": "Mean", "sortDesc": true } }
+    }
+  ]
+}

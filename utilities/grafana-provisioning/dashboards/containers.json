@@ -1,0 +1,61 @@
+{
+  "uid": "homelab-containers",
+  "title": "Containers",
+  "description": "Per-container CPU, memory, network, state and restarts from Telegraf's Docker input. Filter by stack or container at the top.",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "templating": { "list": [
+    { "name": "stack", "label": "Stack", "type": "query", "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"homelab\", tag: \"com.docker.compose.project\", start: -1h)",
+      "includeAll": true, "multi": true, "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "refresh": 2 },
+    { "name": "container", "label": "Container", "type": "query", "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "query": "import \"influxdata/influxdb/schema\"\nschema.tagValues(bucket: \"homelab\", tag: \"container_name\", start: -1h)",
+      "includeAll": true, "multi": true, "allValue": ".*", "current": { "text": "All", "value": "$__all" }, "refresh": 2 }
+  ] },
+  "panels": [
+    {
+      "type": "table", "title": "Container status", "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: -5m) |> filter(fn: (r) => r._measurement == \"docker_container_status\" and (r._field == \"restart_count\" or r._field == \"uptime_ns\")) |> filter(fn: (r) => r.container_name =~ /^${container:regex}$/ and r[\"com.docker.compose.project\"] =~ /^${stack:regex}$/) |> last() |> pivot(rowKey: [\"container_name\"], columnKey: [\"_field\"], valueColumn: \"_value\") |> group() |> keep(columns: [\"container_name\", \"com.docker.compose.project\", \"container_status\", \"restart_count\", \"uptime_ns\"])" } ],
+      "fieldConfig": { "defaults": {}, "overrides": [
+        { "matcher": { "id": "byName", "options": "uptime_ns" }, "properties": [ { "id": "unit", "value": "ns" }, { "id": "displayName", "value": "Uptime" } ] },
+        { "matcher": { "id": "byName", "options": "restart_count" }, "properties": [ { "id": "displayName", "value": "Restarts" }, { "id": "custom.cellOptions", "value": { "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "transparent", "value": null }, { "color": "orange", "value": 3 }, { "color": "red", "value": 10 } ] } } ] },
+        { "matcher": { "id": "byName", "options": "com.docker.compose.project" }, "properties": [ { "id": "displayName", "value": "Stack" } ] },
+        { "matcher": { "id": "byName", "options": "container_name" }, "properties": [ { "id": "displayName", "value": "Container" } ] },
+        { "matcher": { "id": "byName", "options": "container_status" }, "properties": [ { "id": "displayName", "value": "State" } ] }
+      ] },
+      "options": { "sortBy": [ { "displayName": "Restarts", "desc": true } ] }
+    },
+    {
+      "type": "timeseries", "title": "Memory", "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"docker_container_mem\" and r._field == \"usage\") |> filter(fn: (r) => r.container_name =~ /^${container:regex}$/ and r[\"com.docker.compose.project\"] =~ /^${stack:regex}$/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> keep(columns: [\"_time\", \"_value\", \"container_name\"])" } ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "displayName": "${__field.labels.container_name}" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"], "sortBy": "Last *", "sortDesc": true } }
+    },
+    {
+      "type": "timeseries", "title": "CPU (% of one core)", "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"docker_container_cpu\" and r._field == \"percent\" and r.cpu == \"cpu-total\") |> filter(fn: (r) => r.container_name =~ /^${container:regex}$/ and r[\"com.docker.compose.project\"] =~ /^${stack:regex}$/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> keep(columns: [\"_time\", \"_value\", \"container_name\"])" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "displayName": "${__field.labels.container_name}" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"], "sortBy": "Mean", "sortDesc": true } }
+    },
+    {
+      "type": "timeseries", "title": "Network received", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"docker_container_net\" and r._field == \"rx_bytes\" and r.network == \"total\") |> filter(fn: (r) => r.container_name =~ /^${container:regex}$/ and r[\"com.docker.compose.project\"] =~ /^${stack:regex}$/) |> derivative(unit: 1s, nonNegative: true) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> keep(columns: [\"_time\", \"_value\", \"container_name\"])" } ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "displayName": "${__field.labels.container_name}" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"], "sortBy": "Mean", "sortDesc": true } }
+    },
+    {
+      "type": "timeseries", "title": "Network sent", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"docker_container_net\" and r._field == \"tx_bytes\" and r.network == \"total\") |> filter(fn: (r) => r.container_name =~ /^${container:regex}$/ and r[\"com.docker.compose.project\"] =~ /^${stack:regex}$/) |> derivative(unit: 1s, nonNegative: true) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false) |> keep(columns: [\"_time\", \"_value\", \"container_name\"])" } ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "displayName": "${__field.labels.container_name}" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"], "sortBy": "Mean", "sortDesc": true } }
+    }
+  ]
+}

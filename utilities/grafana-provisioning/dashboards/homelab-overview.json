@@ -1,0 +1,77 @@
+{
+  "uid": "homelab-overview",
+  "title": "Homelab Overview",
+  "description": "One-page health view: services, containers, the Docker VM, web traffic and log errors. Drill into the Containers, Logs, Caddy and Node Exporter Full dashboards for detail.",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "type": "stat", "title": "Prometheus targets down", "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "count(up == 0) or vector(0)" } ],
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat", "title": "Containers running", "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: -5m) |> filter(fn: (r) => r._measurement == \"docker\" and r._field == \"n_containers_running\") |> last()" } ],
+      "options": { "colorMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "stat", "title": "Unhealthy containers", "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: -5m) |> filter(fn: (r) => r._measurement == \"docker_container_health\" and r._field == \"health_status\") |> last() |> filter(fn: (r) => r._value != \"healthy\") |> group() |> count() |> yield(name: \"unhealthy\")" } ],
+      "fieldConfig": { "defaults": { "noValue": "0", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "gauge", "title": "Docker VM CPU", "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 75 }, { "color": "red", "value": 90 } ] } } }
+    },
+    {
+      "type": "gauge", "title": "Docker VM memory", "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 80 }, { "color": "red", "value": 92 } ] } } }
+    },
+    {
+      "type": "stat", "title": "Web requests / min", "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum(rate(caddy_http_requests_total[5m])) * 60" } ],
+      "fieldConfig": { "defaults": { "decimals": 0 } },
+      "options": { "colorMode": "none", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "timeseries", "title": "Web requests by site (per min)", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "topk(10, sum by (host) (rate(caddy_http_requests_total[5m]))) * 60", "legendFormat": "{{host}}" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean"] } }
+    },
+    {
+      "type": "timeseries", "title": "Server errors (5xx) by site (per min)", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (host) (rate(caddy_http_request_duration_seconds_count{code=~\"5..\"}[5m])) * 60", "legendFormat": "{{host}}" } ],
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" } } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] } }
+    },
+    {
+      "type": "bargauge", "title": "Top 15 containers by memory", "gridPos": { "h": 10, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-v2" },
+      "targets": [ { "refId": "A", "query": "from(bucket: \"homelab\") |> range(start: -5m) |> filter(fn: (r) => r._measurement == \"docker_container_mem\" and r._field == \"usage\") |> last() |> group() |> sort(columns: [\"_value\"], desc: true) |> limit(n: 15) |> map(fn: (r) => ({_time: r._time, _value: r._value, container: r.container_name})) |> group(columns: [\"container\"])" } ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "displayName": "${__field.labels.container}", "min": 0 } },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "type": "timeseries", "title": "Error log lines by container (per 5 min)", "gridPos": { "h": 10, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [ { "refId": "A", "expr": "topk(10, sum by (container) (count_over_time({container=~\".+\"} |~ \"(?i)\\b(error|fatal|panic|exception)\\b\" [5m])))", "legendFormat": "{{container}}" } ],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum"] } }
+    }
+  ]
+}

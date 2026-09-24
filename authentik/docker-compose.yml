@@ -135,6 +135,15 @@ services:
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
       AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
       AUTHENTIK_SECRET_KEY: ${SECRET_KEY}
+      # Read by the blueprints in ./blueprints (!Env tags) - see
+      # blueprints/grafana.yaml. Each OIDC client secret here must match
+      # the same variable in the app's own stack .env.
+      DOMAIN: ${DOMAIN}
+      GRAFANA_OIDC_CLIENT_SECRET: ${GRAFANA_OIDC_CLIENT_SECRET:-}
+    volumes:
+      # Repo-managed blueprints: applied automatically at startup and
+      # whenever a file changes, so app logins are code, not UI clicks.
+      - ./blueprints:/blueprints/custom:ro
     depends_on:
       postgresql:
         condition: service_healthy
