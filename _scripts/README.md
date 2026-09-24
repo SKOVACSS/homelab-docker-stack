@@ -322,3 +322,22 @@ telemetry off, and registers LazyLibrarian in Prowlarr so every book
 indexer syncs to it. Idempotent. One manual step it deliberately leaves
 to you: qBittorrent's WebUI login in LazyLibrarian -> Config ->
 Downloaders -> qBittorrent.
+
+## check-model-updates.ps1
+
+```powershell
+.\check-model-updates.ps1 [-DryRun] [-MaxWeightGB 6.5] [-MinSizeRatio 0.8]
+```
+
+Looks on Hugging Face for newer chat models from official publishers
+(Qwen, Meta, Mistral, Google, Microsoft, IBM, DeepSeek) that should fit
+this GPU: AWQ-quantized text models, not gated, weights between 0.8x the
+current model and 6.5GB, published after the one vLLM serves now. Sends
+new finds to Gotify once each; never changes the running model - swap
+it by hand (ai-stack/docker-compose.yml) after testing. Weekly schedule:
+```powershell
+$action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
+  -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\check-model-updates.ps1`""
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 10:00AM
+Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Homelab_Check_Model_Updates"
+```
