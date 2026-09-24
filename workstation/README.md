@@ -38,8 +38,10 @@ Have on hand:
 - A **USB-C** stick (or a USB-A stick + adapter) - 4 GB or more.
 - A **USB keyboard/mouse**, just in case the internal ones misbehave in
   the live session or at an encryption prompt.
-- Ideally a **USB-C Ethernet adapter**. Wi-Fi works out of the box, but a
-  wire rules it out if something goes wrong.
+- **A way online that isn't the built-in Wi-Fi**: a USB-C Ethernet
+  adapter, or USB tethering from your phone. On the Touch Bar models the
+  Wi-Fi often won't connect until it's fixed (see "Wi-Fi" below), and the
+  fix needs the internet.
 - Your **Wi-Fi password**, and a **WireGuard peer config** from the server
   (`security-stack/wireguard/config/peerN/peerN.conf`) on a second stick
   or somewhere you can download it from after install. Use a peer no other
@@ -52,8 +54,14 @@ comes from Fedora, RPM Fusion, Microsoft or GitHub during setup.
 ## 2. Install
 
 1. Plug in the stick, power on holding **Option (⌥)**, pick **EFI Boot**.
-2. In the live session, check Wi-Fi, keyboard, trackpad and display before
-   committing. (Sound won't work yet - that's expected, see step 3.)
+2. In the live session, check keyboard, trackpad and display before
+   committing, and try Wi-Fi (see "Wi-Fi" below if it won't connect).
+   No sound, a blank Touch Bar and no webcam are all expected.
+   - The Fedora menu's **"Test this media"** entry may print
+     `grub_efidisk_open: invalid buffer alignment` and/or report the
+     result as **NA** - neither means the stick is bad. Recent Fedora
+     ISOs don't embed the checksum that test reads; the SHA256 you
+     checked on download is the real verification.
 3. **Install to Hard Drive** -> erase the whole disk. OpenCore Legacy
    Patcher and macOS go with it; nothing on this Mac needs them. Its
    firmware is already final (Monterey was the last supported macOS), and
@@ -88,9 +96,10 @@ What it does:
 | VS Code, PowerShell 7 | Edit this repo locally or over Remote-SSH; lint/dry-run the `.ps1` scripts. |
 | SPI keyboard drivers into the initramfs | Built-in keyboard works at the LUKS prompt. |
 | udev rule: Apple NVMe `d3cold_allowed=0` | These Macs otherwise fail to resume from suspend (SSD drops off the bus). |
+| `brcmfmac feature_disable=0x82000` (BCM43602 only) | Touch Bar models' Wi-Fi firmware fails WPA logins without it. |
 | Wi-Fi power saving off | The BCM43602's driver stalls/drops with it on. |
 | Caps Lock -> Esc | The Touch Bar's Esc isn't dependable on Linux (see below). |
-| `snd_hda_macbookpro` | Mainline's CS8409 codec driver only knows Dell's wiring; without this the speakers are silent. |
+| `snd_hda_macbookpro` | Mainline's CS8409 codec driver only knows Dell's wiring; without this the speakers are silent. Not confirmed upstream on the 13" Touch Bar (`MacBookPro13,2`) - may still be silent there. |
 | SSH key, `Host homelab`, `rdp-homelab` | One-word connections to the server. |
 | WireGuard import (off by default) | Toggle it from the tray when away from home. |
 
@@ -129,6 +138,29 @@ only the LAN through it, change `AllowedIPs` in the imported connection
 to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
 
 ## Known gaps on this model
+
+- **Wi-Fi (Touch Bar models)** - the BCM43602's firmware misdetects the
+  country, so only 2.4 GHz networks show up and connecting often fails
+  (`...was not in the scan list`, or an endless password prompt). In
+  order, until one works:
+  1. Connect to a **2.4 GHz** network from a terminal, which also avoids
+     the scan-list race:
+     `nmcli device wifi rescan; nmcli --ask device wifi connect "SSID"`
+  2. Disable the firmware's WPA offload (the setup script makes this
+     permanent; this applies it right now, live session included):
+     ```bash
+     echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf
+     sudo modprobe -r brcmfmac_wcc; sudo modprobe -r brcmfmac; sudo modprobe brcmfmac
+     ```
+  3. Set the router (or a guest network) to **WPA2**, not WPA3/mixed.
+  4. Still failing: a board NVRAM file (`brcmfmac43602-pcie.txt`) that
+     fixes the country detection exists, but reported results vary
+     between boards - see
+     [Dunedan/mbp-2016-linux](https://github.com/Dunedan/mbp-2016-linux#wi-fi).
+     Use Ethernet/tethering in the meantime.
+- **Speakers (13" Touch Bar, `MacBookPro13,2`)** - listed as not working
+  upstream, even with the `snd_hda_macbookpro` driver the script builds.
+  Plan on USB/Bluetooth audio or headphones.
 
 - **Touch Bar** - the T1-era Touch Bar has no mainline driver; it may be
   blank or only partly working. The out-of-tree

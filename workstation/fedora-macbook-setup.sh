@@ -69,6 +69,26 @@ STATE_DIR=/var/lib/homelab-workstation
 sudo mkdir -p "$STATE_DIR"
 
 # ---------------------------------------------------------------------------
+step "Wi-Fi driver quirk (Touch Bar models' BCM43602)"
+# The Touch Bar models' BCM43602 firmware gets the country code wrong: only
+# 2.4 GHz networks show up and WPA logins fail or loop on the password
+# prompt. Disabling the firmware's WPA offload features (0x82000) is the
+# widely reported fix for the login failures. It's written first so it's
+# in place however you got online to run this; it takes effect at the next
+# reboot rather than reloading the driver mid-run and dropping your
+# connection. Non-Touch-Bar models use a BCM4350 that doesn't need it.
+BRCM43602=0
+for dev in /sys/bus/pci/devices/*; do
+  if [ "$(cat "$dev/vendor")" = "0x14e4" ] && [ "$(cat "$dev/device")" = "0x43ba" ]; then BRCM43602=1; fi
+done
+if [ "$BRCM43602" -eq 1 ]; then
+  echo 'options brcmfmac feature_disable=0x82000' | sudo tee /etc/modprobe.d/brcmfmac.conf >/dev/null
+  ok "brcmfmac feature_disable=0x82000 set (active after reboot) - 5 GHz may still not appear; see README"
+else
+  ok "no BCM43602 found - not needed"
+fi
+
+# ---------------------------------------------------------------------------
 step "Updating the system"
 sudo dnf upgrade --refresh -y
 
@@ -190,7 +210,9 @@ fi
 if [ "$DO_AUDIO" -eq 1 ]; then
   step "Internal speakers (Cirrus CS8409 codec driver)"
   # Mainline's CS8409 driver only covers Dell machines; Apple's wiring of
-  # the same codec needs davidjo's patched driver. It builds against the
+  # the same codec needs davidjo's patched driver. Upstream has verified it
+  # on MacBookPro13,1/13,3/14,3 but not 13,2 (13" Touch Bar), so on that
+  # model it may build fine and still leave the speakers silent. It builds against the
   # running kernel's source, so it's skipped until you've rebooted into the
   # newest installed kernel.
   RUNNING="$(uname -r)"
