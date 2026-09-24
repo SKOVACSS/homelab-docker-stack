@@ -63,6 +63,12 @@ services:
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16
       # Only pick servers that support port forwarding.
       - PORT_FORWARD_ONLY=on
+      # HTTP proxy on :8888, reachable only from containers on gluetun's
+      # Docker networks (not published below). Prowlarr uses it as a
+      # tag-scoped indexer proxy for sites that ban the home IP outright
+      # (1337x: Cloudflare error 1006) - FlareSolverr alone can't help
+      # there, since Prowlarr's own requests still leave from home.
+      - HTTPPROXY=on
       - VPN_PORT_FORWARDING=on
       - VPN_PORT_FORWARDING_PROVIDER=protonvpn
       # ProtonVPN hands out a different forwarded port on every connect, so
@@ -352,16 +358,24 @@ services:
   # Proxy (Settings -> Indexers -> Proxies) and applied only to the
   # specific indexers that need it via a tag - untagged indexers bypass it
   # entirely. No web UI is exposed through Caddy; only Prowlarr talks to
-  # this, over media-network.
+  # this, at http://gluetun:8191.
+  #
+  # Rides gluetun's VPN tunnel, like qBittorrent: 1337x's Cloudflare
+  # outright bans the home (Starlink) IP - error 1006, "Cloudflare has
+  # blocked this request", which no challenge-solving gets past - but
+  # solves fine from the VPN exit (confirmed live). Also keeps indexer
+  # scraping off the home IP generally.
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
     restart: unless-stopped
     container_name: flaresolverr
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    network_mode: service:gluetun
     environment:
       - LOG_LEVEL=info
       - TZ=${TZ:-UTC}
-    networks:
-      - media-network
     healthcheck:
       # wget isn't in this image (confirmed live: "executable file not
       # found in $PATH") - curl is. Was silently failing every check

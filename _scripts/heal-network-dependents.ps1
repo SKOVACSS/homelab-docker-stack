@@ -1,4 +1,4 @@
-#Requires -Version 5.0
+﻿#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -51,11 +51,12 @@ function Send-GotifyNotification {
 }
 
 # Add an entry here for any future service that uses
-# network_mode: service:<Target> - qbittorrent and slskd are the only
-# two today (both in media-stack, both riding gluetun's VPN tunnel).
+# network_mode: service:<Target> - qbittorrent, slskd and flaresolverr
+# today (all in media-stack, all riding gluetun's VPN tunnel).
 $dependents = @(
-    @{ Stack = "media-stack"; Service = "qbittorrent"; Container = "qbittorrent"; Target = "gluetun" }
-    @{ Stack = "media-stack"; Service = "slskd";       Container = "slskd";       Target = "gluetun" }
+    @{ Stack = "media-stack"; Service = "qbittorrent";  Container = "qbittorrent";  Target = "gluetun" }
+    @{ Stack = "media-stack"; Service = "slskd";        Container = "slskd";        Target = "gluetun" }
+    @{ Stack = "media-stack"; Service = "flaresolverr"; Container = "flaresolverr"; Target = "gluetun" }
 )
 
 $appRoot = Split-Path -Parent $PSScriptRoot
