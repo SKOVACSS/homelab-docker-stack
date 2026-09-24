@@ -25,3 +25,16 @@ scrape_configs:
   - job_name: 'node'
     static_configs:
       - targets: ['node-exporter:9100']
+
+  # The Windows host itself (node-exporter above only sees Docker's WSL2
+  # VM): real CPU, RAM, every drive, NICs, services. windows_exporter runs
+  # as a Windows service - install with
+  #   winget install --id Prometheus.WindowsExporter --exact
+  # Scrape time of a few seconds is normal for the service collector.
+  - job_name: 'windows'
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+      - targets: ['host.docker.internal:9182']
+        labels:
+          instance: 'server'

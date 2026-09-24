@@ -1,0 +1,110 @@
+{
+  "uid": "homelab-windows-host",
+  "title": "Windows Host",
+  "description": "The physical server itself, from windows_exporter - real CPU, RAM, every drive and NIC. The System Overview / Node Exporter dashboards only see Docker's WSL2 VM.",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "type": "stat", "title": "Uptime", "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "description": "Resets on every reboot - a surprise reset here means a crash (BSOD).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "time() - windows_system_boot_time_timestamp{job=\"windows\"}", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 1 } }
+    },
+    {
+      "type": "gauge", "title": "CPU", "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "100 - avg(rate(windows_cpu_time_total{job=\"windows\", mode=\"idle\"}[5m])) * 100", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 75 }, { "color": "red", "value": 90 } ] } } }
+    },
+    {
+      "type": "gauge", "title": "RAM", "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "(1 - windows_memory_available_bytes{job=\"windows\"} / windows_memory_physical_total_bytes{job=\"windows\"}) * 100", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 80 }, { "color": "red", "value": 92 } ] } } }
+    },
+    {
+      "type": "stat", "title": "RAM installed", "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "windows_memory_physical_total_bytes{job=\"windows\"}", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 0 } }
+    },
+    {
+      "type": "stat", "title": "Processes / threads", "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "windows_system_processes{job=\"windows\"}", "instant": true, "legendFormat": "processes" },
+        { "refId": "B", "expr": "windows_system_threads{job=\"windows\"}", "instant": true, "legendFormat": "threads" }
+      ],
+      "options": { "textMode": "value_and_name" }
+    },
+    {
+      "type": "bargauge", "title": "Drive space used", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "(1 - windows_logical_disk_free_bytes{job=\"windows\", volume!~\"HarddiskVolume.*\"} / windows_logical_disk_size_bytes{job=\"windows\", volume!~\"HarddiskVolume.*\"}) * 100", "instant": true, "legendFormat": "{{volume}}" } ],
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "showUnfilled": true },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 85 }, { "color": "red", "value": 95 } ] } } }
+    },
+    {
+      "type": "table", "title": "Drive free space", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "windows_logical_disk_free_bytes{job=\"windows\", volume!~\"HarddiskVolume.*\"}", "instant": true, "format": "table" },
+        { "refId": "B", "expr": "windows_logical_disk_size_bytes{job=\"windows\", volume!~\"HarddiskVolume.*\"}", "instant": true, "format": "table" }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true }, "renameByName": { "volume": "Drive", "Value #A": "Free", "Value #B": "Size" } } }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "decimals": 1 } }
+    },
+    {
+      "type": "timeseries", "title": "CPU by mode", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "avg by (mode) (rate(windows_cpu_time_total{job=\"windows\", mode!=\"idle\"}[5m])) * 100", "legendFormat": "{{mode}}" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "custom": { "stacking": { "mode": "normal" }, "fillOpacity": 30 } } }
+    },
+    {
+      "type": "timeseries", "title": "Memory", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "windows_memory_physical_total_bytes{job=\"windows\"} - windows_memory_available_bytes{job=\"windows\"}", "legendFormat": "in use" },
+        { "refId": "B", "expr": "windows_memory_committed_bytes{job=\"windows\"}", "legendFormat": "committed" },
+        { "refId": "C", "expr": "windows_memory_physical_total_bytes{job=\"windows\"}", "legendFormat": "installed" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "type": "timeseries", "title": "Disk throughput (physical disks)", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(windows_physical_disk_read_bytes_total{job=\"windows\"}[5m])", "legendFormat": "read {{disk}}" },
+        { "refId": "B", "expr": "-rate(windows_physical_disk_write_bytes_total{job=\"windows\"}[5m])", "legendFormat": "write {{disk}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "type": "timeseries", "title": "Disk busy %", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "description": "100% = the disk is the bottleneck (e.g. parity sync, Plex scans, big downloads unpacking).",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "clamp_min(100 - rate(windows_physical_disk_idle_seconds_total{job=\"windows\"}[5m]) * 100, 0)", "legendFormat": "{{disk}}" } ],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    },
+    {
+      "type": "timeseries", "title": "Network", "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(windows_net_bytes_received_total{job=\"windows\", nic!~\".*(isatap|Teredo|Loopback|Filter|Pseudo).*\"}[5m]) * 8 > 0", "legendFormat": "in {{nic}}" },
+        { "refId": "B", "expr": "-rate(windows_net_bytes_sent_total{job=\"windows\", nic!~\".*(isatap|Teredo|Loopback|Filter|Pseudo).*\"}[5m]) * 8 < 0", "legendFormat": "out {{nic}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bps" } },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] } }
+    }
+  ]
+}
