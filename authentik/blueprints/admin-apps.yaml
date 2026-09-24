@@ -1,0 +1,58 @@
+# Authentik blueprint - one Authentik login in front of every admin-only
+# web app (the *arrs, qBittorrent, slskd, Syncthing, Uptime Kuma, Pi-hole,
+# Homepage...). Caddy asks Authentik's embedded outpost before letting a
+# request through (the `authentik` snippet in caddy/Caddyfile); only members
+# of "authentik Admins" pass. Each app keeps its own login behind this.
+#
+# Domain-level mode: signing in once covers every subdomain (the session
+# cookie is set on DOMAIN itself), so it's one login for all of them, not
+# one per app. Each site's API paths skip this in Caddy - they're already
+# protected by the app's API key, and Homepage widgets, Seerr and phone
+# apps (nzb360, LunaSea...) can't do a browser login.
+version: 1
+metadata:
+  name: Homelab - Admin apps forward auth
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: admin-apps-provider
+    identifiers:
+      name: Admin apps
+    attrs:
+      name: Admin apps
+      mode: forward_domain
+      external_host: !Format ["https://auth.%s", !Env DOMAIN]
+      cookie_domain: !Env DOMAIN
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      # How long one sign-in lasts across all admin apps.
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    id: admin-apps-app
+    identifiers:
+      slug: admin-apps
+    attrs:
+      name: Admin apps
+      slug: admin-apps
+      provider: !KeyOf admin-apps-provider
+      meta_launch_url: !Format ["https://home.%s/", !Env DOMAIN]
+      meta_description: The *arrs, downloads, monitoring and the dashboard
+      policy_engine_mode: any
+  - model: authentik_policies.policybinding
+    identifiers:
+      target: !KeyOf admin-apps-app
+      group: !Find [authentik_core.group, [name, authentik Admins]]
+    attrs:
+      order: 0
+      enabled: true
+      negate: false
+      timeout: 30
+  # The embedded outpost (inside authentik-server) answers Caddy's checks;
+  # it only serves providers listed here.
+  - model: authentik_outposts.outpost
+    identifiers:
+      managed: goauthentik.io/outposts/embedded
+    attrs:
+      providers:
+        - !KeyOf admin-apps-provider

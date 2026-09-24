@@ -131,6 +131,9 @@ services:
       - MYSQL_DATABASE=nextcloud
       - MYSQL_USER=nextcloud
       - MYSQL_HOST=nextcloud-db
+      # Read by _scripts/configure-nextcloud-oidc.ps1, which sets up the
+      # "Log in with Authentik" button (user_oidc app).
+      - NEXTCLOUD_OIDC_CLIENT_SECRET=${NEXTCLOUD_OIDC_CLIENT_SECRET:-}
     depends_on:
       - nextcloud-db
     networks:
@@ -219,6 +222,13 @@ services:
       - PAPERLESS_DISABLE_LOGIN=false
       - PAPERLESS_ENABLE_COMPRESSION=true
       - PAPERLESS_ENABLE_NGRAM_SEARCH=true
+      # "Sign in with Authentik" button (authentik/blueprints/app-logins.yaml).
+      # Local logins still work. An existing account links to Authentik from
+      # Profile -> "Connect new social account"; new Authentik users get a
+      # Paperless account on first sign-in.
+      - PAPERLESS_APPS=allauth.socialaccount.providers.openid_connect
+      - 'PAPERLESS_SOCIALACCOUNT_PROVIDERS={"openid_connect":{"OAUTH_PKCE_ENABLED":true,"APPS":[{"provider_id":"authentik","name":"Authentik","client_id":"paperless","secret":"${PAPERLESS_OIDC_CLIENT_SECRET}","settings":{"server_url":"https://auth.${DOMAIN}/application/o/paperless/.well-known/openid-configuration"}}]}}'
+      - PAPERLESS_SOCIAL_AUTO_SIGNUP=true
     depends_on:
       - paperless-db
       - paperless-redis
