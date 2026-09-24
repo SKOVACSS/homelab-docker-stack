@@ -225,6 +225,12 @@
           fields: ["queries", "blocked", "blocked_percent"]
 
 - Utilities:
+    - Remote Desktop:
+        icon: guacamole.png
+        href: "https://remote.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: This server's Windows desktop in the browser (admins only)
+        server: my-docker
+        container: guacamole
     - Portainer:
         icon: portainer.png
         href: "https://portainer.{{HOMEPAGE_VAR_DOMAIN}}"
