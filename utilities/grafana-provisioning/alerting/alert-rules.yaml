@@ -1,0 +1,194 @@
+apiVersion: 1
+
+# Alert rules - every one notifies Gotify through the contact point and
+# policy next to this file. Each waits out a "for" period, so a restart
+# or a one-off blip doesn't page anyone. Uptime Kuma covers "is each app
+# answering"; these cover what it can't see: resources, error rates and
+# container health/restarts.
+#
+# Shape of every rule: A = the query, B = reduce to one value per
+# series, C = threshold (the condition).
+
+groups:
+  - orgId: 1
+    name: homelab
+    folder: Homelab
+    interval: 1m
+    rules:
+      - uid: prometheus-target-down
+        title: Metrics source down
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Prometheus can''t scrape {{ $labels.job }} ({{ $labels.instance }})'
+          description: 'Its metrics (and any alerts built on them) are blind until it''s back.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: 'up', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: lt, params: [1] } } ] }
+
+      - uid: docker-vm-memory-high
+        title: Docker memory nearly full
+        condition: C
+        for: 10m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: 'Docker''s VM is using {{ printf "%.0f" $values.B.Value }}% of its memory'
+          description: 'Near the limit, the kernel starts killing containers and file I/O fails ("Out of memory" in qBittorrent). Check the Containers dashboard for the biggest users.'
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [92] } } ] }
+
+      - uid: docker-vm-disk-full
+        title: Docker disk nearly full
+        condition: C
+        for: 15m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: 'Docker''s virtual disk is {{ printf "%.0f" $values.B.Value }}% full'
+          description: 'Holds every image, container and named volume. Clean up with `docker system prune` (images) after checking what''s large.'
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: '100 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} * 100', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [90] } } ] }
+
+      - uid: web-5xx-errors
+        title: Site returning server errors
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.host }} is returning {{ printf "%.1f" $values.B.Value }} server errors (5xx) per minute'
+          description: 'Usually the app behind it is down or crashing - see the Web Traffic and Logs dashboards.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: 'sum by (host) (rate(caddy_http_request_duration_seconds_count{code=~"5.."}[10m])) * 60', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [5] } } ] }
+
+      - uid: container-unhealthy
+        title: Container unhealthy
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.container_name }} is failing its healthcheck'
+          description: 'Docker reports it running but unhealthy - check its logs on the Logs dashboard.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: influxdb-v2
+            model:
+              refId: A
+              query: |-
+                from(bucket: "homelab")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r._measurement == "docker_container_health" and r._field == "health_status")
+                  |> last()
+                  |> map(fn: (r) => ({ _time: r._time, container_name: r.container_name, _value: if r._value == "unhealthy" then 1.0 else 0.0 }))
+                  |> group(columns: ["container_name"])
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+
+      - uid: container-restart-loop
+        title: Container restarting repeatedly
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.container_name }} restarted {{ printf "%.0f" $values.B.Value }} times in 30 minutes'
+          description: 'A crash loop - it keeps dying and Docker keeps restarting it. Its logs will say why.'
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: influxdb-v2
+            model:
+              refId: A
+              query: |-
+                from(bucket: "homelab")
+                  |> range(start: -30m)
+                  |> filter(fn: (r) => r._measurement == "docker_container_status" and r._field == "restart_count")
+                  |> group(columns: ["container_name"])
+                  |> spread()
+                  |> map(fn: (r) => ({ _time: now(), container_name: r.container_name, _value: float(v: r._value) }))
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [3] } } ] }
+
+      - uid: container-oom-killed
+        title: Container killed for running out of memory
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: '{{ $labels.container_name }} was killed for exceeding its memory limit'
+          description: 'Either its limit in docker-compose.yml is too low or it has a leak - compare with the Containers dashboard memory panel.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: influxdb-v2
+            model:
+              refId: A
+              query: |-
+                from(bucket: "homelab")
+                  |> range(start: -5m)
+                  |> filter(fn: (r) => r._measurement == "docker_container_status" and r._field == "oomkilled")
+                  |> last()
+                  |> map(fn: (r) => ({ _time: r._time, container_name: r.container_name, _value: if r._value == true then 1.0 else 0.0 }))
+                  |> group(columns: ["container_name"])
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
