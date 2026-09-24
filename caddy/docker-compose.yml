@@ -49,7 +49,18 @@ services:
       RADICALE_AUTH_USER: ${RADICALE_AUTH_USER}
       RADICALE_AUTH_HASH: ${RADICALE_AUTH_HASH}
     networks:
-      - caddy-network
+      caddy-network:
+        # Containers resolving auth.DOMAIN reach Caddy directly (Docker's
+        # DNS answers aliases before any upstream lookup) instead of going
+        # out to Cloudflare over Starlink and back in through the tunnel.
+        # Server-to-server OIDC calls (Immich's discovery, Homepage's token
+        # exchange) then work even while the tunnel is reconnecting -
+        # confirmed live: Immich app logins failed with "Error in OAuth
+        # discovery: fetch failed" for the hour after a Docker restart,
+        # while the same fetch through Cloudflare was fine later. Caddy
+        # serves this name with its real certificate, so TLS still checks.
+        aliases:
+          - auth.${DOMAIN}
     healthcheck:
       # Not /health: Caddy's admin API has no such route by default (404,
       # confirmed live) - /config/ is the lightweight always-200-if-alive
