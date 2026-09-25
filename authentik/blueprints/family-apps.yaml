@@ -13,6 +13,9 @@ entries:
   # Its OIDC settings live in its own database: Settings -> Authentication
   # -> OpenID Connect (issuer https://auth.DOMAIN/application/o/
   # audiobookshelf/, client "audiobookshelf", secret from family-stack/.env).
+  # Audiobookshelf serves its UI under /audiobookshelf/ (its router base
+  # path), so the callbacks include it - keep "Subfolder for redirect URLs"
+  # set to /audiobookshelf in its settings.
   - model: authentik_providers_oauth2.oauth2provider
     id: audiobookshelf-provider
     identifiers:
@@ -30,9 +33,9 @@ entries:
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       redirect_uris:
         - matching_mode: strict
-          url: !Format ["https://audiobooks.%s/auth/openid/callback", !Env DOMAIN]
+          url: !Format ["https://audiobooks.%s/audiobookshelf/auth/openid/callback", !Env DOMAIN]
         - matching_mode: strict
-          url: !Format ["https://audiobooks.%s/auth/openid/mobile-redirect", !Env DOMAIN]
+          url: !Format ["https://audiobooks.%s/audiobookshelf/auth/openid/mobile-redirect", !Env DOMAIN]
       property_mappings:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]

@@ -1,0 +1,22 @@
+# Admin shortcuts shown under the service groups.
+- Admin:
+    - Authentik admin:
+        - icon: authentik.png
+          href: "https://auth.{{HOMEPAGE_VAR_DOMAIN}}/if/admin/"
+    - Family dashboard:
+        - icon: homepage.png
+          href: "https://home.{{HOMEPAGE_VAR_DOMAIN}}"
+    - Grafana - Windows Host:
+        - icon: grafana.png
+          href: "https://grafana.{{HOMEPAGE_VAR_DOMAIN}}/d/homelab-windows-host"
+
+- Outside services:
+    - Cloudflare:
+        - icon: cloudflare.png
+          href: https://dash.cloudflare.com/
+    - GitHub repo:
+        - icon: github.png
+          href: https://github.com/SKOVACSS/homelab-docker-stack
+    - Omada controller:
+        - icon: omada.png
+          href: https://192.168.0.2/

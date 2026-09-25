@@ -64,6 +64,20 @@
         href: "https://pdf.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Merge, sign, compress & convert PDFs
 
+- Organize:
+    - Documents:
+        icon: paperless-ngx.png
+        href: "https://papers.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Scanned bills, letters & records
+    - Read Later:
+        icon: wallabag.png
+        href: "https://read.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Save articles to read later
+    - Boards:
+        icon: focalboard.png
+        href: "https://boards.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Plans, projects & to-do lists
+
 - Help:
     - Family Guide:
         icon: mdi-account-group

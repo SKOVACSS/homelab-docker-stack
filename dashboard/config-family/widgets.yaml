@@ -1,12 +1,15 @@
 - greeting:
-    text_size: xl
+    text_size: 2xl
     text: Welcome home
 
 - datetime:
-    text_size: md
+    text_size: lg
     format:
-      dateStyle: long
+      weekday: long
+      month: long
+      day: numeric
 
 - search:
     provider: duckduckgo
     target: _blank
+    focus: true

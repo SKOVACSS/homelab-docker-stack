@@ -1,0 +1,32 @@
+/* Admin dashboard polish - class names from Homepage v2.4's own markup. */
+
+/* Tiles: glassier, softly rounded, lift on hover */
+.service > div {
+  border-radius: 14px;
+  border: 1px solid rgba(148, 222, 212, 0.10);
+  background-color: rgba(8, 22, 30, 0.45) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.service > div:hover {
+  transform: translateY(-2px);
+  border-color: rgba(94, 234, 212, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(94, 234, 212, 0.08);
+}
+.service-icon img { filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35)); }
+.service-name { font-weight: 600; letter-spacing: 0.01em; }
+
+/* Group headings: small caps label with a teal tick */
+.service-group-name, .bookmark-group-name {
+  font-size: 0.8rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: rgba(204, 251, 241, 0.85) !important;
+}
+
+/* Header widgets */
+.information-widget-greeting { font-weight: 700; letter-spacing: -0.01em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .service > div { transition: none; }
+  .service > div:hover { transform: none; }
+}

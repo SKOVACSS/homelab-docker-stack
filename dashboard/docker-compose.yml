@@ -20,13 +20,16 @@ services:
     container_name: homepage
     volumes:
       - ./config:/app/config
+      # Background images (settings.yaml -> /images/...).
+      - ./images:/app/public/images:ro
       # Read-only, used only for the Docker widget's container stats/health
       # on the tiles below that opt into it (see config/docker.yaml).
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       # Required by Homepage itself (Host-header validation) - must match
-      # every hostname it's actually reachable on.
-      - HOMEPAGE_ALLOWED_HOSTS=dash.${DOMAIN}
+      # every hostname it's actually reachable on (the internal name is
+      # Uptime Kuma's health check).
+      - HOMEPAGE_ALLOWED_HOSTS=dash.${DOMAIN},homepage:3000
       # Read in services.yaml as {{HOMEPAGE_VAR_DOMAIN}} so every tile's
       # link works for whatever domain this was actually installed with,
       # rather than a hardcoded placeholder.
@@ -84,8 +87,9 @@ services:
     container_name: homepage-family
     volumes:
       - ./config-family:/app/config
+      - ./images:/app/public/images:ro
     environment:
-      - HOMEPAGE_ALLOWED_HOSTS=home.${DOMAIN}
+      - HOMEPAGE_ALLOWED_HOSTS=home.${DOMAIN},homepage-family:3000
       - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
       - HOMEPAGE_AUTH_ENABLED=true
       - HOMEPAGE_EXTERNAL_URL=https://home.${DOMAIN}
