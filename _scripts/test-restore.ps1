@@ -227,7 +227,8 @@ if ($repo -and $repoPw) {
 
     $snapJson = docker @rArgs snapshots --host homelab --latest 1 --json --no-lock 2>$null
     $latest = $null
-    try { $latest = ($snapJson | ConvertFrom-Json) | Select-Object -Last 1 } catch {}
+    try { $latest = ($snapJson | ConvertFrom-Json) | Select-Object -Last 1 }
+    catch { Write-Host "  (couldn't read restic's snapshot list: $_)" -ForegroundColor Yellow }
     if (-not $latest) {
         Fail "off-site repository has no snapshots (or can't be opened)"
     } else {
