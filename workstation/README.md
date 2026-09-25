@@ -185,9 +185,28 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
   `sudo modprobe -r brcmfmac_wcc brcmfmac; sudo modprobe brcmfmac`.
   Connected but no internet: give it a minute or two on a weak signal,
   then `bash net-diagnose.sh`, which writes a report next to itself (so
-  onto the USB stick). Keep the router on **WPA2**, not WPA3/mixed. For
-  a connection you can rely on, a Linux-supported USB Wi-Fi adapter or
-  USB-C Ethernet sidesteps this chip entirely.
+  onto the USB stick). For a connection you can rely on, a
+  Linux-supported USB Wi-Fi adapter or Ethernet sidesteps this chip
+  entirely.
+
+  Access-point settings that matter for this chip (on a MacBookPro13,2 a
+  TP-Link Deco network worked at ~20 Mbps while a weaker-signal Omada SSID
+  kept failing): **WPA2-Personal, AES only** (not WPA/WPA2 mixed with
+  TKIP - shows as `WPA1 WPA2` in `nmcli device wifi list` - and not WPA3
+  or WPA2/WPA3 transition), **802.11r / fast roaming off**, and **PMF
+  "Capable"/optional** rather than required. Signal strength matters more
+  than any of these: below ~20% in `nmcli device wifi list` it rarely
+  holds a connection.
+- **USB-C / Thunderbolt devices plugged in after boot** (sticks, docks)
+  often aren't detected - plug them in before powering on. A
+  **Thunderbolt dock** is also held back until you approve it once
+  (`boltctl list` shows it as `connected` rather than `authorized`):
+  ```bash
+  boltctl list
+  sudo boltctl enroll --policy auto <uuid from boltctl list>
+  ```
+  (or System Settings -> Thunderbolt). After that its Ethernet port works
+  at full speed - the easiest way to run the setup script.
 - **Speakers (13" Touch Bar, `MacBookPro13,2`)** - listed as not working
   upstream, even with the `snd_hda_macbookpro` driver the script builds.
   Plan on USB/Bluetooth audio or headphones.
