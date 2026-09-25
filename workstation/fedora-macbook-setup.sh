@@ -83,7 +83,7 @@ sudo mkdir -p "$STATE_DIR"
 # ---------------------------------------------------------------------------
 step "Wi-Fi fix (Touch Bar models' BCM43602)"
 # Same fixes as running wifi-fix.sh by hand (WPA offload off, no MAC
-# randomization, no power saving; no NVRAM) - done first so
+# randomization, no power saving, board NVRAM) - done first so
 # they're in place however you got online to run this. --no-reload: they
 # take effect at the next reboot rather than dropping the connection this
 # script is about to download over.

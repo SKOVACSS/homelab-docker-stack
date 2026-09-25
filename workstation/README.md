@@ -80,7 +80,7 @@ works - that's why everything below is run with `bash`, not `./`):
 ```
 wifi-fix.sh                     # offline Wi-Fi fix - run this first
 net-diagnose.sh                 # writes net-report-*.txt onto the stick
-firmware/brcmfmac43602-pcie.txt # only used by wifi-fix.sh --nvram
+firmware/brcmfmac43602-pcie.txt # used by wifi-fix.sh
 fedora-macbook-setup.sh         # everything else (needs internet)
 enable-remote-management.ps1    # for the Windows host (from _scripts/)
 ```
@@ -160,26 +160,41 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
 
 ## Known gaps on this model
 
-- **Wi-Fi (Touch Bar models)** - the BCM43602 is poorly supported: **2.4 GHz
-  only** (without a working NVRAM the firmware doesn't even expose a 5 GHz
-  band - `iw list` shows only `Band 1` - and setting the regulatory domain,
-  e.g. `iw reg set CA`, changes nothing), a weak signal, WPA2 logins failing as "password incorrect" or
-  `...was not in the scan list`, and firmware that occasionally hangs.
-  **`wifi-fix.sh` handles what can be handled, offline** - run it from a
-  USB stick before you have internet:
+- **Wi-Fi (Touch Bar models)** - linux-firmware ships the BCM43602's
+  firmware but not its board NVRAM (calibration) file. Without it the
+  firmware never settles on a country: **2.4 GHz only** (`iw list` shows
+  only `Band 1`; `iw reg set` changes nothing), a weak signal, and WPA2
+  logins failing as "password incorrect" or `...was not in the scan list`.
+  **`wifi-fix.sh` fixes this offline** - run it from a USB stick before
+  you have internet:
   ```bash
   bash wifi-fix.sh --ssid "YourNetwork"
   ```
-  It disables the firmware's broken WPA offload (`feature_disable=0x82000`)
-  and NetworkManager's MAC randomization and Wi-Fi power saving, reloads
-  the driver and reconnects. On a `MacBookPro13,2` that took WPA2 from
-  "password incorrect" to connected. `--undo` reverts it.
+  It disables the firmware's broken WPA offload (`feature_disable=0x82000`,
+  the standard workaround for wpa_supplicant 2.11+ on this chip),
+  NetworkManager's MAC randomization and Wi-Fi power saving, installs the
+  NVRAM, reloads the driver and reconnects. `--undo` reverts it all;
+  `--no-nvram` skips the NVRAM. On a `MacBookPro13,2` this went from
+  ~1 Mbps on 2.4 GHz to ~47 Mbps on 5 GHz (Starlink-limited), with every
+  nearby 2.4 and 5 GHz network visible.
 
-  **Not by default: the board NVRAM file** (`firmware/brcmfmac43602-pcie.txt`,
-  `--nvram`). It's reported to fix 5 GHz and signal strength on some
-  boards, but on a `MacBookPro13,2` it crashed the firmware on every load,
-  cold boot included ("dongle is not responding", "Firmware has halted or
-  crashed"), leaving no Wi-Fi device at all until it was removed.
+  **The NVRAM's `macaddr=` line is load-bearing.** The chip has no MAC
+  address of its own on these boards (`ethtool -P wlp2s0` reports
+  whatever the NVRAM says), and with the line removed the firmware
+  crashes on load (`Retrieving cur_etheraddr failed`, `Firmware has halted
+  or crashed`, no Wi-Fi device). The file ships a shared Broadcom
+  placeholder (`00:90:4c:0d:f4:3e`); `wifi-fix.sh` swaps in an address
+  unique to the Mac, derived from its hardware UUID so it's the same
+  after a reinstall (`--mac` to choose one). Set your router's DHCP
+  reservation to that address.
+
+  5 GHz on this chip is range-sensitive: around -75 dBm it connects but
+  drops now and then, and it may vanish after suspend/resume (per
+  [this guide](https://dev.to/cmiranda/linux-on-macbook-pro-2016-1onb)).
+  Where the 5 GHz signal is weak, pin the connection to 2.4 GHz, which the
+  NVRAM also makes much stronger:
+  `nmcli connection modify "YourNetwork" 802-11-wireless.band bg`
+  (`a` = 5 GHz only, `""` = either).
 
   If Wi-Fi drops and won't come back, the firmware has probably hung
   (`sudo dmesg | grep brcmf` shows "timed out waiting for txstatus" /
