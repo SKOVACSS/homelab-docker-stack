@@ -24,14 +24,14 @@
         server: my-docker
         container: sonarr
         widget:
-          # sonarr is on media-network, not caddy-network - Homepage can't
-          # reach it by container name, so this goes through the public
-          # route instead (same as its href above).
+          # Internal address: sonarr is on caddy-network with Homepage. The
+          # public URL resolves (via Pi-hole) to this server's own LAN IP,
+          # which containers can't reach back through - it timed out.
           # fields pinned to 2 (of the 3 allowed: wanted, queued, series) -
           # left at the default 3 fields, this widget wraps to a second row
           # and makes the tile twice as tall as its Media Apps siblings.
           type: sonarr
-          url: "https://sonarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          url: http://sonarr:8989
           key: "{{HOMEPAGE_VAR_SONARR_API_KEY}}"
           fields: ["wanted", "queued"]
     - Radarr:
@@ -44,7 +44,7 @@
           # fields pinned to 2 (of the 4 allowed) for the same row-height
           # reason as Sonarr above - Radarr's default is all 4 fields.
           type: radarr
-          url: "https://radarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          url: http://radarr:7878
           key: "{{HOMEPAGE_VAR_RADARR_API_KEY}}"
           fields: ["wanted", "queued"]
     - Prowlarr:
@@ -54,10 +54,7 @@
         server: my-docker
         container: prowlarr
         widget:
-          # Prowlarr has no href-based public route like Sonarr/Radarr/
-          # Lidarr (no dedicated public subdomain in the Caddyfile), but
-          # it IS on caddy-network alongside Homepage, so it's reachable
-          # by container name directly.
+          # On caddy-network alongside Homepage - reachable by name.
           type: prowlarr
           url: http://prowlarr:9696
           key: "{{HOMEPAGE_VAR_PROWLARR_API_KEY}}"
@@ -71,7 +68,7 @@
         widget:
           # fields pinned to 2 (of the 3 allowed), same reason as Sonarr.
           type: lidarr
-          url: "https://lidarr.{{HOMEPAGE_VAR_DOMAIN}}"
+          url: http://lidarr:8686
           key: "{{HOMEPAGE_VAR_LIDARR_API_KEY}}"
           fields: ["wanted", "queued"]
     - Seerr:
