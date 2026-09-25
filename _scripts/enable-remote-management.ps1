@@ -93,7 +93,15 @@ if ($PublicKey) {
         Add-Content -Path $keyFile -Value $PublicKey -Encoding ascii
     }
     if ($isAdmin) {
-        icacls.exe $keyFile /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F' | Out-Null
+        # Set-Acl rather than icacls.exe: no dependency on System32 being on
+        # PATH (on one real host it was missing from PATH entirely).
+        $acl = New-Object System.Security.AccessControl.FileSecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($sid in 'S-1-5-32-544', 'S-1-5-18') {
+            $who = New-Object System.Security.Principal.SecurityIdentifier($sid)
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($who, 'FullControl', 'Allow')))
+        }
+        Set-Acl -Path $keyFile -AclObject $acl
     }
     Write-Host "  [OK] Key authorized in $keyFile" -ForegroundColor Green
 }
