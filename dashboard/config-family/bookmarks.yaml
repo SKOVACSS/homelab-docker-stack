@@ -1,2 +1,39 @@
-# Intentionally empty - without this file Homepage fills in sample links.
-[]
+# Phone apps: each link opens that app's section of the family guide,
+# which shows the right App Store / Play Store button for the device.
+- Get the phone apps:
+    - Photos (Immich):
+        - icon: immich.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#photos"
+    - Movies & TV (Plex / Jellyfin):
+        - icon: plex.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#watch"
+    - Passwords (Bitwarden):
+        - icon: bitwarden.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#passwords"
+    - Files & Calendar (Nextcloud):
+        - icon: nextcloud.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#files"
+    - Music (Amperfy / Substreamer):
+        - icon: navidrome.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#music"
+    - Audiobooks (Audiobookshelf):
+        - icon: audiobookshelf.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#audiobooks"
+    - Ebooks (Readest):
+        - icon: mdi-book-open-variant
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#books"
+    - AI Chat (Conduit):
+        - icon: open-webui.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#ai"
+    - Documents (Paperless):
+        - icon: paperless-ngx.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#documents"
+    - Read Later (wallabag):
+        - icon: wallabag.png
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#readlater"
+    - 2-step login (2FAS):
+        - icon: mdi-shield-key
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}/#account"
+    - All apps & how-tos:
+        - icon: mdi-account-group
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"

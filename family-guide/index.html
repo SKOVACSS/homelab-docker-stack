@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Our Family Apps</title>
+<!--
+  Family guide (family.DOMAIN, served as a static file by Caddy). No login:
+  it holds only links and how-tos. Every link is built from the address the
+  page itself was opened on (family.<domain> -> <app>.<domain>), so nothing
+  has to be typed in and no address is hard-coded here.
+  Store links were checked against the App Store / Play Store on 2026-09-25.
+-->
 <style>
   :root {
     --bg: #F4F6F0;
@@ -51,607 +58,564 @@
   }
 
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body { background: var(--bg); color: var(--ink); margin: 0; }
   .page {
     font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    max-width: 900px;
+    max-width: 960px;
     margin: 0 auto;
     padding: 28px 16px 64px;
     line-height: 1.55;
     font-size: 17px;
   }
-  h1, h2, h3, .display {
-    font-family: inherit;
-    font-weight: 700;
-    color: var(--brand);
-    text-wrap: balance;
-  }
+  h1, h2, h3 { font-weight: 700; color: var(--brand); text-wrap: balance; }
   a { color: var(--brand); }
+  code { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: .9em;
+    background: var(--surface-alt); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
 
   /* ---------- Header ---------- */
   header.hero {
     background: linear-gradient(180deg, var(--brand-soft), transparent);
     border-radius: 24px;
-    padding: 32px 24px;
-    margin-bottom: 28px;
+    padding: 30px 24px 24px;
+    margin-bottom: 8px;
     border: 1px solid var(--line);
   }
   header.hero h1 { font-size: clamp(28px, 5vw, 40px); margin: 0 0 8px; }
-  header.hero p.sub { color: var(--ink-soft); font-size: 18px; margin: 0 0 20px; max-width: 60ch; }
+  header.hero p.sub { color: var(--ink-soft); font-size: 18px; margin: 0 0 18px; max-width: 62ch; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
 
-  .setup-box {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    padding: 18px 20px;
-    box-shadow: var(--shadow);
+  .device {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: 12px 14px; box-shadow: var(--shadow);
   }
-  .setup-box label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 15px; }
-  .setup-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .setup-row input {
-    flex: 1 1 220px;
-    min-width: 0;
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 2px solid var(--line);
-    background: var(--bg);
-    color: var(--ink);
-    font-size: 16px;
-    font-family: inherit;
+  .device span { font-weight: 700; font-size: 15px; }
+  .seg { display: inline-flex; background: var(--surface-alt); border-radius: 999px; padding: 4px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink-soft); font: inherit; font-size: 15px;
+    font-weight: 600; padding: 8px 14px; border-radius: 999px; cursor: pointer;
   }
-  .setup-row input:focus { outline: none; border-color: var(--accent); }
-  .setup-status { font-size: 14px; color: var(--ink-soft); margin-top: 8px; }
-  .setup-status.ok { color: var(--brand); font-weight: 600; }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+  .device small { color: var(--ink-soft); font-size: 13.5px; flex-basis: 100%; }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-weight: 700; text-decoration: none; font-size: 15px;
+    padding: 10px 16px; border-radius: 999px; border: 0; cursor: pointer;
+    background: var(--accent); color: #fff !important; white-space: nowrap;
+  }
+  .btn.alt { background: var(--brand); }
+  .btn.ghost { background: var(--surface-alt); color: var(--brand) !important; }
+  .btn.small { padding: 7px 12px; font-size: 14px; }
 
   /* ---------- Quick grid ---------- */
-  h2.section-title { font-size: 22px; margin: 40px 0 14px; }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 14px;
-  }
+  h2.section-title { font-size: 22px; margin: 34px 0 12px; }
+  h3.group-title { font-size: 15px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 22px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
   .card {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 18px;
-    text-decoration: none;
-    color: var(--ink);
-    box-shadow: var(--shadow);
-    transition: transform .15s ease;
+    display: flex; flex-direction: column; gap: 8px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    padding: 16px; box-shadow: var(--shadow);
   }
-  .card:hover { transform: translateY(-2px); }
+  .card-top { display: flex; gap: 12px; align-items: center; }
   .badge {
-    width: 46px; height: 46px;
-    border-radius: 12px;
-    background: var(--accent-soft);
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .badge svg { width: 24px; height: 24px; color: var(--accent-ink); }
-  .card h3 { margin: 0; font-size: 18px; color: var(--ink); }
-  .card .app-name { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: -4px 0 4px; }
-  .card .replaces { font-size: 13px; color: var(--ink-soft); }
-  .card .replaces b { color: var(--accent-ink); font-weight: 700; }
-  .card .go { margin-top: auto; font-weight: 700; color: var(--brand); font-size: 14px; }
+  .card h4 { margin: 0; font-size: 17px; color: var(--ink); line-height: 1.25; }
+  .card .app-name { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .card .replaces { font-size: 13.5px; color: var(--ink-soft); }
+  .card .replaces b { color: var(--accent-ink); }
+  .card .has-app { font-size: 13px; color: var(--brand); font-weight: 600; }
+  .card-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 4px; }
+  .card-actions .btn { flex: 1; }
 
   /* ---------- Detail sections ---------- */
   .detail {
-    display: flex;
-    gap: 20px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 18px;
-    box-shadow: var(--shadow);
-    scroll-margin-top: 20px;
+    display: flex; gap: 20px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 20px; padding: 24px; margin-bottom: 18px; box-shadow: var(--shadow);
+    scroll-margin-top: 16px;
   }
+  .detail:target { outline: 3px solid var(--accent); }
   .detail .badge { width: 56px; height: 56px; border-radius: 14px; }
   .detail .badge svg { width: 30px; height: 30px; }
   .detail-body { flex: 1; min-width: 0; }
-  .detail h3 { font-size: 22px; margin: 0 0 4px; }
-  .detail .tagline { color: var(--ink-soft); margin: 0 0 14px; font-size: 15px; }
-  .open-link {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--accent); color: #fff !important;
-    font-weight: 700; text-decoration: none;
-    padding: 10px 16px; border-radius: 999px; font-size: 15px;
-    margin-bottom: 16px;
+  .detail h3 { font-size: 22px; margin: 0 0 2px; }
+  .detail h3 small { color: var(--ink-soft); font-weight: 400; font-size: 15px; }
+  .detail .tagline { color: var(--ink-soft); margin: 4px 0 14px; font-size: 15.5px; }
+  .link-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+  .phone {
+    background: var(--brand-soft); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px;
   }
-  .open-link.secondary { background: var(--brand); }
-  .link-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  ol.steps { margin: 0; padding-left: 20px; }
+  .phone h4 { margin: 0 0 8px; font-size: 15px; color: var(--brand); }
+  .phone p { margin: 6px 0 0; font-size: 15px; }
+  .store-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .store {
+    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+    background: var(--surface); border: 1px solid var(--line); color: var(--ink) !important;
+    border-radius: 12px; padding: 8px 12px; font-size: 14.5px; font-weight: 600;
+  }
+  .store svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .store em { font-style: normal; color: var(--ink-soft); font-weight: 400; font-size: 13px; }
+  ol.steps { margin: 0; padding-left: 22px; }
   ol.steps li { margin-bottom: 6px; }
   .tip {
-    margin-top: 14px;
-    background: var(--surface-alt);
-    border-left: 4px solid var(--accent);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 14.5px;
-    color: var(--ink-soft);
+    margin-top: 14px; background: var(--surface-alt); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 10px 14px; font-size: 14.5px; color: var(--ink-soft);
   }
+  .to-top { display: inline-block; margin-top: 12px; font-size: 14px; font-weight: 600; }
 
-  /* ---------- Footer rules ---------- */
-  .rules {
-    background: var(--brand-soft);
-    border-radius: 20px;
-    padding: 24px;
-    margin-top: 40px;
-  }
+  /* ---------- FAQ ---------- */
+  .rules { background: var(--brand-soft); border-radius: 20px; padding: 22px 24px; margin-top: 36px; }
   .rules h2 { margin-top: 0; }
-  .rules ul { padding-left: 20px; margin: 0; }
-  .rules li { margin-bottom: 8px; }
+  details { background: var(--surface); border-radius: 12px; padding: 12px 16px; margin-bottom: 10px; border: 1px solid var(--line); }
+  details summary { font-weight: 700; cursor: pointer; color: var(--ink); }
+  details p, details ol, details ul { margin: 8px 0 0; font-size: 15.5px; }
 
-  @media (max-width: 480px) {
-    .detail { flex-direction: column; }
+  @media (max-width: 520px) {
+    .detail { flex-direction: column; padding: 18px; }
+    .detail .badge { display: none; }
   }
 </style>
 </head>
 <body>
-<div class="page">
+<div class="page" id="top">
 
   <header class="hero">
     <h1>Our Family's Apps 🏡</h1>
-    <p class="sub">Everything below runs on our own home server — private versions of apps you
-      already know, with no subscriptions, no ads, and nobody else looking at your data.</p>
-
-    <div class="setup-box">
-      <label for="domainInput">Step 1: type in our family's web address</label>
-      <div class="setup-row">
-        <input id="domainInput" type="text" placeholder="e.g. smithfamily.com" autocomplete="off" spellcheck="false">
+    <p class="sub">Everything below runs on our own server at home: private versions of apps you
+      already know, with no subscriptions, no ads, and nobody else looking at your data.
+      Tap <b>Open</b> to use an app right away, or <b>Set up</b> for the phone app and how-to.</p>
+    <div class="hero-actions" id="heroActions"></div>
+    <div class="device">
+      <span>I'm using:</span>
+      <div class="seg" role="group" aria-label="Your device">
+        <button type="button" data-dev="ios">iPhone / iPad</button>
+        <button type="button" data-dev="android">Android</button>
+        <button type="button" data-dev="computer">Computer</button>
       </div>
-      <p class="setup-status" id="setupStatus">Ask whoever set this up if you don't know the address — once you type it in, every button below will work, and it'll remember it next time you visit.</p>
+      <small id="deviceNote">Picked automatically. Change it to see the steps for another device.</small>
     </div>
   </header>
 
-  <h2 class="section-title">Step 2: pick an app</h2>
-  <div class="grid" id="cardGrid">
-    <!-- cards injected by JS from the same data used for detail sections -->
-  </div>
+  <h2 class="section-title">Pick an app</h2>
+  <div id="cardGroups"></div>
 
   <h2 class="section-title">How each one works</h2>
   <div id="detailList"></div>
 
-  <div class="rules">
-    <h2>A few things worth knowing</h2>
-    <ul>
-      <li><b>Start from the Home Page.</b> It has every app on one screen, and the dot on each tile tells you whether it's ready (green) or asleep (it wakes up about a minute after you tap it).</li>
-      <li><b>One family login opens most apps.</b> When you see a “Sign in with Authentik” button, use it with your family account. Turn on 2-step login in Your Family Account.</li>
-      <li><b>Bookmark your favorites,</b> or add them to your phone's home screen (in Safari or Chrome, look for "Add to Home Screen") so they open like a normal app with one tap.</li>
-      <li><b>Keep your passwords in the Passwords app itself</b> once you're set up — that way you only ever have to remember one, and it can fill the rest in for you.</li>
-      <li><b>If something won't load,</b> it may just be restarting — wait a minute and try again before worrying.</li>
-      <li><b>Never share your login for any of these</b> with anyone outside the family, the same as you wouldn't share a bank password.</li>
-      <li><b>Questions are always welcome</b> — ask whoever set this up. There's no such thing as a silly question here.</li>
-    </ul>
+  <div class="rules" id="help">
+    <h2>Good to know</h2>
+    <details open>
+      <summary>One family login for (almost) everything</summary>
+      <p>Your <b>family account</b> (Authentik) opens most apps. Whenever you see
+        “Sign in with Authentik”, use it. A few apps have their own username and password
+        instead: Photos, Movies &amp; Shows, Music, Books, Passwords and Read Later. The
+        setup steps for each app say which login to use.</p>
+    </details>
+    <details>
+      <summary>An app says it's “starting” or won't load</summary>
+      <p>Some apps (AI Assistant, PDF Tools, Jellyfin) go to sleep when nobody is using them and
+        wake up on the first visit, which takes about a minute. The <b>Home Page</b> shows a dot
+        on every app: green means ready. If an app stays grey or red for more than a few
+        minutes, let whoever runs the server know.</p>
+    </details>
+    <details>
+      <summary>Does it work away from home?</summary>
+      <p>Yes. Every app works anywhere you have internet, on Wi-Fi or mobile data. The only exception
+        is the photo slideshow for the TV, which works at home only.</p>
+    </details>
+    <details>
+      <summary>Turn on 2-step login</summary>
+      <p>It stops anyone who guesses your password. Open <b>Your Family Account</b> (below) →
+        Settings → MFA Devices → Enroll → TOTP, and scan the code with an authenticator app
+        (2FAS, or the one built into Bitwarden).</p>
+    </details>
+    <details>
+      <summary>“Add to Home Screen” (for apps with no store app)</summary>
+      <ul>
+        <li><b>iPhone / iPad:</b> open the app in <b>Safari</b> → tap the Share button (square with an arrow) → <b>Add to Home Screen</b>.</li>
+        <li><b>Android:</b> open it in <b>Chrome</b> → tap ⋮ (top right) → <b>Add to Home screen</b> or <b>Install app</b>.</li>
+        <li><b>Computer:</b> in Chrome or Edge, click the install icon at the right end of the address bar, or just bookmark it.</li>
+      </ul>
+      <p>It then opens full-screen from its own icon, like a normal app.</p>
+    </details>
+    <details>
+      <summary>Staying safe</summary>
+      <ul>
+        <li>Never share your login with anyone outside the family, same as a bank password.</li>
+        <li>Keep your passwords in the Passwords app so you only need to remember one.</li>
+        <li>Questions are always welcome. There's no such thing as a silly question here.</li>
+      </ul>
+    </details>
   </div>
 
 </div>
 
 <script>
 (function () {
-  var ICONS = {
-    photo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 16l-5-5-4 4-2-2-5 5"/></svg>',
-    play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="14" rx="2"/><path d="M2.5 20h19" /><path d="M10.5 8.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>',
-    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
-    music: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
-    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
-    cloud: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-.4-9A5.5 5.5 0 0 1 17 9.5a4 4 0 0 1-1 7.9H7z"/></svg>',
-    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8"/><path d="M16 5l3 3"/><path d="M13 8l2.5 2.5"/></svg>',
-    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
-    mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>',
-    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
-    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
-    headphones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/></svg>',
-    send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>',
-    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/></svg>',
-    recipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 13.9A4 4 0 0 1 7.5 6a5 5 0 0 1 9 0A4 4 0 0 1 18 13.9V20H6z"/><path d="M6 17h12"/></svg>',
-    wallet: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="15" r="1.2" fill="currentColor"/><path d="M6 6l9-3 1.5 3"/></svg>',
-    file: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 14h8M8 17h5"/></svg>',
-    archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/></svg>',
-    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
-    board: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/><path d="M5 7h2M11 7h2M11 11h2M17 7h2"/></svg>',
-    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>'
-  };
+  // ---- Where are we? family.<domain> -> <domain>. Opened any other way
+  //      (e.g. as a file), links fall back to jumping to the how-to. ----
+  var host = location.hostname || "";
+  var DOMAIN = /^family\./.test(host) ? host.replace(/^family\./, "") : "";
 
-  var APPS = [
-    {
-      id: "home",
-      icon: "home",
-      name: "Home Page",
-      replaces: "A bookmarks folder",
-      tagline: "Start here: one page with a button for every app below, and a coloured dot on each showing whether it's ready right now.",
-      subdomain: "home",
-      appName: "Homepage",
-      steps: [
-        "Open the address above and sign in with your family account.",
-        "Tap any tile to open that app. A green dot means it's ready.",
-        "A grey or red dot usually means the app is asleep to save power. Tap it anyway; it wakes up in about a minute."
-      ],
-      tip: "Add this one page to your phone's home screen and you'll never need to remember the other addresses."
-    },
-    {
-      id: "account",
-      icon: "shield",
-      name: "Your Family Account",
-      replaces: "A different password for every app",
-      tagline: "One username and password opens most of our apps. This is where you change your password and turn on 2-step login.",
-      subdomain: "auth",
-      path: "/if/user/",
-      appName: "Authentik",
-      steps: [
-        "Open the address above and sign in with the username and password you were given.",
-        "Change your password to one only you know.",
-        "Turn on 2-step login (an authenticator app like Google Authenticator or Microsoft Authenticator) so nobody else can get in even if they guess your password.",
-        "From now on, whenever an app shows a “Sign in with Authentik” button, use it: same login everywhere."
-      ],
-      tip: "If you ever get locked out, ask whoever set this up: they can reset it in a minute."
-    },
-    {
-      id: "photos",
-      icon: "photo",
-      name: "Photos",
-      replaces: "Google Photos",
-      tagline: "Every picture and video you take, backed up automatically and shareable with the family, just private.",
-      subdomain: "photos",
-      appName: "Immich",
-      steps: [
-        "Search for the free “Immich” app in the App Store (iPhone) or Play Store (Android) and install it.",
-        "Open the app, tap “Log in to existing server,” and enter the address shown above.",
-        "Enter the username and password you were given.",
-        "Turn on “Backup” in the app's settings so new photos upload automatically, just like Google Photos used to."
-      ],
-      tip: "Your photos live on our own equipment at home. Nothing is ever sent to a company to look at or sell."
-    },
-    {
-      id: "watch",
-      icon: "play",
-      name: "Movies & Shows",
-      replaces: "Netflix",
-      tagline: "Our own movie and TV library. Plex and Jellyfin do the same job; Jellyfin is the backup if Plex misbehaves.",
-      subdomain: "plex",
-      subdomain2: "jellyfin",
-      appName: "Plex or Jellyfin",
-      steps: [
-        "Install the “Plex” app (or “Jellyfin”) from your phone's or smart TV's app store.",
-        "Open it. Plex asks you to sign into a Plex account; Jellyfin asks for the server address (shown above) plus your username and password.",
-        "Browse the library like Netflix and press play. It remembers where you left off."
-      ],
-      tip: "Jellyfin sleeps when nobody's watching, so the first visit can take about a minute to start."
-    },
-    {
-      id: "requests",
-      icon: "search",
-      name: "Request Movies & Shows",
-      replaces: "Asking someone to add it for you",
-      tagline: "Don't see something in the library? Search for it and request it yourself. It shows up in Plex once it's ready.",
-      subdomain: "requests",
-      appName: "Seerr",
-      steps: [
-        "Open the address above and sign in with the same Plex login you already use.",
-        "Search for any movie or show.",
-        "Tap “Request”. It usually appears in the library within a day."
-      ],
-      tip: "Some requests need approval first. That's normal, not a mistake."
-    },
-    {
-      id: "music",
-      icon: "music",
-      name: "Music",
-      replaces: "Spotify",
-      tagline: "Stream our family's music collection from any device.",
-      subdomain: "music",
-      appName: "Navidrome",
-      steps: [
-        "Open the address above in any web browser to play music right away. No app needed.",
-        "For a phone app with offline downloads, install a “Subsonic” compatible music app (e.g. “substreamer” or “Symfonium”) and enter the address plus your login."
-      ],
-      tip: "Think of it as our own private Spotify: same idea, our own music."
-    },
-    {
-      id: "audiobooks",
-      icon: "headphones",
-      name: "Audiobooks & Podcasts",
-      replaces: "Audible",
-      tagline: "Listen to our audiobook collection and your podcasts. It remembers your place across phone, tablet and computer.",
-      subdomain: "audiobooks",
-      appName: "Audiobookshelf",
-      steps: [
-        "Install the free “Audiobookshelf” app, or open the address above in a browser.",
-        "In the app, enter the address shown above as the server.",
-        "Tap “Sign in with Authentik” and use your family account.",
-        "Pick a book and press play. Download it first if you'll be somewhere without internet."
-      ],
-      tip: "Sleep timer and playback speed are on the player screen, same as Audible."
-    },
-    {
-      id: "books",
-      icon: "book",
-      name: "Books & Ebooks",
-      replaces: "Kindle Store / Libby",
-      tagline: "Browse and read our ebook library right in your browser, or send any book straight to your Kindle.",
-      subdomain: "calibre",
-      appName: "Calibre-Web",
-      steps: [
-        "Open the address above and log in with your username and password.",
-        "Browse or search the library, then read right in your browser or download a copy.",
-        "To send a book to your Kindle: open your profile (top right), enter your @kindle.com address once, then use the “Send to Kindle” button on any book."
-      ],
-      tip: "Amazon also needs to approve our sending address once, in your Amazon account's settings. Ask whoever set this up if a Kindle send doesn't show up."
-    },
-    {
-      id: "files",
-      icon: "cloud",
-      name: "Files, Calendar & Contacts",
-      replaces: "Google Drive / Calendar",
-      tagline: "Store and share files, and keep a family calendar and contact list, all in one place.",
-      subdomain: "nextcloud",
-      appName: "Nextcloud",
-      steps: [
-        "Install the “Nextcloud” app, or just open the address above in a browser.",
-        "Choose “Sign in with Authentik” and use your family account.",
-        "Drag files in to store them, or open Calendar and Contacts inside it. They can sync to your phone's own calendar and contacts; ask for help setting that up once."
-      ],
-      tip: "Anything you put here is backed up and only visible to the family."
-    },
-    {
-      id: "drop",
-      icon: "send",
-      name: "Send Files",
-      replaces: "AirDrop",
-      tagline: "Send photos and files between any phones and computers, iPhone to Android or Windows included. Nothing is stored on the way.",
-      subdomain: "drop",
-      appName: "PairDrop",
-      steps: [
-        "Open the address above on both devices and sign in with your family account.",
-        "At home, the other device appears on screen automatically. Tap it and pick the files.",
-        "Away from home, tap “Pair device” on one and type the code it shows into the other."
-      ],
-      tip: "Both devices need the page open at the same time. The file goes straight from one to the other."
-    },
-    {
-      id: "ai",
-      icon: "chat",
-      name: "AI Assistant",
-      replaces: "ChatGPT",
-      tagline: "Our own private AI chat assistant. Ask it anything, like ChatGPT, but it runs on our own hardware and nothing you type leaves the house.",
-      subdomain: "chat",
-      appName: "Open WebUI",
-      steps: [
-        "Open the address above and choose “Continue with Authentik”. The very first time, an admin has to approve your account.",
-        "Type a question into the box at the bottom, just like ChatGPT.",
-        "For anything current (news, weather, prices), turn on “Web Search” under the + button so it looks things up first."
-      ],
-      tip: "It sleeps when nobody's using it, so the first message of the day can take a minute or two. After that it's quick."
-    },
-    {
-      id: "search",
-      icon: "globe",
-      name: "Web Search",
-      replaces: "Google Search",
-      tagline: "Search the web through our own server: results from several search engines at once, no ads, no tracking.",
-      subdomain: "search",
-      appName: "SearXNG",
-      steps: [
-        "Open the address above and sign in with your family account.",
-        "Search like you would on Google.",
-        "Optional: make it your browser's default search engine (ask for help once)."
-      ],
-      tip: "The search box on the Home Page uses this too."
-    },
-    {
-      id: "passwords",
-      icon: "key",
-      name: "Passwords",
-      replaces: "Writing them on paper (please don't!)",
-      tagline: "One safe place for every website password, locked behind a single master password only you know.",
-      subdomain: "vault",
-      appName: "Vaultwarden (via the Bitwarden app)",
-      steps: [
-        "Install the free “Bitwarden” app or browser extension. It works with our server even though it says Bitwarden.",
-        "When it asks, choose “Self-hosted” and enter the address above before logging in.",
-        "Log in with the account you were given, then create one strong master password you'll remember. It's the only password you'll need to remember again.",
-        "From then on, it offers to save and auto-fill every other password for you."
-      ],
-      tip: "Never share your master password with anyone. If you forget it, the passwords inside can't be recovered, so write it somewhere safe at home."
-    },
-    {
-      id: "recipes",
-      icon: "recipe",
-      name: "Recipes & Meal Plans",
-      replaces: "Recipe websites and paper lists",
-      tagline: "The family cookbook: save recipes from any website, plan the week's meals, and build the shopping list from them.",
-      subdomain: "recipes",
-      appName: "Mealie",
-      steps: [
-        "Open the address above and tap “Login with Authentik”.",
-        "To save a recipe, tap + and paste the web address of any recipe page. It pulls in the ingredients and steps without the life story and ads.",
-        "Use the meal planner, then “Add to shopping list” for the week."
-      ],
-      tip: "Add it to your phone's home screen and it works like an app in the kitchen."
-    },
-    {
-      id: "budget",
-      icon: "wallet",
-      name: "Budget",
-      replaces: "YNAB / spreadsheets",
-      tagline: "The household budget: every dollar gets a job, and you can see where the money actually goes.",
-      subdomain: "budget",
-      appName: "Actual Budget",
-      steps: [
-        "Open the address above and sign in with Authentik.",
-        "Open the budget you've been given access to.",
-        "Add spending as it happens, or import your bank's download file once a month."
-      ],
-      tip: "Each person only sees the budgets they've been given access to."
-    },
-    {
-      id: "pdf",
-      icon: "file",
-      name: "PDF Tools",
-      replaces: "Adobe Acrobat / sketchy PDF websites",
-      tagline: "Merge, split, sign, compress and convert PDFs without uploading them to some random website.",
-      subdomain: "pdf",
-      appName: "Stirling-PDF",
-      steps: [
-        "Open the address above and sign in with your family account.",
-        "Pick a tool (for example “Merge” or “Compress”), drop in your file, and download the result."
-      ],
-      tip: "It sleeps when nobody's using it, so it can take about a minute to open the first time."
-    },
-    {
-      id: "documents",
-      icon: "archive",
-      name: "Documents",
-      replaces: "A filing cabinet",
-      tagline: "Scanned bills, letters, receipts and records, searchable by any word inside them.",
-      subdomain: "papers",
-      appName: "Paperless",
-      steps: [
-        "Open the address above and sign in with Authentik.",
-        "Drag in a scan or photo of a document. It reads the text so you can find it later by searching any word in it.",
-        "Add tags like “Taxes 2026” or “House” to keep things grouped."
-      ],
-      tip: "Great for warranties, tax papers and anything you'd otherwise keep in a shoebox."
-    },
-    {
-      id: "readlater",
-      icon: "bookmark",
-      name: "Read Later",
-      replaces: "Pocket",
-      tagline: "Save articles to read later, without the ads and pop-ups, on any device.",
-      subdomain: "read",
-      appName: "Wallabag",
-      steps: [
-        "Open the address above and log in.",
-        "Tap + and paste an article's web address to save it.",
-        "Optional: install the “wallabag” phone app or browser extension to save with one tap."
-      ],
-      tip: "Saved articles can be read offline in the phone app."
-    },
-    {
-      id: "boards",
-      icon: "board",
-      name: "Boards & To-Dos",
-      replaces: "Trello",
-      tagline: "Plan projects, chores and trips on shared boards with cards you drag between columns.",
-      subdomain: "boards",
-      appName: "Focalboard",
-      steps: [
-        "Open the address above and log in.",
-        "Create a board (try a template like “Project tasks”) or open one you've been shared on.",
-        "Add a card for each thing to do and drag it along as it gets done."
-      ],
-      tip: "Good for renovations, holiday planning and the weekly chore list."
-    },
-    {
-      id: "inventory",
-      icon: "box",
-      name: "Home Inventory",
-      replaces: "Trying to remember where you put it",
-      tagline: "What we own, where it's kept, and the receipts, warranties and serial numbers, all searchable.",
-      subdomain: "inventory",
-      appName: "Homebox",
-      steps: [
-        "Open the address above. It takes you straight to the family sign-in.",
-        "Add items with a photo, where they're kept, and attach the receipt or manual.",
-        "Ask to be added to the family's shared collection so everyone sees the same list."
-      ],
-      tip: "Really handy for insurance claims and “is this still under warranty?”"
-    },
-    {
-      id: "email",
-      icon: "mail",
-      name: "Email",
-      replaces: "Gmail / Outlook",
-      tagline: "Your own private email address and inbox.",
-      subdomain: "webmail",
-      appName: "Webmail",
-      steps: [
-        "Open the address above in a browser and log in. It works just like checking Gmail online.",
-        "To use it in your phone's built-in Mail app instead, add it as a new email account and ask for the mail server settings when you set it up."
-      ],
-      tip: "Treat it like any other email account: the same care about links and attachments from strangers still applies."
-    }
+  var ICONS = {
+    photo: '<rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 16l-5-5-4 4-2-2-5 5"/>',
+    play: '<rect x="2.5" y="4" width="19" height="14" rx="2"/><path d="M2.5 20h19"/><path d="M10.5 8.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+    book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    cloud: '<path d="M7 18a4.5 4.5 0 0 1-.4-9A5.5 5.5 0 0 1 17 9.5a4 4 0 0 1-1 7.9H7z"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l8-8"/><path d="M16 5l3 3"/><path d="M13 8l2.5 2.5"/>',
+    chat: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+    home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+    shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+    headphones: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><rect x="3" y="14" width="4" height="7" rx="1.5"/><rect x="17" y="14" width="4" height="7" rx="1.5"/>',
+    send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+    globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z"/>',
+    recipe: '<path d="M6 13.9A4 4 0 0 1 7.5 6a5 5 0 0 1 9 0A4 4 0 0 1 18 13.9V20H6z"/><path d="M6 17h12"/>',
+    wallet: '<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="15" r="1.2" fill="currentColor"/><path d="M6 6l9-3 1.5 3"/>',
+    file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 14h8M8 17h5"/>',
+    archive: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9"/><path d="M10 13h4"/>',
+    bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+    board: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/><path d="M5 7h2M11 7h2M11 11h2M17 7h2"/>',
+    box: '<path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+    tv: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'
+  };
+  function icon(n) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[n] + '</svg>';
+  }
+  var APPLE = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8-1.6 0-3.2 1-4 2.5-1.7 3-.4 7.4 1.2 9.8.8 1.2 1.8 2.5 3 2.4 1.2 0 1.7-.8 3.2-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0 0-2.6-1-2.6-4zM14 5.4c.7-.8 1.1-1.9 1-3-1 0-2.1.7-2.8 1.5-.6.7-1.2 1.8-1 2.9 1.1.1 2.1-.6 2.8-1.4z"/></svg>';
+  var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 2.8v18.4c0 .4.4.7.8.5L20.6 12.9c.4-.2.4-.8 0-1L4.8 2.3c-.4-.2-.8.1-.8.5z"/></svg>';
+
+  function ios(name, id, note) { return { name: name, url: "https://apps.apple.com/app/id" + id, note: note }; }
+  function android(name, pkg, note) { return { name: name, url: "https://play.google.com/store/apps/details?id=" + pkg, note: note }; }
+
+  // Each app: sub = its web address (sub.DOMAIN). phone.ios / phone.android =
+  // store apps (best first). pwa = no store app worth using; add the web app
+  // to the home screen instead. steps.all / steps.<device> = how-to.
+  var GROUPS = [
+    { title: "Start here", apps: [
+      { id: "home", icon: "home", name: "Home Page", appName: "Homepage", replaces: "A bookmarks folder", sub: "home",
+        tagline: "One page with a button for every app, and a dot on each showing whether it's ready right now.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with your family account.",
+          "Tap any tile to open that app. A <b>green dot</b> means it's ready.",
+          "A grey or red dot usually means the app is asleep. Tap it anyway; it wakes up in about a minute."
+        ] },
+        tip: "Add this page to your home screen first. After that you won't need to remember any other address." },
+      { id: "account", icon: "shield", name: "Your Family Account", appName: "Authentik", replaces: "A password for every app", sub: "auth", path: "/if/user/",
+        tagline: "The one login that opens most of our apps. Change your password and turn on 2-step login here.",
+        phone: { ios: [ios("2FAS Authenticator", "1217793794", "for 2-step login codes")], android: [android("2FAS Authenticator", "com.twofasapp", "for 2-step login codes")] },
+        phoneNote: "You don't need an app to sign in. The authenticator app is only for 2-step login codes.",
+        steps: { all: [
+          "Tap Open and sign in with the username and password you were given.",
+          "Change your password to one only you know.",
+          "Settings → <b>MFA Devices</b> → Enroll → <b>TOTP</b>, then scan the code with your authenticator app.",
+          "From now on, whenever an app shows <b>“Sign in with Authentik”</b>, use it."
+        ] },
+        tip: "Locked out? Whoever runs the server can reset it in a minute." }
+    ] },
+    { title: "Watch", apps: [
+      { id: "watch", icon: "play", name: "Movies & Shows", appName: "Plex", replaces: "Netflix", sub: "plex", sub2: { sub: "jellyfin", label: "Open Jellyfin" },
+        tagline: "Our own movie and TV library. Jellyfin does the same job and is the backup if Plex misbehaves.",
+        phone: { ios: [ios("Plex", "383457673"), ios("Swiftfin", "1604098728", "Jellyfin's app")], android: [android("Plex", "com.plexapp.android"), android("Jellyfin", "org.jellyfin.mobile")] },
+        steps: {
+          all: ["Plex: sign in with your <b>Plex account</b> (the one our server was shared with). Our library appears on its own.",
+                "Jellyfin: enter the server address <code data-url=\"jellyfin\"></code>, then your Jellyfin username and password."],
+          computer: ["Just tap Open. Smart TVs (Samsung, LG, Roku, Fire TV, Apple TV, Android TV) have the Plex app in their app store too."]
+        },
+        tip: "Skip the free movies Plex advertises: our own library is under your server's name in the side menu." },
+      { id: "requests", icon: "search", name: "Request Movies & Shows", appName: "Seerr", replaces: "Asking someone to add it", sub: "requests",
+        tagline: "Don't see something? Search for it and request it. It shows up in Plex, usually within a day.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with your <b>Plex account</b>.",
+          "Search for any movie or show and tap <b>Request</b>.",
+          "Check back under <b>Requests</b> to see when it's available."
+        ] },
+        tip: "Some requests need approval first. That's normal." }
+    ] },
+    { title: "Photos & Files", apps: [
+      { id: "photos", icon: "photo", name: "Photos", appName: "Immich", replaces: "Google Photos / iCloud Photos", sub: "photos",
+        tagline: "Every photo and video you take, backed up automatically and shared with the family, but kept private.",
+        phone: { ios: [ios("Immich", "1613945652")], android: [android("Immich", "app.alextran.immich")] },
+        steps: { all: [
+          "Open the Immich app and enter the server address <code data-url=\"photos\"></code>.",
+          "Sign in with the Immich email and password you were given.",
+          "Tap the cloud icon (top right) → pick the albums to back up → turn on <b>Backup</b>."
+        ], ios: ["Allow <b>Full Access</b> to photos and turn on <b>Background App Refresh</b> for Immich so it keeps backing up."] },
+        tip: "For faster uploads at home: in the app, Settings → <b>Networking</b> → turn on <b>Automatic URL switching</b> and add our home Wi-Fi (ask for the local address)." },
+      { id: "files", icon: "cloud", name: "Files, Calendar & Contacts", appName: "Nextcloud", replaces: "Google Drive / Dropbox", sub: "nextcloud",
+        tagline: "Store and share files, and keep a shared family calendar and contact list.",
+        phone: { ios: [ios("Nextcloud", "1125420102")], android: [android("Nextcloud", "com.nextcloud.client"), android("DAVx⁵", "at.bitfire.davdroid", "calendar & contacts sync")] },
+        steps: {
+          all: ["In the app, enter <code data-url=\"nextcloud\"></code>, tap <b>Log in</b>, then choose <b>Sign in with Authentik</b>.",
+                "Turn on <b>Auto upload</b> only if you're not already backing up photos to Photos (Immich)."],
+          ios: ["Calendar & contacts on iPhone: in Nextcloud on the web, open your profile → Settings → <b>Security</b> → create an <b>app password</b>. Then go to iPhone Settings → Calendar → Accounts → Add Account → Other → <b>Add CalDAV Account</b> (server <code data-url=\"nextcloud\"></code>, your Nextcloud username, the app password). Repeat with <b>CardDAV</b> for contacts."],
+          android: ["Calendar & contacts on Android: install DAVx⁵ → Log in with URL <code data-url=\"nextcloud\" data-path=\"/remote.php/dav\"></code>, your Nextcloud username, and an <b>app password</b> from Nextcloud → Settings → Security."]
+        },
+        tip: "Ask for help setting up the calendar the first time. It's a one-time job." },
+      { id: "drop", icon: "send", name: "Send Files", appName: "PairDrop", replaces: "AirDrop", sub: "drop",
+        tagline: "Send photos and files between any phone or computer, iPhone to Android included. Nothing is stored on the way.",
+        pwa: true,
+        steps: { all: [
+          "Open it on <b>both</b> devices and sign in with your family account.",
+          "At home, the other device appears on its own. Tap it and pick the files.",
+          "Away from home: tap <b>Pair device</b> on one and enter the code on the other (only needed once)."
+        ], android: ["Once it's on your home screen, PairDrop also appears in Android's <b>Share</b> menu."] },
+        tip: "Both devices need the page open at the same time." },
+      { id: "kiosk", icon: "tv", name: "Photo Slideshow", appName: "Immich Kiosk", replaces: "A digital picture frame", lan: 3010,
+        tagline: "A full-screen slideshow of family photos for a TV, old tablet or picture frame. Home Wi-Fi only.",
+        pwa: true, noOpenAway: true,
+        steps: { all: [
+          "Ask for the slideshow address, then open it in the TV or tablet's web browser while on home Wi-Fi.",
+          "Leave it open: it changes photos every 30 seconds and shows the time and date."
+        ] },
+        tip: "It can show just one album, for example “Best of 2026”. Ask for that link." }
+    ] },
+    { title: "Listen & Read", apps: [
+      { id: "music", icon: "music", name: "Music", appName: "Navidrome", replaces: "Spotify", sub: "music",
+        tagline: "Stream the family music collection, with offline downloads in the phone apps.",
+        phone: { ios: [ios("Amperfy", "1530145038", "free")], android: [android("Substreamer", "com.ghenry22.substream2", "free")] },
+        steps: { all: [
+          "In the app, add a server: address <code data-url=\"music\"></code>, plus your <b>Music (Navidrome)</b> username and password.",
+          "Browse albums and playlists. Download them for listening offline."
+        ], computer: ["No app needed on a computer: tap Open and play music in the browser."] },
+        tip: "Music uses its own username and password, not the family login." },
+      { id: "audiobooks", icon: "headphones", name: "Audiobooks & Podcasts", appName: "Audiobookshelf", replaces: "Audible", sub: "audiobooks",
+        tagline: "Our audiobook collection and your podcasts. It remembers your place across every device.",
+        phone: { android: [android("Audiobookshelf", "com.audiobookshelf.app")] },
+        pwaOn: ["ios"],
+        steps: {
+          android: ["In the app, enter the server <code data-url=\"audiobooks\"></code>, then tap the <b>Authentik</b> (OpenID) login button."],
+          ios: ["The official iPhone app isn't in the App Store yet, so add the web version to your home screen (see “Add to Home Screen” below). Sign in with Authentik."],
+          all: ["Pick a book and press play. The sleep timer and playback speed are on the player screen."]
+        },
+        tip: "On Android, download books before a trip so they play without internet." },
+      { id: "books", icon: "book", name: "Books & Ebooks", appName: "Calibre-Web", replaces: "Kindle Store / Libby", sub: "calibre",
+        tagline: "Read our ebook library in the browser, send books to your Kindle, or read in a phone app.",
+        phone: { ios: [ios("Readest", "6738622779", "ebook reader")], android: [android("Readest", "com.bilingify.readest", "ebook reader")] },
+        steps: {
+          all: ["On the web: tap Open, sign in with your <b>Books</b> username and password, then read online or download.",
+                "Kindle: open your profile (top right), enter your <code>@kindle.com</code> address once, then use <b>Send to Kindle</b> on any book.",
+                "Reader app: in Readest, add an <b>OPDS catalog</b> with the address <code data-url=\"calibre\" data-path=\"/opds\"></code> and the same username and password. The whole library appears in the app."]
+        },
+        tip: "Amazon has to approve our sending address once (Amazon account → Manage Content and Devices → Preferences → Personal Document Settings). Ask for the address to add." }
+    ] },
+    { title: "Everyday", apps: [
+      { id: "ai", icon: "chat", name: "AI Assistant", appName: "Open WebUI", replaces: "ChatGPT", sub: "chat",
+        tagline: "Our own private AI assistant with web search. Nothing you type leaves the house.",
+        phone: { ios: [ios("Conduit", "6749840287")], android: [android("Conduit", "app.cogwheel.conduit")] },
+        steps: { all: [
+          "In Conduit, enter the server <code data-url=\"chat\"></code> and choose <b>Sign in with Authentik</b>. On the web, tap <b>Continue with Authentik</b>.",
+          "The very first time, an admin has to approve your account.",
+          "For anything current (news, weather, prices), turn on <b>Web Search</b> (under the + button)."
+        ] },
+        tip: "It sleeps when idle, so the first message of the day can take a minute or two." },
+      { id: "search", icon: "globe", name: "Web Search", appName: "SearXNG", replaces: "Google Search", sub: "search",
+        tagline: "Search the web without ads or tracking. Results come from several search engines at once.",
+        pwa: true,
+        steps: {
+          all: ["Tap Open, sign in with your family account, and search like on Google."],
+          computer: ["Make it your default: in Chrome, search once, then Settings → Search engine → Manage → pick <b>Search</b> (SearXNG) → Make default."],
+          android: ["Make it your default in Chrome: search once, then ⋮ → Settings → Search engine → pick it from the “Recently visited” list."],
+          ios: ["iPhones can't use a custom default search engine, so add it to your home screen instead."]
+        },
+        tip: "The search box on the Home Page uses this too." },
+      { id: "passwords", icon: "key", name: "Passwords", appName: "Vaultwarden", replaces: "Writing them on paper", sub: "vault",
+        tagline: "One safe place for every password, locked with one master password only you know.",
+        phone: { ios: [ios("Bitwarden", "1137397744")], android: [android("Bitwarden", "com.x8bit.bitwarden")] },
+        steps: {
+          all: ["Install Bitwarden. It works with our server even though it says Bitwarden.",
+                "On the login screen, change <b>Logging in on</b> to <b>Self-hosted</b> and enter <code data-url=\"vault\"></code>.",
+                "Sign in with your vault email and master password."],
+          ios: ["Turn on autofill: Settings → General → AutoFill &amp; Passwords → turn on <b>Bitwarden</b>."],
+          android: ["Turn on autofill: in Bitwarden → Settings → Autofill → <b>Autofill services</b>."],
+          computer: ["Install the Bitwarden extension for your browser and set it to self-hosted the same way."]
+        },
+        tip: "If you forget your master password, nobody can recover what's inside. Write it down and keep it somewhere safe at home." },
+      { id: "recipes", icon: "recipe", name: "Recipes & Meal Plans", appName: "Mealie", replaces: "Recipe sites & paper lists", sub: "recipes",
+        tagline: "The family cookbook: save recipes from any website, plan meals, and build the shopping list.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open → <b>Login with Authentik</b>.",
+          "To save a recipe, tap + → <b>Import</b> and paste any recipe page's address. You get the ingredients and steps without the ads.",
+          "Plan the week, then <b>Add to shopping list</b>."
+        ] },
+        tip: "Added to your home screen, it works like an app in the kitchen." },
+      { id: "budget", icon: "wallet", name: "Budget", appName: "Actual Budget", replaces: "YNAB / spreadsheets", sub: "budget",
+        tagline: "The household budget: give every dollar a job and see where the money actually goes.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with Authentik.",
+          "Open the budget you've been given access to.",
+          "Add spending as it happens, or import your bank's download file (OFX/QFX/CSV) once a month."
+        ] },
+        tip: "Each person only sees the budgets they've been given access to." },
+      { id: "pdf", icon: "file", name: "PDF Tools", appName: "Stirling-PDF", replaces: "Adobe Acrobat", sub: "pdf",
+        tagline: "Merge, split, sign, compress and convert PDFs without uploading them to strangers.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with your family account.",
+          "Pick a tool (e.g. <b>Merge</b> or <b>Compress</b>), drop in the file, and download the result."
+        ] },
+        tip: "It sleeps when idle, so it can take about a minute to open." }
+    ] },
+    { title: "Organize", apps: [
+      { id: "documents", icon: "archive", name: "Documents", appName: "Paperless", replaces: "A filing cabinet", sub: "papers",
+        tagline: "Scanned bills, letters, receipts and records, searchable by any word inside them.",
+        phone: { ios: [ios("Swift Paperless", "6448698521")], android: [android("Paperless Mobile", "de.astubenbord.paperless_mobile")] },
+        steps: { all: [
+          "On the web, tap Open → <b>Sign in with Authentik</b>.",
+          "For the phone app, first set a password for the app: on the web, click your name (top right) → <b>My Profile</b> → set a password.",
+          "In the app, enter <code data-url=\"papers\"></code>, your Paperless username and that password.",
+          "Scan with the app's camera button. Paperless reads the text so any word in it can be searched later."
+        ] },
+        tip: "Great for warranties, tax papers and anything you'd keep in a shoebox. Add tags like “Taxes 2026”." },
+      { id: "readlater", icon: "bookmark", name: "Read Later", appName: "Wallabag", replaces: "Pocket", sub: "read",
+        tagline: "Save articles and read them later, without ads, even offline.",
+        phone: { ios: [ios("wallabag", "1170800946")], android: [android("wallabag", "fr.gaulupeau.apps.InThePoche")] },
+        steps: { all: [
+          "In the app, enter the server <code data-url=\"read\"></code> and your Read Later username and password.",
+          "Save from anywhere: <b>Share</b> → wallabag in any browser or app."
+        ], computer: ["Install the <b>wallabagger</b> browser extension to save with one click."] },
+        tip: "Saved articles download to the app for reading offline on a plane or the subway." },
+      { id: "boards", icon: "board", name: "Boards & To-Dos", appName: "Focalboard", replaces: "Trello", sub: "boards",
+        tagline: "Plan projects, chores and trips on shared boards with cards you drag between columns.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and log in.",
+          "Create a board (try a template like <b>Project tasks</b>) or open one that's been shared with you.",
+          "Add a card for each job and drag it along as it gets done."
+        ] },
+        tip: "Good for renovations, holiday planning and the weekly chore list." },
+      { id: "inventory", icon: "box", name: "Home Inventory", appName: "Homebox", replaces: "Remembering where you put it", sub: "inventory",
+        tagline: "What we own, where it's kept, and the receipts, warranties and serial numbers, all searchable.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open. It goes straight to the family sign-in.",
+          "Add items with a photo and where they're kept, and attach the receipt or manual.",
+          "Ask to join the family's shared collection so everyone sees the same list."
+        ] },
+        tip: "Very handy for insurance claims and “is this still under warranty?”" }
+    ] }
   ];
 
-  var grid = document.getElementById("cardGrid");
-  var detailList = document.getElementById("detailList");
-  var input = document.getElementById("domainInput");
-  var status = document.getElementById("setupStatus");
+  // ---- Device ----
+  var ua = navigator.userAgent || "";
+  var detected = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? "ios"
+               : /Android/.test(ua) ? "android" : "computer";
+  var device = detected;
+  try { device = localStorage.getItem("familyGuideDevice") || detected; } catch (e) {}
 
-  function urlFor(sub, domain, path) { return "https://" + sub + "." + domain + (path || ""); }
+  function urlFor(sub, path) { return DOMAIN ? "https://" + sub + "." + DOMAIN + (path || "") : ""; }
+  function openBtn(app, cls) {
+    if (app.lan) return "";
+    var u = urlFor(app.sub, app.path);
+    return u ? '<a class="btn ' + (cls || "") + '" target="_blank" rel="noopener" href="' + u + '">Open</a>' : "";
+  }
+  function hasStoreApp(app, dev) { return app.phone && app.phone[dev] && app.phone[dev].length; }
+  function usesPwa(app, dev) { return app.pwa || (app.pwaOn && app.pwaOn.indexOf(dev) >= 0); }
 
-  function render(domain) {
-    var hasDomain = !!domain;
-    grid.innerHTML = "";
-    detailList.innerHTML = "";
+  function phoneBlock(app) {
+    var label = device === "ios" ? "On your iPhone / iPad" : device === "android" ? "On your Android phone" : "On your computer";
+    var html = '<div class="phone"><h4>' + label + '</h4>';
+    if (device !== "computer" && hasStoreApp(app, device)) {
+      html += '<div class="store-row">' + app.phone[device].map(function (s) {
+        return '<a class="store" target="_blank" rel="noopener" href="' + s.url + '">' + (device === "ios" ? APPLE : PLAY) +
+               'Get ' + s.name + (s.note ? ' <em>' + s.note + '</em>' : '') + '</a>';
+      }).join("") + '</div>';
+      if (app.phoneNote) html += '<p>' + app.phoneNote + '</p>';
+    } else if (device !== "computer" && usesPwa(app, device)) {
+      html += '<p>No app to install. Open it and <b>Add to Home Screen</b> (see “Good to know” at the bottom) and it works like one.</p>';
+    } else if (device === "computer") {
+      html += '<p>' + (app.lan ? "Works in any browser on the home network." : "Works in any browser: just tap <b>Open</b>. Bookmark it or install it from the address bar.") + '</p>';
+      if (app.phoneNote) html += '<p>' + app.phoneNote + '</p>';
+    }
+    return html + '</div>';
+  }
 
-    APPS.forEach(function (app) {
-      var href = hasDomain ? urlFor(app.subdomain, domain, app.path) : "#" + app.id;
+  var groupsEl = document.getElementById("cardGroups");
+  var detailEl = document.getElementById("detailList");
 
-      var card = document.createElement("a");
-      card.className = "card";
-      card.href = hasDomain ? href : ("#" + app.id);
-      if (hasDomain) card.target = "_blank";
-      card.innerHTML =
-        '<div class="badge">' + ICONS[app.icon] + '</div>' +
-        '<h3>' + app.name + '</h3>' +
-        '<div class="app-name">' + app.appName + '</div>' +
-        '<div class="replaces">Like <b>' + app.replaces + '</b></div>' +
-        '<div class="go">' + (hasDomain ? "Open →" : "See how it works ↓") + '</div>';
-      grid.appendChild(card);
-
-      var detail = document.createElement("div");
-      detail.className = "detail";
-      detail.id = app.id;
-
-      var linksHtml = "";
-      if (hasDomain) {
-        linksHtml += '<a class="open-link" target="_blank" href="' + urlFor(app.subdomain, domain, app.path) + '">Open ' + app.name + ' →</a>';
-        if (app.subdomain2) {
-          linksHtml += '<a class="open-link secondary" target="_blank" href="' + urlFor(app.subdomain2, domain) + '">Open Jellyfin instead →</a>';
-        }
-      } else {
-        linksHtml = '<p class="setup-status">Type our family address at the top of the page to get a working link here.</p>';
-      }
-
-      detail.innerHTML =
-        '<div class="badge">' + ICONS[app.icon] + '</div>' +
-        '<div class="detail-body">' +
-          '<h3>' + app.name + ' <span style="color:var(--ink-soft); font-weight:400; font-size:15px;">(' + app.appName + ')</span></h3>' +
-          '<p class="tagline">' + app.tagline + '</p>' +
-          '<div class="link-row">' + linksHtml + '</div>' +
-          '<ol class="steps">' + app.steps.map(function (s) { return "<li>" + s + "</li>"; }).join("") + '</ol>' +
-          '<div class="tip">💡 ' + app.tip + '</div>' +
-        '</div>';
-      detailList.appendChild(detail);
+  function fillUrls(root) {
+    Array.prototype.forEach.call(root.querySelectorAll("code[data-url]"), function (c) {
+      c.textContent = urlFor(c.getAttribute("data-url"), c.getAttribute("data-path")) ||
+        ("https://" + c.getAttribute("data-url") + ".<our address>" + (c.getAttribute("data-path") || ""));
     });
   }
 
-  var saved = "";
-  try { saved = localStorage.getItem("familyGuideDomain") || ""; } catch (e) {}
-  input.value = saved;
+  function render() {
+    groupsEl.innerHTML = ""; detailEl.innerHTML = "";
 
-  function update() {
-    var domain = input.value.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
-    if (domain) {
-      status.textContent = "Got it — every button below now points at " + domain + ". This is remembered on this device.";
-      status.classList.add("ok");
-    } else {
-      status.textContent = "Ask whoever set this up if you don't know the address — once you type it in, every button below will work, and it'll remember it next time you visit.";
-      status.classList.remove("ok");
-    }
-    try { localStorage.setItem("familyGuideDomain", domain); } catch (e) {}
-    render(domain);
+    var hero = document.getElementById("heroActions");
+    hero.innerHTML = DOMAIN
+      ? '<a class="btn" href="' + urlFor("home") + '">Go to the Home Page</a><a class="btn ghost" href="' + urlFor("auth", "/if/user/") + '">My family account</a><a class="btn ghost" href="#help">Help &amp; tips</a>'
+      : '<a class="btn ghost" href="#help">Help &amp; tips</a>';
+
+    GROUPS.forEach(function (g) {
+      var h = document.createElement("h3"); h.className = "group-title"; h.textContent = g.title; groupsEl.appendChild(h);
+      var grid = document.createElement("div"); grid.className = "grid"; groupsEl.appendChild(grid);
+
+      g.apps.forEach(function (app) {
+        var appHint = device !== "computer" && hasStoreApp(app, device)
+          ? '<div class="has-app">📱 ' + app.phone[device].map(function (s) { return s.name; }).join(" or ") + ' app</div>' : "";
+        var card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML =
+          '<div class="card-top"><div class="badge">' + icon(app.icon) + '</div><div><h4>' + app.name + '</h4>' +
+          '<div class="app-name">' + app.appName + '</div></div></div>' +
+          '<div class="replaces">Like <b>' + app.replaces + '</b></div>' + appHint +
+          '<div class="card-actions">' + openBtn(app) + '<a class="btn ghost" href="#' + app.id + '">Set up</a></div>';
+        grid.appendChild(card);
+
+        var steps = (app.steps[device] || []).concat(app.steps.all || []);
+        if (device === "computer" && app.steps.computer) steps = app.steps.computer.concat(app.steps.all || []);
+        var d = document.createElement("section");
+        d.className = "detail"; d.id = app.id;
+        d.innerHTML =
+          '<div class="badge">' + icon(app.icon) + '</div>' +
+          '<div class="detail-body">' +
+            '<h3>' + app.name + ' <small>(' + app.appName + ')</small></h3>' +
+            '<p class="tagline">' + app.tagline + '</p>' +
+            '<div class="link-row">' + openBtn(app) +
+              (app.sub2 && DOMAIN ? '<a class="btn alt" target="_blank" rel="noopener" href="' + urlFor(app.sub2.sub) + '">' + app.sub2.label + '</a>' : '') +
+            '</div>' +
+            phoneBlock(app) +
+            '<ol class="steps">' + steps.map(function (s) { return "<li>" + s + "</li>"; }).join("") + '</ol>' +
+            '<div class="tip">💡 ' + app.tip + '</div>' +
+            '<a class="to-top" href="#top">↑ Back to all apps</a>' +
+          '</div>';
+        detailEl.appendChild(d);
+      });
+    });
+    fillUrls(detailEl);
+
+    Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-dev") === device ? "true" : "false");
+    });
+    document.getElementById("deviceNote").textContent = device === detected
+      ? "Picked automatically. Change it to see the steps for another device."
+      : "Showing steps for a different device than this one.";
   }
 
-  input.addEventListener("input", update);
-  update();
+  Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+    b.addEventListener("click", function () {
+      device = b.getAttribute("data-dev");
+      try { localStorage.setItem("familyGuideDevice", device); } catch (e) {}
+      render();
+    });
+  });
+
+  render();
+  // Re-apply a #anchor from a Home Page link now that the sections exist.
+  if (location.hash) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }
 })();
 </script>
 </body>

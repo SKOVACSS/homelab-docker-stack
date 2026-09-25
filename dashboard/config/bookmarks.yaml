@@ -20,3 +20,34 @@
     - Omada controller:
         - icon: omada.png
           href: https://192.168.0.2/
+
+# Admin phone apps (store links checked 2026-09-25). They reach the
+# *arrs, Bazarr and Tautulli through the API paths Caddy leaves outside
+# the Authentik wall; each app needs that service's API key.
+- iPhone apps:
+    - Helmarr (arrs, Plex, Tautulli, qBit):
+        - icon: si-apple
+          href: https://apps.apple.com/app/id1638624921
+    - Ruddarr (Sonarr/Radarr, free):
+        - icon: si-apple
+          href: https://apps.apple.com/app/id6476240130
+    - Tautulli Remote:
+        - icon: tautulli.png
+          href: https://apps.apple.com/app/id1570909086
+    - iGotify (needs its notification assistant):
+        - icon: gotify.png
+          href: https://apps.apple.com/app/id6473452512
+
+- Android apps:
+    - nzb360 (arrs, Bazarr, Seerr, qBit, Tautulli):
+        - icon: si-android
+          href: https://play.google.com/store/apps/details?id=com.kevinforeman.nzb360
+    - Tautulli Remote:
+        - icon: tautulli.png
+          href: https://play.google.com/store/apps/details?id=com.tautulli.tautulli_remote
+    - Gotify (alerts):
+        - icon: gotify.png
+          href: https://play.google.com/store/apps/details?id=com.github.gotify
+    - Family app guide:
+        - icon: mdi-account-group
+          href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"
