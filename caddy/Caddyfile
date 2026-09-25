@@ -86,6 +86,14 @@
   # "Server Options", inside `servers { ... }`).
   servers {
     trusted_proxies static 172.20.0.0/16
+    # Read X-Forwarded-For right-to-left and stop at the first untrusted
+    # address. Cloudflare APPENDS the real client IP to whatever
+    # X-Forwarded-For the visitor sent, and Caddy's default takes the
+    # left-most entry - so a visitor could name any IP they liked
+    # (confirmed live 2026-09-25: a CrowdSec-banned IP got a 200 by
+    # prefixing a fake one), dodging bans and rate limits or posing as the
+    # CrowdSec-allowlisted household IP.
+    trusted_proxies_strict
   }
 
   # CrowdSec bouncer (optional) - enforces crowdsec-stack's ban decisions
