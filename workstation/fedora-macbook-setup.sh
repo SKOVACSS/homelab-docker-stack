@@ -58,6 +58,18 @@ if ! grep -q '^ID=fedora' /etc/os-release; then
   exit 1
 fi
 
+# Keep the Mac awake for the whole run. The system update takes a while,
+# and on a MacBookPro13,2 the first run was left idle, blanked/slept, and
+# never came back (these Macs can't reliably resume until the NVMe fix
+# below is in place), forcing a hard power-off mid-update.
+if [ -z "${HOMELAB_SETUP_INHIBITED:-}" ] && command -v systemd-inhibit >/dev/null 2>&1 \
+   && systemd-inhibit --what=idle:sleep:handle-lid-switch true 2>/dev/null; then
+  export HOMELAB_SETUP_INHIBITED=1
+  exec systemd-inhibit --what=idle:sleep:handle-lid-switch \
+    --who="fedora-macbook-setup.sh" --why="Installing updates - keep the Mac awake" \
+    bash "$0" "$@"
+fi
+
 MODEL="$(cat /sys/class/dmi/id/product_name 2>/dev/null || echo unknown)"
 case "$MODEL" in
   MacBookPro13,*|MacBookPro14,*) ok "Detected $MODEL" ;;
