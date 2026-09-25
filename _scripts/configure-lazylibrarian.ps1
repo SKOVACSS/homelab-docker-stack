@@ -63,6 +63,9 @@ if (Test-Path $envFile) {
 $settings = [ordered]@{
     'GENERAL'     = [ordered]@{
         ebook_dir        = '/books-ingest'
+        # Audiobookshelf's library folder (family-stack) - finished
+        # audiobooks land here as Author/Title and show up in the app.
+        audio_dir        = '/audiobooks'
         download_dir     = '/downloads/lazylibrarian'
         # Copy into CWA's ingest folder instead of moving: CWA deletes
         # what it imports, and the torrent's original must keep seeding.

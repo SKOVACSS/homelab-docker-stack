@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.0
+#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -44,7 +44,7 @@ function Send-GotifyNotification {
 }
 
 # Configuration
-$stacks = @("authentik", "caddy", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard", "dns-stack", "ai-stack", "crowdsec-stack")
+$stacks = @("authentik", "caddy", "media-stack", "privacy-stack", "security-stack", "email-stack", "monitoring-stack", "notification-stack", "utilities", "immich-app", "dashboard", "dns-stack", "ai-stack", "crowdsec-stack", "remote-stack", "family-stack")
 $results = @{
     Healthy = @()
     Unhealthy = @()
@@ -113,6 +113,12 @@ foreach ($stack in $stacks) {
                     # Started on demand by Sablier (see caddy/docker-compose.yml)
                     # - stopped between uses is its normal state, not a fault.
                     Say "  💤 $($c.Name) - Sleeping (starts on demand)" "Gray"
+                    $results.Healthy += @{Stack=$stack; Container=$c.Name; Status=$status}
+                } elseif ($c.State -eq "exited" -and $c.ExitCode -eq 0 -and
+                          (docker inspect $c.Name --format '{{.HostConfig.RestartPolicy.Name}}' 2>$null) -eq 'no') {
+                    # One-shot setup job (restart: "no") that finished
+                    # successfully, e.g. syncthing-permissions-fix.
+                    Say "  ✔️  $($c.Name) - Completed (one-shot job)" "Gray"
                     $results.Healthy += @{Stack=$stack; Container=$c.Name; Status=$status}
                 } elseif ($c.State -ne "running") {
                     Say "  ⏸️  $($c.Name) - Not Running ($($c.State))" "Yellow"
