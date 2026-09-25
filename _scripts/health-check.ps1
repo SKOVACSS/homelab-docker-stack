@@ -1,4 +1,4 @@
-#Requires -Version 5.0
+﻿#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -71,6 +71,11 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 # empty when nothing's running) instead.
 $containers = docker ps -q
 
+# Restart policy of a container ("no" = one-shot job).
+function Get-RestartPolicy([string]$Name) {
+    docker inspect $Name --format '{{.HostConfig.RestartPolicy.Name}}' 2>$null
+}
+
 if (-not $containers) {
     if ($JSON) {
         @{ Error = "No containers running" } | ConvertTo-Json
@@ -115,7 +120,7 @@ foreach ($stack in $stacks) {
                     Say "  💤 $($c.Name) - Sleeping (starts on demand)" "Gray"
                     $results.Healthy += @{Stack=$stack; Container=$c.Name; Status=$status}
                 } elseif ($c.State -eq "exited" -and $c.ExitCode -eq 0 -and
-                          (docker inspect $c.Name --format '{{.HostConfig.RestartPolicy.Name}}' 2>$null) -eq 'no') {
+                          (Get-RestartPolicy $c.Name) -eq 'no') {
                     # One-shot setup job (restart: "no") that finished
                     # successfully, e.g. syncthing-permissions-fix.
                     Say "  ✔️  $($c.Name) - Completed (one-shot job)" "Gray"
