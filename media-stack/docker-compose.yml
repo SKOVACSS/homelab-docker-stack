@@ -493,6 +493,8 @@ services:
       - TZ=${TZ:-UTC}
     volumes:
       - lazylibrarian-config:/config
+      # Start-up patch for an upstream IRC download bug - see the script.
+      - ./lazylibrarian/custom-cont-init.d:/custom-cont-init.d:ro
       # Same host folder at the same path qBittorrent sees (/downloads),
       # so completed book torrents in /downloads/lazylibrarian need no
       # remote/local path mapping.
