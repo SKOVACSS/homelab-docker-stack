@@ -1,32 +1,63 @@
-title: Homelab
+# Admin dashboard (dash.DOMAIN). Background lives in ../images (mounted at
+# /app/public/images); custom.css adds the finishing touches.
+title: Homelab Control
+description: Every service on the server, at a glance
+favicon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
 theme: dark
 color: slate
-headerStyle: boxed
+background:
+  image: /images/dash-background.svg
+  opacity: 100
+cardBlur: md
+headerStyle: clean
+statusStyle: dot
+useEqualHeights: true
+hideVersion: true
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
 layout:
+  Family:
+    icon: mdi-home-heart
+    style: row
+    columns: 2
   Media Apps:
+    icon: mdi-download-circle
     style: row
     columns: 4
   Media Servers:
+    icon: mdi-play-circle
     style: row
     columns: 3
   Household:
+    icon: mdi-silverware-fork-knife
     style: row
     columns: 3
+  AI:
+    icon: mdi-robot-happy
+    style: row
+    columns: 1
   Files & Collaboration:
+    icon: mdi-folder-account
     style: row
     columns: 3
   Documents & Notes:
+    icon: mdi-file-document-multiple
     style: row
     columns: 3
   Calendar & Contacts:
+    icon: mdi-calendar-account
     style: row
     columns: 2
   Network:
+    icon: mdi-lan
     style: row
     columns: 1
   Utilities:
+    icon: mdi-tools
     style: row
     columns: 4
   Authentication & Email:
+    icon: mdi-shield-account
     style: row
     columns: 3

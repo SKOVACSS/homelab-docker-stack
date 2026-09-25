@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <!-- Family dashboard background: warm dusk over rolling hills. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1633"/>
+      <stop offset="0.45" stop-color="#4a2545"/>
+      <stop offset="0.75" stop-color="#9a4a3c"/>
+      <stop offset="1" stop-color="#d98a4a"/>
+    </linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="90"/>
+    </filter>
+    <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd59a" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffb36b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <g filter="url(#soft)">
+    <circle cx="380" cy="160" r="260" fill="#6d3b8e" fill-opacity="0.45"/>
+    <circle cx="1560" cy="220" r="300" fill="#8a3b5e" fill-opacity="0.4"/>
+  </g>
+  <circle cx="1320" cy="760" r="260" fill="url(#sun)"/>
+  <!-- hills, back to front -->
+  <path d="M0 820 C 300 740, 560 770, 860 800 S 1500 720, 1920 780 V1080 H0Z" fill="#5a2e3f" fill-opacity="0.85"/>
+  <path d="M0 900 C 380 840, 700 900, 1040 880 S 1640 830, 1920 870 V1080 H0Z" fill="#3b2035" fill-opacity="0.92"/>
+  <path d="M0 980 C 420 930, 900 990, 1300 960 S 1760 940, 1920 950 V1080 H0Z" fill="#231426"/>
+</svg>

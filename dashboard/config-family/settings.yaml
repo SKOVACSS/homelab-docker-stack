@@ -1,23 +1,41 @@
-# Family dashboard (home.DOMAIN) - same look as the admin one (dash.DOMAIN,
-# ../config), household apps only. See ../docker-compose.yml.
+# Family dashboard (home.DOMAIN) - same engine as the admin one (dash.DOMAIN,
+# ../config), household apps only. Background lives in ../images.
 title: Home
+description: All the family's apps in one place
+favicon: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/homepage.png
 theme: dark
-color: slate
-headerStyle: boxed
+color: stone
+background:
+  image: /images/home-background.svg
+  opacity: 100
+cardBlur: md
+headerStyle: clean
+useEqualHeights: true
 hideVersion: true
+quicklaunch:
+  searchDescriptions: true
 layout:
   Watch:
+    icon: mdi-television-play
     style: row
     columns: 3
   Photos & Files:
+    icon: mdi-image-multiple
     style: row
     columns: 2
   Listen & Read:
+    icon: mdi-headphones
     style: row
     columns: 3
   Everyday:
+    icon: mdi-home-heart
+    style: row
+    columns: 3
+  Organize:
+    icon: mdi-folder-star
     style: row
     columns: 3
   Help:
+    icon: mdi-lifebuoy
     style: row
     columns: 2

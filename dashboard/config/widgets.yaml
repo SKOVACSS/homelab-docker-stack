@@ -1,0 +1,25 @@
+# Admin dashboard header widgets. "resources" reads the Homepage
+# container's own view (Docker's VM), not Windows - the Windows Host
+# dashboard in Grafana covers the real machine.
+- greeting:
+    text_size: xl
+    text: Homelab Control
+
+- datetime:
+    text_size: md
+    format:
+      weekday: short
+      month: short
+      day: numeric
+      hour: numeric
+      minute: 2-digit
+
+- resources:
+    cpu: true
+    memory: true
+    disk: /
+    expanded: true
+
+- search:
+    provider: duckduckgo
+    target: _blank
