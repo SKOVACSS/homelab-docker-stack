@@ -12,6 +12,10 @@ networks:
     driver: bridge
     name: caddy-network
     external: true
+  # Private: only homepage-family and its Docker proxy.
+  family-docker:
+    name: family-docker
+    internal: true
 
 services:
   homepage:
@@ -47,6 +51,10 @@ services:
       - HOMEPAGE_VAR_SEERR_API_KEY=${SEERR_API_KEY}
       - HOMEPAGE_VAR_QBITTORRENT_API_KEY=${QBIT_API_KEY}
       - HOMEPAGE_VAR_SLSKD_API_KEY=${SLSKD_API_KEY}
+      - HOMEPAGE_VAR_BAZARR_API_KEY=${BAZARR_API_KEY:-}
+      - HOMEPAGE_VAR_TAUTULLI_API_KEY=${TAUTULLI_API_KEY:-}
+      # LAN-only links (Immich Kiosk) - the server's home-network address.
+      - HOMEPAGE_VAR_SERVER_LAN_IP=${SERVER_LAN_IP:-}
       # Homepage had no login of its own by default - anyone reaching
       # dash.{$DOMAIN} saw every service in this stack with zero
       # credentials. OIDC login via Authentik (the OAuth2 Provider +
@@ -100,6 +108,7 @@ services:
       - HOMEPAGE_OIDC_NAME=Authentik
     networks:
       - caddy-network
+      - family-docker
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     healthcheck:
@@ -115,3 +124,30 @@ services:
         reservations:
           cpus: '0.1'
           memory: 96M
+
+  # Read-only window onto Docker for the family dashboard, so its tiles can
+  # show whether each app is running or asleep. Only the container list is
+  # allowed (CONTAINERS=1, everything else - exec, images, POST - is off),
+  # and it sits on a private network only homepage-family can reach.
+  family-docker-proxy:
+    image: lscr.io/linuxserver/socket-proxy:3.2.3
+    restart: unless-stopped
+    container_name: family-docker-proxy
+    environment:
+      - CONTAINERS=1
+      - POST=0
+      - LOG_LEVEL=warning
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs:
+      - /run
+    networks:
+      - family-docker
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M

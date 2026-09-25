@@ -9,7 +9,10 @@
       month: long
       day: numeric
 
+# Searches go to the household's own SearXNG (search.DOMAIN), not a
+# third-party engine.
 - search:
-    provider: duckduckgo
+    provider: custom
+    url: "https://search.{{HOMEPAGE_VAR_DOMAIN}}/search?q="
     target: _blank
     focus: true

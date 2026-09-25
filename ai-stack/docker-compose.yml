@@ -135,6 +135,13 @@ services:
       - OAUTH_CLIENT_SECRET=${OPENWEBUI_OIDC_CLIENT_SECRET}
       - OAUTH_SCOPES=openid email profile
       - OPENID_REDIRECT_URI=https://chat.${DOMAIN}/oauth/oidc/callback
+      # Web search through the household SearXNG (family-stack), reached
+      # over caddy-network. Like the model URL above, these only seed a
+      # fresh install - the live values are in Admin Settings -> Web Search.
+      - ENABLE_WEB_SEARCH=true
+      - WEB_SEARCH_ENGINE=searxng
+      - SEARXNG_QUERY_URL=http://searxng:8080/search?q=<query>
+      - WEB_SEARCH_RESULT_COUNT=5
     volumes:
       - open-webui-data:/app/backend/data
     depends_on:

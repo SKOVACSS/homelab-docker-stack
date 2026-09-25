@@ -1,2 +1,5 @@
-# No Docker access for the family dashboard (no socket mounted).
-{}
+# Read-only Docker access through family-docker-proxy (dashboard stack):
+# container list only, so tiles can show running / asleep.
+my-docker:
+  host: family-docker-proxy
+  port: 2375

@@ -12,6 +12,8 @@ cardBlur: md
 headerStyle: clean
 useEqualHeights: true
 hideVersion: true
+# Status dot on each tile (from docker.yaml): green = ready.
+statusStyle: dot
 quicklaunch:
   searchDescriptions: true
 layout:
@@ -22,7 +24,7 @@ layout:
   Photos & Files:
     icon: mdi-image-multiple
     style: row
-    columns: 2
+    columns: 3
   Listen & Read:
     icon: mdi-headphones
     style: row
@@ -34,7 +36,7 @@ layout:
   Organize:
     icon: mdi-folder-star
     style: row
-    columns: 3
+    columns: 4
   Help:
     icon: mdi-lifebuoy
     style: row
