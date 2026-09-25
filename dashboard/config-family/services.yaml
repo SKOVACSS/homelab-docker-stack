@@ -131,10 +131,10 @@
         container: homebox
 
 - Help:
-    - Family Guide:
+    - Family Guide (setup & phone apps):
         icon: mdi-account-group
         href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: How to use each app
+        description: Phone apps and how to set up each one
     - My account (Authentik):
         icon: authentik.png
         href: "https://auth.{{HOMEPAGE_VAR_DOMAIN}}/if/user/"
