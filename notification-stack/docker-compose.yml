@@ -61,6 +61,50 @@ services:
           cpus: '0.25'
           memory: 128M
 
+  # ========== iGOTIFY: Gotify -> iPhone push ==========
+  # Gotify has no iOS app of its own. This assistant keeps a WebSocket to
+  # Gotify and relays each new message (encrypted) through the SecNtfy
+  # service to Apple's push service, which delivers it to the iGotify iOS
+  # app. SecNtfy doesn't store message content.
+  # "External instance" mode: the app reaches this at igotify.{$DOMAIN}
+  # (Caddy) and registers itself, so no tokens go in .env. In the app:
+  # Gotify URL https://gotify.<domain>, iGotify URL https://igotify.<domain>,
+  # then sign in with a Gotify user.
+  igotify:
+    image: ghcr.io/androidseb25/igotify-notification-assist:v1.6.0.1
+    restart: unless-stopped
+    container_name: igotify
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - gotify
+    volumes:
+      - igotify-data:/app/data
+    environment:
+      # This is publicly reachable, so no API explorer and no device
+      # management page.
+      - ENABLE_SCALAR_UI=false
+      - ENABLE_USER_UI=false
+      - ENABLE_CONSOLE_LOG=true
+    networks:
+      - notification-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/Version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
 volumes:
   gotify-data:
+    driver: local
+  igotify-data:
     driver: local
