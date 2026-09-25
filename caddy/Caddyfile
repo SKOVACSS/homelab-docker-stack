@@ -525,6 +525,16 @@ gotify.{$DOMAIN} {
   }
 }
 
+# iGotify assistant (notification-stack) - the iOS app registers here.
+# No Authentik wall: the app can't do a browser login, and registering
+# needs a valid Gotify client token anyway.
+igotify.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit igotify
+  reverse_proxy igotify:8080
+}
+
 # ========== AUTHENTICATION ==========
 
 # Authentik - central login portal (also used for OIDC integrations)
