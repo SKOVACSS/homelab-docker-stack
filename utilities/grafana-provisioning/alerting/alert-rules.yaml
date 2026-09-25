@@ -192,3 +192,69 @@ groups:
           - refId: C
             datasourceUid: __expr__
             model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [0] } } ] }
+
+      - uid: windows-host-rebooted
+        title: Server rebooted
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'The Windows server restarted {{ printf "%.0f" $values.B.Value }} minutes ago'
+          description: 'If nobody restarted it, it crashed - check Event Viewer (System log, source BugCheck / Kernel-Power 41) and C:\Windows\Minidump for the stop code.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: '(time() - windows_system_boot_time_timestamp{job="windows"}) / 60', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: lt, params: [15] } } ] }
+
+      - uid: windows-drive-full
+        title: Server drive nearly full
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Drive {{ $labels.volume }} is {{ printf "%.0f" $values.B.Value }}% full'
+          description: 'See the Windows Host dashboard. On C: this also squeezes Docker''s virtual disk and the page file.'
+        labels: { severity: critical }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: '(1 - windows_logical_disk_free_bytes{job="windows", volume!~"HarddiskVolume.*"} / windows_logical_disk_size_bytes{job="windows", volume!~"HarddiskVolume.*"}) * 100', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [92] } } ] }
+
+      - uid: windows-memory-high
+        title: Server RAM nearly full
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'The Windows server is using {{ printf "%.0f" $values.B.Value }}% of its RAM'
+          description: 'Includes Docker''s VM (up to 20 GB) plus Windows apps. Check Task Manager, then the Containers dashboard.'
+        labels: { severity: warning }
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: A, expr: '(1 - windows_memory_available_bytes{job="windows"} / windows_memory_physical_total_bytes{job="windows"}) * 100', instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last }
+          - refId: C
+            datasourceUid: __expr__
+            model: { refId: C, type: threshold, expression: B, conditions: [ { evaluator: { type: gt, params: [92] } } ] }

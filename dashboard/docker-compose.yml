@@ -1,9 +1,11 @@
-# Dashboard - single landing page linking to every service in this repo
-# Replaces: bookmarking ~40 separate URLs
-# Features: live status widgets for a few key services, everything else as
-# a plain link. Config lives in ./config (services.yaml, settings.yaml,
-# docker.yaml) - checked into git like the rest of this repo, not edited
-# through a UI.
+# Dashboards - two Homepage instances with the same look:
+#   homepage        -> dash.DOMAIN, the admin dashboard: every service, live
+#                      widgets, Docker status. Authentik admins only.
+#   homepage-family -> home.DOMAIN, household apps only (./config-family),
+#                      no API keys, no Docker socket. Any Authentik user.
+# Replaces: bookmarking ~40 separate URLs. Config lives in ./config and
+# ./config-family (services.yaml, settings.yaml, ...) - checked into git
+# like the rest of this repo, not edited through a UI.
 
 networks:
   caddy-network:
@@ -24,7 +26,7 @@ services:
     environment:
       # Required by Homepage itself (Host-header validation) - must match
       # every hostname it's actually reachable on.
-      - HOMEPAGE_ALLOWED_HOSTS=home.${DOMAIN}
+      - HOMEPAGE_ALLOWED_HOSTS=dash.${DOMAIN}
       # Read in services.yaml as {{HOMEPAGE_VAR_DOMAIN}} so every tile's
       # link works for whatever domain this was actually installed with,
       # rather than a hardcoded placeholder.
@@ -43,13 +45,13 @@ services:
       - HOMEPAGE_VAR_QBITTORRENT_API_KEY=${QBIT_API_KEY}
       - HOMEPAGE_VAR_SLSKD_API_KEY=${SLSKD_API_KEY}
       # Homepage had no login of its own by default - anyone reaching
-      # home.{$DOMAIN} saw every service in this stack with zero
+      # dash.{$DOMAIN} saw every service in this stack with zero
       # credentials. OIDC login via Authentik (the OAuth2 Provider +
       # Application named "Homepage", slug "homepage", were created
       # there to match this) - same login you'd set up for anything else
       # behind Authentik later, rather than a one-off separate password.
       - HOMEPAGE_AUTH_ENABLED=true
-      - HOMEPAGE_EXTERNAL_URL=https://home.${DOMAIN}
+      - HOMEPAGE_EXTERNAL_URL=https://dash.${DOMAIN}
       - HOMEPAGE_AUTH_SECRET=${HOMEPAGE_AUTH_SECRET}
       - HOMEPAGE_OIDC_ISSUER=https://auth.${DOMAIN}/application/o/homepage/
       - HOMEPAGE_OIDC_CLIENT_ID=${HOMEPAGE_OIDC_CLIENT_ID}
@@ -72,3 +74,40 @@ services:
         reservations:
           cpus: '0.25'
           memory: 128M
+
+  # Family dashboard (home.DOMAIN). Deliberately unprivileged: no Docker
+  # socket and no widget API keys - only links. Its Authentik login
+  # (authentik/blueprints/dashboards.yaml) admits any Authentik user.
+  homepage-family:
+    image: ghcr.io/gethomepage/homepage:v2.4.0
+    restart: unless-stopped
+    container_name: homepage-family
+    volumes:
+      - ./config-family:/app/config
+    environment:
+      - HOMEPAGE_ALLOWED_HOSTS=home.${DOMAIN}
+      - HOMEPAGE_VAR_DOMAIN=${DOMAIN}
+      - HOMEPAGE_AUTH_ENABLED=true
+      - HOMEPAGE_EXTERNAL_URL=https://home.${DOMAIN}
+      - HOMEPAGE_AUTH_SECRET=${HOMEPAGE_FAMILY_AUTH_SECRET}
+      - HOMEPAGE_OIDC_ISSUER=https://auth.${DOMAIN}/application/o/home/
+      - HOMEPAGE_OIDC_CLIENT_ID=homepage-family
+      - HOMEPAGE_OIDC_CLIENT_SECRET=${HOMEPAGE_FAMILY_OIDC_CLIENT_SECRET}
+      - HOMEPAGE_OIDC_NAME=Authentik
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 384M
+        reservations:
+          cpus: '0.1'
+          memory: 96M

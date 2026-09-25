@@ -1,0 +1,23 @@
+# Family dashboard (home.DOMAIN) - same look as the admin one (dash.DOMAIN,
+# ../config), household apps only. See ../docker-compose.yml.
+title: Home
+theme: dark
+color: slate
+headerStyle: boxed
+hideVersion: true
+layout:
+  Watch:
+    style: row
+    columns: 3
+  Photos & Files:
+    style: row
+    columns: 2
+  Listen & Read:
+    style: row
+    columns: 3
+  Everyday:
+    style: row
+    columns: 3
+  Help:
+    style: row
+    columns: 2

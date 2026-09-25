@@ -30,5 +30,5 @@ Add a monitor by dropping in a file like this, then restart `autokuma`:
   and the two overwrote each other on every sync.
 - Groups: `media`, `apps`, `infra`. Notification: `gotify`, defined on
   the autokuma container's labels so its token comes from `.env`.
-- **Don't monitor Sablier-managed apps** (Jellyfin, chat/Open WebUI):
+- **Don't monitor Sablier-managed apps** (Jellyfin, chat/Open WebUI, remote/Guacamole, pdf/Stirling-PDF):
   every check is a request, which would keep waking them up.

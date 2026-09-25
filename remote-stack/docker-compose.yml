@@ -1,0 +1,141 @@
+# Remote Stack - the server's own Windows desktop in any web browser, from
+# anywhere: https://remote.DOMAIN. No client software, no Tailscale, no
+# port forwarding - it rides the same Caddy + Cloudflare Tunnel path as
+# every other site.
+#
+# Apache Guacamole is a clientless remote-desktop gateway: guacd speaks RDP
+# to Windows (host.docker.internal:3389) and the guacamole web app turns
+# that into an HTML5 canvas over a websocket.
+#
+# Three locks, in order:
+#   1. CrowdSec in Caddy (banned IPs never get further).
+#   2. Authentik login, and only members of "authentik Admins" are let
+#      through (authentik/blueprints/remote-desktop.yaml). Turn on MFA for
+#      those accounts in Authentik - this is the front door to the server.
+#   3. Windows' own login with Network Level Authentication - Guacamole
+#      stores no Windows password; it asks for one every session.
+#
+# Guacamole's database login is disabled in practice: its stock guacadmin
+# account is deleted on first boot (initdb/002-homelab.sql), and nothing
+# else has a password. Sleeps via Sablier when unused (~300MB saved).
+#
+# Needs remote-stack/.env: DOMAIN and GUACAMOLE_DB_PASSWORD. Windows'
+# Remote Desktop must be on (Settings -> System -> Remote Desktop).
+
+networks:
+  caddy-network:
+    name: caddy-network
+    external: true
+  remote-network:
+    driver: bridge
+    name: remote-network
+
+volumes:
+  guacamole-db:
+    driver: local
+
+services:
+  guacamole-db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    container_name: guacamole-db
+    environment:
+      POSTGRES_DB: guacamole
+      POSTGRES_USER: guacamole
+      POSTGRES_PASSWORD: ${GUACAMOLE_DB_PASSWORD}
+    volumes:
+      - guacamole-db:/var/lib/postgresql
+      # Runs once, on an empty database only: schema, then homelab setup.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - remote-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guacamole -d guacamole"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    labels:
+      # Floating minor tag - patch/minor updates only.
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  guacd:
+    image: guacamole/guacd:1.6.0
+    restart: unless-stopped
+    container_name: guacd
+    networks:
+      - remote-network
+    # The image's own healthcheck runs every 5 minutes - far too slow for
+    # Sablier, which waits for "healthy" before letting the page load.
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 4822 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "sablier.enable=true"
+      - "sablier.group=remote"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+
+  guacamole:
+    image: guacamole/guacamole:1.6.0
+    restart: unless-stopped
+    container_name: guacamole
+    depends_on:
+      guacamole-db:
+        condition: service_healthy
+      guacd:
+        condition: service_started
+    environment:
+      GUACD_HOSTNAME: guacd
+      # Serve at / instead of /guacamole/.
+      WEBAPP_CONTEXT: ROOT
+      POSTGRESQL_HOSTNAME: guacamole-db
+      POSTGRESQL_DATABASE: guacamole
+      POSTGRESQL_USERNAME: guacamole
+      POSTGRESQL_PASSWORD: ${GUACAMOLE_DB_PASSWORD}
+      # Authentik users get a Guacamole account on first login; their
+      # permissions come from the "authentik Admins" group (see initdb).
+      POSTGRESQL_AUTO_CREATE_ACCOUNTS: "true"
+      # Authentik (OpenID). auth.DOMAIN resolves straight to Caddy inside
+      # Docker (caddy-network alias), so the key fetch stays internal.
+      OPENID_AUTHORIZATION_ENDPOINT: https://auth.${DOMAIN}/application/o/authorize/
+      OPENID_JWKS_ENDPOINT: https://auth.${DOMAIN}/application/o/remote-desktop/jwks/
+      OPENID_ISSUER: https://auth.${DOMAIN}/application/o/remote-desktop/
+      OPENID_CLIENT_ID: guacamole
+      OPENID_REDIRECT_URI: https://remote.${DOMAIN}/
+      OPENID_USERNAME_CLAIM_TYPE: preferred_username
+      OPENID_GROUPS_CLAIM_TYPE: groups
+      OPENID_SCOPE: openid email profile
+      # Go straight to Authentik instead of showing Guacamole's own form.
+      EXTENSION_PRIORITY: openid
+      # Log/ban by the real client IP Caddy forwards, not Caddy's.
+      REMOTE_IP_VALVE_ENABLED: "true"
+    networks:
+      - remote-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "sablier.enable=true"
+      - "sablier.group=remote"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 768M

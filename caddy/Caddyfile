@@ -30,13 +30,27 @@
 # This IP is specific to this ProtonVPN client's current tunnel - if it
 # changes (reconnect, different server), check the "ProtonVPN" network
 # adapter's assigned DNS server (ipconfig /all) and update this.
+#
+# 1.1.1.1 is the fallback for when the host's ProtonVPN is disconnected
+# (10.2.0.1 then times out - seen live after a reboot left ProtonVPN off).
+# Zone detection tries each resolver in order, but certmagic's
+# propagation check queries the first one only and fails outright, so
+# that check is skipped (propagation_timeout -1) in favour of a fixed
+# wait: Cloudflare publishes the TXT record within seconds, and Let's
+# Encrypt retries validation itself. This is a global cert_issuer rather
+# than acme_ca/acme_dns/tls_resolvers because only the issuer block
+# accepts the propagation options - and it covers renewals of every
+# existing cert, not just new sites.
 
 # Global settings
 {
   email {$ACME_EMAIL}
-  acme_ca https://acme-v02.api.letsencrypt.org/directory
-  acme_dns cloudflare {$CLOUDFLARE_API_TOKEN}
-  tls_resolvers 10.2.0.1
+  cert_issuer acme https://acme-v02.api.letsencrypt.org/directory {
+    dns cloudflare {$CLOUDFLARE_API_TOKEN}
+    resolvers 10.2.0.1 1.1.1.1
+    propagation_delay 60s
+    propagation_timeout -1
+  }
 
   order rate_limit after basic_auth
   # Wake on-demand containers before proxying to them (see Sablier below).
@@ -167,6 +181,26 @@
 # friction for zero benefit. Each app now gets exactly one login: its
 # own. See TROUBLESHOOTING.md for the qBittorrent self-ban issue this
 # same basic_auth layer caused, which is also moot now that it's gone.
+#
+# Those admin apps (and Syncthing, Uptime Kuma, Pi-hole, slskd) now sit
+# behind the `authentik` snippet below instead. It's an SSO wall rather
+# than a second password prompt: one Authentik sign-in (password manager
+# friendly, MFA-capable) covers every admin subdomain for 24h, and only
+# "authentik Admins" get through (authentik/blueprints/admin-apps.yaml).
+#
+# Usage: `import authentik [exempt paths...]`. List each app's API paths
+# as exempt - they're already guarded by the app's API key, and Homepage
+# widgets and phone apps (nzb360, LunaSea...) can't do a browser login.
+(authentik) {
+  # Authentik's sign-in callback and assets, served for every protected site.
+  reverse_proxy /outpost.goauthentik.io/* authentik-server:9000
+  @authentik_required not path /outpost.goauthentik.io/* {args[:]}
+  forward_auth @authentik_required authentik-server:9000 {
+    uri /outpost.goauthentik.io/auth/caddy
+    copy_headers X-Authentik-Username X-Authentik-Groups X-Authentik-Email X-Authentik-Name X-Authentik-Uid
+    trusted_proxies private_ranges
+  }
+}
 
 # ========== MEDIA APPS ==========
 
@@ -175,6 +209,7 @@ sonarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit sonarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy sonarr:8989
 }
 
@@ -183,6 +218,7 @@ radarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit radarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy radarr:7878
 }
 
@@ -191,6 +227,7 @@ prowlarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit prowlarr
+  import authentik /api/* /*/api /*/download /ping
   reverse_proxy prowlarr:9696
 }
 
@@ -199,6 +236,7 @@ lidarr.{$DOMAIN} {
   import security_headers
   log
   import rate_limit lidarr
+  import authentik /api/* /feed/* /ping
   reverse_proxy lidarr:8686
 }
 
@@ -207,6 +245,7 @@ lazylibrarian.{$DOMAIN} {
   import security_headers
   log
   import rate_limit lazylibrarian
+  import authentik /api*
   reverse_proxy lazylibrarian:5299
 }
 
@@ -223,6 +262,7 @@ qbit.{$DOMAIN} {
   import security_headers
   log
   import rate_limit qbit
+  import authentik /api/*
   reverse_proxy gluetun:{$QBIT_PORT} {
     header_up X-Real-IP {http.request.remote}
   }
@@ -235,6 +275,7 @@ slskd.{$DOMAIN} {
   import security_headers
   log
   import rate_limit slskd
+  import authentik /api/*
   reverse_proxy gluetun:{$SLSKD_WEBUI_PORT} {
     header_up X-Real-IP {http.request.remote}
   }
@@ -262,6 +303,30 @@ plex.{$DOMAIN} {
 }
 
 # Jellyfin - Open-source media server
+# Browser remote desktop into this server (remote-stack's Guacamole).
+# Guacamole itself redirects to Authentik and only admins get through -
+# see remote-stack/docker-compose.yml. Asleep until opened (Sablier); the
+# 4h idle window is long because a desktop session is one long-lived
+# websocket, which Sablier only sees as a single request - a short window
+# could stop Guacamole in the middle of someone's session.
+remote.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit remote
+  sablier http://sablier:10000 {
+    group remote
+    session_duration 4h
+    dynamic {
+      display_name "Remote Desktop"
+      theme hacker-terminal
+      refresh_frequency 3s
+    }
+  }
+  reverse_proxy guacamole:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 jellyfin.{$DOMAIN} {
   import security_headers
   log
@@ -317,6 +382,7 @@ nextcloud.{$DOMAIN} {
 sync.{$DOMAIN} {
   import security_headers
   log
+  import authentik /rest/*
   reverse_proxy syncthing:8384 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -408,6 +474,7 @@ portainer.{$DOMAIN} {
 uptime.{$DOMAIN} {
   import security_headers
   log
+  import authentik /api/push/* /api/badge/*
   reverse_proxy uptime-kuma:3001 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -527,6 +594,7 @@ pihole.{$DOMAIN} {
   import security_headers
   log
   import rate_limit pihole
+  import authentik /api/*
   reverse_proxy pihole:80 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -544,20 +612,6 @@ chat.{$DOMAIN} {
   import security_headers
   log
   import rate_limit chat
-  # Same DNS-01 solver as the global default (acme_dns cloudflare, same
-  # token, same tls_resolvers) but with a longer propagation_timeout -
-  # this and family.{$DOMAIN} below are the only two sites still
-  # obtaining a FIRST certificate (every other site's cert already
-  # exists and is just renewing), and both were timing out waiting for
-  # 10.2.0.1 to reflect a brand-new TXT record within the default
-  # window even though Let's Encrypt's own validation succeeded once
-  # it got the chance - a timing race, not a broken solver.
-  tls {
-    dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    resolvers 10.2.0.1
-    propagation_timeout 5m
-    propagation_delay 10s
-  }
   # On demand: the AI stack (vllm + open-webui, ~2.6GB) stays stopped
   # until someone opens this site. Browsers get a "starting" page that
   # refreshes itself - vLLM loading the model onto the GPU takes 1-3
@@ -579,11 +633,77 @@ chat.{$DOMAIN} {
 
 # ========== DASHBOARD ==========
 
-# Homepage - single landing page linking to every service in this repo
-home.{$DOMAIN} {
+# Admin dashboard (Homepage) - every service, live widgets. Its own
+# Authentik login admits admins only (authentik/blueprints/dashboards.yaml).
+dash.{$DOMAIN} {
   import security_headers
   log
   reverse_proxy homepage:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# ========== FAMILY STACK ==========
+# family-stack/docker-compose.yml. Each app signs in with Authentik itself,
+# except Stirling-PDF, which sits behind the Authentik wall.
+
+audiobooks.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit audiobooks
+  reverse_proxy audiobookshelf:80 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+recipes.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit recipes
+  reverse_proxy mealie:9000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Actual runs the whole budget engine in the browser (web workers + SQLite
+# compiled to WebAssembly) and sends its own isolation headers, so the
+# shared Content-Security-Policy is dropped here rather than loosened for
+# every site.
+budget.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit budget
+  reverse_proxy actual:5006 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+pdf.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit pdf
+  import authentik
+  # On demand: stopped until someone opens it, stops again after 1h idle.
+  sablier http://sablier:10000 {
+    group pdf
+    session_duration 1h
+    dynamic {
+      display_name "PDF tools"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
+  reverse_proxy stirling-pdf:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Family dashboard (second Homepage) - household apps only, same look.
+home.{$DOMAIN} {
+  import security_headers
+  log
+  reverse_proxy homepage-family:3000 {
     header_up X-Real-IP {http.request.remote}
   }
 }
@@ -594,6 +714,7 @@ home.{$DOMAIN} {
 dashboard.{$DOMAIN} {
   import security_headers
   log
+  import authentik
   file_server {
     root /var/www/html
   }
@@ -607,12 +728,6 @@ dashboard.{$DOMAIN} {
 family.{$DOMAIN} {
   import security_headers
   log
-  tls {
-    dns cloudflare {$CLOUDFLARE_API_TOKEN}
-    resolvers 10.2.0.1
-    propagation_timeout 5m
-    propagation_delay 10s
-  }
   root * /srv/family-guide
   file_server
 }

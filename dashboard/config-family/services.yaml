@@ -1,0 +1,75 @@
+# Household apps only - no admin tools, no live widgets (those need API
+# keys this instance deliberately doesn't have), no Docker status.
+# Everyone signed in sees every tile; each app still does its own access
+# check. To add an app, copy a tile from ../config/services.yaml minus its
+# widget/server/container lines.
+
+- Watch:
+    - Plex:
+        icon: plex.png
+        href: "https://plex.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Movies & TV
+    - Jellyfin:
+        icon: jellyfin.png
+        href: "https://jellyfin.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Movies & TV (if Plex misbehaves)
+    - Requests:
+        icon: overseerr.png
+        href: "https://requests.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Ask for a movie or show
+
+- Photos & Files:
+    - Photos:
+        icon: immich.png
+        href: "https://photos.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Your photo & video backup
+    - Nextcloud:
+        icon: nextcloud.png
+        href: "https://nextcloud.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Files, calendar, contacts
+
+- Listen & Read:
+    - Music:
+        icon: navidrome.png
+        href: "https://music.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Stream the music library
+    - Books:
+        icon: calibre-web.png
+        href: "https://calibre.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Ebooks & Send-to-Kindle
+    - Audiobooks:
+        icon: audiobookshelf.png
+        href: "https://audiobooks.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Audiobooks & podcasts (phone app too)
+
+- Everyday:
+    - AI Chat:
+        icon: open-webui.png
+        href: "https://chat.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Private AI assistant (takes a minute to wake up)
+    - Passwords:
+        icon: vaultwarden.png
+        href: "https://vault.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Your own password vault
+    - Recipes:
+        icon: mealie.png
+        href: "https://recipes.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Recipes, meal plans & shopping lists
+    - Budget:
+        icon: actual-budget.png
+        href: "https://budget.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Household budget
+    - PDF Tools:
+        icon: stirling-pdf.png
+        href: "https://pdf.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Merge, sign, compress & convert PDFs
+
+- Help:
+    - Family Guide:
+        icon: mdi-account-group
+        href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: How to use each app
+    - My account:
+        icon: authentik.png
+        href: "https://auth.{{HOMEPAGE_VAR_DOMAIN}}/if/user/"
+        description: Change your password, set up 2-step login
