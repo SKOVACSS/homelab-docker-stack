@@ -160,8 +160,10 @@ to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
 
 ## Known gaps on this model
 
-- **Wi-Fi (Touch Bar models)** - the BCM43602 is poorly supported: 2.4 GHz
-  only, a weak signal, WPA2 logins failing as "password incorrect" or
+- **Wi-Fi (Touch Bar models)** - the BCM43602 is poorly supported: **2.4 GHz
+  only** (without a working NVRAM the firmware doesn't even expose a 5 GHz
+  band - `iw list` shows only `Band 1` - and setting the regulatory domain,
+  e.g. `iw reg set CA`, changes nothing), a weak signal, WPA2 logins failing as "password incorrect" or
   `...was not in the scan list`, and firmware that occasionally hangs.
   **`wifi-fix.sh` handles what can be handled, offline** - run it from a
   USB stick before you have internet:
