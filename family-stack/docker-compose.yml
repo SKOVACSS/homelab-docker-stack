@@ -205,6 +205,16 @@ services:
     image: ghcr.io/sysadminsmedia/homebox:0.26.2
     restart: unless-stopped
     container_name: homebox
+    # Homebox reads Authentik's OIDC settings once at startup and never
+    # retries: after a reboot it came up before Caddy/Authentik, gave up
+    # after 4 tries, and sign-in showed "OIDC provider unavailable" until
+    # a restart. So wait (up to 5 min) for Authentik before starting.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        i=0; until wget -q -O /dev/null "$${HBOX_OIDC_ISSUER_URL}.well-known/openid-configuration" || [ $$i -ge 60 ];
+        do i=$$((i+1)); sleep 5; done;
+        exec /app/api /data/config.yml
     environment:
       - TZ=${TZ:-UTC}
       - HBOX_OPTIONS_TRUST_PROXY=true
