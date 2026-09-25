@@ -122,6 +122,32 @@
         container: lazylibrarian
         # No Homepage widget exists for LazyLibrarian (not in Homepage's
         # supported service list) - link-only tile, same as before.
+    - Bazarr:
+        icon: bazarr.png
+        href: "https://bazarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Subtitles
+        server: my-docker
+        container: bazarr
+        widget:
+          type: bazarr
+          url: http://bazarr:6767
+          key: "{{HOMEPAGE_VAR_BAZARR_API_KEY}}"
+    - Tautulli:
+        icon: tautulli.png
+        href: "https://tautulli.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Plex watch stats
+        server: my-docker
+        container: tautulli
+        widget:
+          type: tautulli
+          url: http://tautulli:8181
+          key: "{{HOMEPAGE_VAR_TAUTULLI_API_KEY}}"
+    - Maintainerr:
+        icon: maintainerr.png
+        href: "https://maintainerr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Library cleanup rules (none active until set)
+        server: my-docker
+        container: maintainerr
 
 - Media Servers:
     - Plex:
@@ -184,6 +210,32 @@
         description: PDF tools (sleeps when idle)
         server: my-docker
         container: stirling-pdf
+    - Search:
+        icon: searxng.png
+        href: "https://search.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Private web search (also AI chat's)
+        server: my-docker
+        container: searxng
+    - Homebox:
+        icon: homebox.png
+        href: "https://inventory.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Home inventory
+        server: my-docker
+        container: homebox
+    - PairDrop:
+        icon: pairdrop.png
+        href: "https://drop.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Send files between devices
+        server: my-docker
+        container: pairdrop
+    - Photo Kiosk:
+        # Home network only (no Caddy route, no login) - a slideshow for
+        # a TV or picture frame.
+        icon: immich.png
+        href: "http://{{HOMEPAGE_VAR_SERVER_LAN_IP}}:3010"
+        description: Immich slideshow for TVs/frames (home network)
+        server: my-docker
+        container: immich-kiosk
 
 - AI:
     - Open WebUI:
@@ -256,6 +308,21 @@
           fields: ["queries", "blocked", "blocked_percent"]
 
 - Utilities:
+    - Scrutiny:
+        icon: scrutiny.png
+        href: "https://scrutiny.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Drive health (SMART)
+        server: my-docker
+        container: scrutiny
+        widget:
+          type: scrutiny
+          url: http://scrutiny:8080
+    - Speedtest:
+        icon: speedtest-tracker.png
+        href: "https://speedtest.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Starlink speed history (every 3h)
+        server: my-docker
+        container: speedtest-tracker
     - Remote Desktop:
         icon: guacamole.png
         href: "https://remote.{{HOMEPAGE_VAR_DOMAIN}}"

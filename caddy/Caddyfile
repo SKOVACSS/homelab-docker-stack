@@ -639,6 +639,56 @@ chat.{$DOMAIN} {
   }
 }
 
+# ========== MEDIA & HOST EXTRAS (admins only) ==========
+
+# Bazarr - subtitles. Its API (own key) skips the wall like the *arrs.
+bazarr.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit bazarr
+  import authentik /api/*
+  reverse_proxy bazarr:6767
+}
+
+# Maintainerr has no login of its own - the Authentik wall is its only
+# protection, so no API exemption here.
+maintainerr.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit maintainerr
+  import authentik
+  reverse_proxy maintainerr:6246
+}
+
+# Tautulli - Plex stats. Its API (own key) skips the wall.
+tautulli.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit tautulli
+  import authentik /api/*
+  reverse_proxy tautulli:8181
+}
+
+# Scrutiny - drive health. No login of its own: wall only. The Windows
+# collector reports through 127.0.0.1:8089, not through here.
+scrutiny.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit scrutiny
+  import authentik
+  reverse_proxy scrutiny:8080
+}
+
+# Speedtest Tracker - has its own login too; its API (bearer token) skips
+# the wall.
+speedtest.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit speedtest
+  import authentik /api/*
+  reverse_proxy speedtest-tracker:80
+}
+
 # ========== DASHBOARD ==========
 
 # Admin dashboard (Homepage) - every service, live widgets. Its own
@@ -653,7 +703,8 @@ dash.{$DOMAIN} {
 
 # ========== FAMILY STACK ==========
 # family-stack/docker-compose.yml. Each app signs in with Authentik itself,
-# except Stirling-PDF, which sits behind the Authentik wall.
+# except Stirling-PDF, SearXNG and PairDrop, which sit behind the
+# Authentik wall (any household account).
 
 audiobooks.{$DOMAIN} {
   import security_headers
@@ -704,6 +755,41 @@ pdf.{$DOMAIN} {
   }
   reverse_proxy stirling-pdf:8080 {
     header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# SearXNG - no login of its own; any household account via the wall
+# ("Search" provider in authentik/blueprints/admin-apps.yaml).
+search.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit search
+  import authentik
+  reverse_proxy searxng:8080 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Homebox signs in with Authentik itself.
+inventory.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit inventory
+  reverse_proxy homebox:7745 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# PairDrop - no login of its own; any household account via the wall
+# ("File drop" provider). It tells devices apart by their IP, so pass the
+# real one through.
+drop.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit drop
+  import authentik
+  reverse_proxy pairdrop:3000 {
+    header_up X-Forwarded-For {client_ip}
   }
 }
 

@@ -480,6 +480,85 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # Scrutiny - SMART health and failure prediction for every physical
+  # drive (scrutiny.{$DOMAIN}, admin wall). Docker Desktop's VM can't see
+  # the real disks, so the collector runs on Windows itself
+  # (_scripts/install-scrutiny-collector.ps1, as Administrator) and posts
+  # results here through the localhost-only port below. Failing or
+  # degrading drives are pushed to Gotify.
+  scrutiny:
+    image: ghcr.io/analogj/scrutiny:v0.9.4-omnibus
+    restart: unless-stopped
+    container_name: scrutiny
+    environment:
+      - TZ=${TZ:-UTC}
+      # shoutrrr format; Gotify is on caddy-network (plain http inside).
+      - SCRUTINY_NOTIFY_URLS=gotify://gotify:80/${GOTIFY_TOKEN}?disabletls=yes
+    volumes:
+      - scrutiny-config:/opt/scrutiny/config
+      - scrutiny-influxdb:/opt/scrutiny/influxdb
+    # 127.0.0.1 only: for the Windows collector, not the LAN.
+    ports:
+      - "127.0.0.1:8089:8080"
+    networks:
+      - utilities
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:8080/api/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Speedtest Tracker - scheduled Starlink speed tests with history
+  # (speedtest.{$DOMAIN}, admin wall + its own login from .env). Every 3
+  # hours: each test moves a few hundred MB, so keep it sparse.
+  speedtest-tracker:
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0
+    restart: unless-stopped
+    container_name: speedtest-tracker
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      # Times shown in the UI. The container itself stays on UTC like the
+      # rest of utilities (see watchtower's schedule note above).
+      - DISPLAY_TIMEZONE=${SPEEDTEST_DISPLAY_TZ:-UTC}
+      - APP_KEY=${SPEEDTEST_APP_KEY}
+      - APP_URL=https://speedtest.${DOMAIN}
+      - ASSET_URL=https://speedtest.${DOMAIN}
+      - DB_CONNECTION=sqlite
+      - SPEEDTEST_SCHEDULE=15 */3 * * *
+      - PRUNE_RESULTS_OLDER_THAN=365
+      - ADMIN_NAME=Admin
+      - ADMIN_EMAIL=${SPEEDTEST_ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${SPEEDTEST_ADMIN_PASSWORD}
+    volumes:
+      - speedtest-config:/config
+    networks:
+      - utilities
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:80/api/healthcheck || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
 volumes:
   portainer-data:
     driver: local
@@ -498,4 +577,10 @@ volumes:
   alloy-data:
     driver: local
   autokuma-data:
+    driver: local
+  scrutiny-config:
+    driver: local
+  scrutiny-influxdb:
+    driver: local
+  speedtest-config:
     driver: local

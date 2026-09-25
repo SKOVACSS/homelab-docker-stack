@@ -764,6 +764,95 @@ services:
           cpus: '0.5'
           memory: 512M
 
+  # Bazarr - subtitles for everything Sonarr/Radarr grab. Library paths
+  # must match theirs exactly (/tv, /movies) so no path mapping is needed.
+  # Connected to Sonarr/Radarr in its Settings (API keys from media-stack/
+  # .env); subtitle
+  # providers (OpenSubtitles.com account etc.) are added in its own UI.
+  bazarr:
+    image: ghcr.io/hotio/bazarr:release
+    restart: unless-stopped
+    container_name: bazarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - bazarr-config:/config
+      - ${MEDIA_TV}:/tv
+      - ${MEDIA_MOVIES}:/movies
+    # No published port - bazarr.{$DOMAIN} via Caddy, behind Authentik.
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:6767/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Maintainerr - rule-based library cleanup for Plex (e.g. "watched by
+  # everyone and older than 90 days"). Deployed with NO rules: nothing is
+  # deleted until rules are created in its UI. Any rule should exclude
+  # anything still seeding for ratio (Pretome) - check qBittorrent first.
+  maintainerr:
+    image: ghcr.io/maintainerr/maintainerr:3.29.0
+    restart: unless-stopped
+    container_name: maintainerr
+    # Runs as node (1000) and writes to /opt/data.
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ:-UTC}
+    volumes:
+      - maintainerr-data:/opt/data
+    networks:
+      - media-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Tautulli - Plex watch history and stats. Sign in with Plex on first
+  # open (tautulli.{$DOMAIN}); it finds the server itself at plex:32400.
+  tautulli:
+    image: ghcr.io/tautulli/tautulli:v2.18.1
+    restart: unless-stopped
+    container_name: tautulli
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - tautulli-config:/config
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:8181/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
 volumes:
   gluetun:
     driver: local
@@ -790,4 +879,10 @@ volumes:
   jellyfin-config:
     driver: local
   jellyfin-cache:
+    driver: local
+  bazarr-config:
+    driver: local
+  maintainerr-data:
+    driver: local
+  tautulli-config:
     driver: local

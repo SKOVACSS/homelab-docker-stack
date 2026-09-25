@@ -1,89 +1,143 @@
-# Household apps only - no admin tools, no live widgets (those need API
-# keys this instance deliberately doesn't have), no Docker status.
-# Everyone signed in sees every tile; each app still does its own access
-# check. To add an app, copy a tile from ../config/services.yaml minus its
-# widget/server/container lines.
+# Household apps only - no admin tools and no live widgets (those need API
+# keys this instance deliberately doesn't have). Each tile is named
+# "Plain name (App name)" so the family can match it to the phone app or
+# a how-to, and shows a status dot from the read-only Docker proxy
+# (docker.yaml): green = ready; grey/red = asleep or down. Apps marked
+# "wakes on open" sleep when idle and start on the first visit (~1 min).
+# To add an app, copy a tile from ../config/services.yaml minus its widget.
 
 - Watch:
-    - Plex:
+    - Movies & TV (Plex):
         icon: plex.png
         href: "https://plex.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Movies & TV
-    - Jellyfin:
+        server: my-docker
+        container: plex
+    - Movies & TV backup (Jellyfin):
         icon: jellyfin.png
         href: "https://jellyfin.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Movies & TV (if Plex misbehaves)
-    - Requests:
+        description: If Plex misbehaves - wakes on open
+        server: my-docker
+        container: jellyfin
+    - Requests (Seerr):
         icon: overseerr.png
         href: "https://requests.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Ask for a movie or show
+        server: my-docker
+        container: seerr
 
 - Photos & Files:
-    - Photos:
+    - Photos (Immich):
         icon: immich.png
         href: "https://photos.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Your photo & video backup
-    - Nextcloud:
+        server: my-docker
+        container: immich_server
+    - Files (Nextcloud):
         icon: nextcloud.png
         href: "https://nextcloud.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Files, calendar, contacts
+        server: my-docker
+        container: nextcloud
+    - Send Files (PairDrop):
+        icon: pairdrop.png
+        href: "https://drop.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Like AirDrop, between any phone & computer
+        server: my-docker
+        container: pairdrop
 
 - Listen & Read:
-    - Music:
+    - Music (Navidrome):
         icon: navidrome.png
         href: "https://music.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Stream the music library
-    - Books:
+        server: my-docker
+        container: navidrome
+    - Books (Calibre-Web):
         icon: calibre-web.png
         href: "https://calibre.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Ebooks & Send-to-Kindle
-    - Audiobooks:
+        server: my-docker
+        container: calibre-web-automated
+    - Audiobooks (Audiobookshelf):
         icon: audiobookshelf.png
         href: "https://audiobooks.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Audiobooks & podcasts (phone app too)
+        server: my-docker
+        container: audiobookshelf
 
 - Everyday:
-    - AI Chat:
+    - AI Chat (Open WebUI):
         icon: open-webui.png
         href: "https://chat.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Private AI assistant (takes a minute to wake up)
-    - Passwords:
+        description: Private AI assistant with web search - wakes on open
+        server: my-docker
+        container: open-webui
+    - Search (SearXNG):
+        icon: searxng.png
+        href: "https://search.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Private web search - no ads, no tracking
+        server: my-docker
+        container: searxng
+    - Passwords (Vaultwarden):
         icon: vaultwarden.png
         href: "https://vault.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Your own password vault
-    - Recipes:
+        description: Your own password vault (Bitwarden apps)
+        server: my-docker
+        container: vaultwarden
+    - Recipes (Mealie):
         icon: mealie.png
         href: "https://recipes.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Recipes, meal plans & shopping lists
-    - Budget:
+        server: my-docker
+        container: mealie
+    - Budget (Actual):
         icon: actual-budget.png
         href: "https://budget.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Household budget
-    - PDF Tools:
+        server: my-docker
+        container: actual
+    - PDF Tools (Stirling-PDF):
         icon: stirling-pdf.png
         href: "https://pdf.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Merge, sign, compress & convert PDFs
+        description: Merge, sign, compress & convert - wakes on open
+        server: my-docker
+        container: stirling-pdf
 
 - Organize:
-    - Documents:
+    - Documents (Paperless):
         icon: paperless-ngx.png
         href: "https://papers.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Scanned bills, letters & records
-    - Read Later:
+        server: my-docker
+        container: paperless-ngx
+    - Read Later (Wallabag):
         icon: wallabag.png
         href: "https://read.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Save articles to read later
-    - Boards:
+        server: my-docker
+        container: wallabag
+    - Boards (Focalboard):
         icon: focalboard.png
         href: "https://boards.{{HOMEPAGE_VAR_DOMAIN}}"
         description: Plans, projects & to-do lists
+        server: my-docker
+        container: focalboard
+    - Home Inventory (Homebox):
+        icon: homebox.png
+        href: "https://inventory.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: What we own, where it is, warranties
+        server: my-docker
+        container: homebox
 
 - Help:
     - Family Guide:
         icon: mdi-account-group
         href: "https://family.{{HOMEPAGE_VAR_DOMAIN}}"
         description: How to use each app
-    - My account:
+    - My account (Authentik):
         icon: authentik.png
         href: "https://auth.{{HOMEPAGE_VAR_DOMAIN}}/if/user/"
         description: Change your password, set up 2-step login
+        server: my-docker
+        container: authentik-server

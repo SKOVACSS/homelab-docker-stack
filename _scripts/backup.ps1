@@ -310,11 +310,23 @@ function Create-Backup {
             $volumes = @($volumes | Where-Object { $_ -notmatch $ExcludeVolumes })
             if ($skipped.Count) { Write-Host "  (skipping $($skipped.Count) cache/anonymous volume(s) - see -ExcludeVolumes)" -ForegroundColor DarkGray }
         }
+        $failedVolumes = @()
         foreach ($vol in $volumes) {
             Write-Host "  → Backing up volume: $vol" -ForegroundColor White
             $volPath = Join-Path $volumesPath $vol
             docker run --rm -v "${vol}:/data" -v "${volPath}:/backup" alpine tar czf /backup/data.tar.gz -C /data .
-            Write-Host "  ✅ Backed up: $vol" -ForegroundColor Green
+            # A non-zero exit means a cut-short archive (e.g. Docker
+            # crashing mid-write, as on 2026-09-25) - never report it as
+            # backed up. test-restore.ps1 checks the archives monthly too.
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "  ❌ FAILED: $vol (tar exit $LASTEXITCODE)" -ForegroundColor Red
+                $failedVolumes += $vol
+            } else {
+                Write-Host "  ✅ Backed up: $vol" -ForegroundColor Green
+            }
+        }
+        if ($failedVolumes.Count) {
+            Send-GotifyNotification -Title "Backup: volume archive failed" -Message "$backupName - incomplete: $($failedVolumes -join ', ')" -Priority 8
         }
     }
     
@@ -324,6 +336,7 @@ function Create-Backup {
         Timestamp = $timestamp
         Full = $Full
         IncludedVolumes = if ($Full) { $volumes.Count } else { 0 }
+        FailedVolumes = if ($Full) { $failedVolumes } else { @() }
         IncludedConfigs = (Get-ChildItem $appRoot -Depth 1 -Filter ".env" | Measure-Object).Count
     }
     

@@ -74,6 +74,50 @@ entries:
       meta_launch_url: !Format ["https://pdf.%s/", !Env DOMAIN]
       meta_description: Merge, sign, compress and convert PDFs
       policy_engine_mode: any
+  # Same household wall for SearXNG (search.DOMAIN) and PairDrop
+  # (drop.DOMAIN), which have no logins of their own either.
+  - model: authentik_providers_proxy.proxyprovider
+    id: search-provider
+    identifiers:
+      name: Search
+    attrs:
+      name: Search
+      mode: forward_single
+      external_host: !Format ["https://search.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: search
+    attrs:
+      name: Search
+      slug: search
+      provider: !KeyOf search-provider
+      meta_launch_url: !Format ["https://search.%s/", !Env DOMAIN]
+      meta_description: Private web search
+      policy_engine_mode: any
+  - model: authentik_providers_proxy.proxyprovider
+    id: file-drop-provider
+    identifiers:
+      name: File drop
+    attrs:
+      name: File drop
+      mode: forward_single
+      external_host: !Format ["https://drop.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: file-drop
+    attrs:
+      name: File drop
+      slug: file-drop
+      provider: !KeyOf file-drop-provider
+      meta_launch_url: !Format ["https://drop.%s/", !Env DOMAIN]
+      meta_description: Send files between phones and computers
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -83,3 +127,5 @@ entries:
       providers:
         - !KeyOf admin-apps-provider
         - !KeyOf pdf-tools-provider
+        - !KeyOf search-provider
+        - !KeyOf file-drop-provider

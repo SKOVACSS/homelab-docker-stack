@@ -12,12 +12,20 @@
 #   stirling-pdf   -> pdf.DOMAIN         PDF tools (merge, sign, compress,
 #                     convert). No login of its own - Caddy's Authentik wall
 #                     admits any household account. Sleeps via Sablier.
+#   searxng        -> search.DOMAIN      Private web search + AI Chat's web
+#                     search. Behind the Authentik wall (any account).
+#   homebox        -> inventory.DOMAIN   Home inventory. Authentik sign-in.
+#   pairdrop       -> drop.DOMAIN        AirDrop-style file sending.
+#                     Behind the Authentik wall (any account).
+#   immich-kiosk   -> http://<LAN IP>:3010  Photo slideshow for a TV/frame,
+#                     home network only (needs KIOSK_IMMICH_API_KEY).
 #
 # Stirling-PDF stays on 2.x on purpose: 3.0 (Sep 2026) is a ground-up
 # release with cloud-linked automation; revisit once it has settled.
 #
-# Needs family-stack/.env: DOMAIN, TZ, AUDIOBOOKS_PATH, PODCASTS_PATH and
-# the three *_OIDC_CLIENT_SECRET values (same as authentik/.env).
+# Needs family-stack/.env: DOMAIN, TZ, AUDIOBOOKS_PATH, PODCASTS_PATH,
+# SEARXNG_SECRET, HOMEBOX_API_KEY_PEPPER, KIOSK_IMMICH_API_KEY and
+# the four *_OIDC_CLIENT_SECRET values (same as authentik/.env).
 
 networks:
   caddy-network:
@@ -30,6 +38,8 @@ volumes:
   mealie-data:
   actual-data:
   stirling-configs:
+  searxng-cache:
+  homebox-data:
 
 services:
   audiobookshelf:
@@ -157,3 +167,129 @@ services:
         limits:
           cpus: '2.0'
           memory: 2G
+
+  # SearXNG - private web search (search.DOMAIN, any household account via
+  # Caddy's Authentik wall) and AI Chat's web search. Settings in
+  # searxng/settings.yml.
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    container_name: searxng
+    environment:
+      - SEARXNG_BASE_URL=https://search.${DOMAIN}/
+      - SEARXNG_SECRET=${SEARXNG_SECRET}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - searxng-cache:/var/cache/searxng
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Homebox - home inventory (inventory.DOMAIN): what we own, where it is,
+  # receipts, warranties, serial numbers. Authentik sign-in only; each
+  # person starts with their own collection - invite family members into
+  # one shared collection from its settings.
+  homebox:
+    image: ghcr.io/sysadminsmedia/homebox:0.26.2
+    restart: unless-stopped
+    container_name: homebox
+    environment:
+      - TZ=${TZ:-UTC}
+      - HBOX_OPTIONS_TRUST_PROXY=true
+      - HBOX_OPTIONS_HOSTNAME=inventory.${DOMAIN}
+      - HBOX_OPTIONS_ALLOW_ANALYTICS=false
+      # Signs Homebox API keys (48 random bytes, base64).
+      - HBOX_AUTH_API_KEY_PEPPER=${HOMEBOX_API_KEY_PEPPER}
+      # Password logins off: Authentik only. Registration stays on so a
+      # first Authentik sign-in can create the person's account.
+      - HBOX_OPTIONS_ALLOW_LOCAL_LOGIN=false
+      - HBOX_OPTIONS_ALLOW_REGISTRATION=true
+      - HBOX_OIDC_ENABLED=true
+      - HBOX_OIDC_AUTO_REDIRECT=true
+      - HBOX_OIDC_ISSUER_URL=https://auth.${DOMAIN}/application/o/homebox/
+      - HBOX_OIDC_CLIENT_ID=homebox
+      - HBOX_OIDC_CLIENT_SECRET=${HOMEBOX_OIDC_CLIENT_SECRET}
+      - HBOX_OIDC_BUTTON_TEXT=Sign in with Authentik
+    volumes:
+      - homebox-data:/data
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7745/api/v1/status || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+
+  # PairDrop - AirDrop-style file sending between any phones and computers
+  # in the browser (drop.DOMAIN, any household account via Caddy's
+  # Authentik wall). Devices on the home network see each other; others
+  # pair with a code. Files go device-to-device, nothing is stored here.
+  pairdrop:
+    image: lscr.io/linuxserver/pairdrop:1.11.2
+    restart: unless-stopped
+    container_name: pairdrop
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - WS_FALLBACK=false
+      - RATE_LIMIT=false
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  # Immich Kiosk - full-screen photo slideshow from Immich for a TV, old
+  # tablet or picture frame: http://<server LAN IP>:3010 (home network
+  # only, no login - so it needs KIOSK_IMMICH_API_KEY, a read-only key
+  # from Immich -> Account Settings -> API Keys, in family-stack/.env).
+  # Options (albums, people, clock...) go in the URL, e.g. ?album=<id>.
+  immich-kiosk:
+    image: ghcr.io/damongolding/immich-kiosk:0.44.1
+    restart: unless-stopped
+    container_name: immich-kiosk
+    environment:
+      - TZ=${TZ:-UTC}
+      - KIOSK_IMMICH_URL=http://immich_server:2283
+      - KIOSK_IMMICH_API_KEY=${KIOSK_IMMICH_API_KEY}
+      - KIOSK_SHOW_TIME=true
+      - KIOSK_SHOW_DATE=true
+      - KIOSK_DURATION=30
+      - KIOSK_SHOW_IMAGE_DATE=true
+      - KIOSK_SHOW_IMAGE_LOCATION=true
+    ports:
+      - "3010:3000"
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M

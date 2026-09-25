@@ -1,0 +1,30 @@
+# SearXNG (search.DOMAIN) - private metasearch for the household, and the
+# web search behind AI Chat (Open WebUI calls http://searxng:8080 with
+# format=json). Only what differs from SearXNG's defaults is set here.
+# The secret key comes from SEARXNG_SECRET in family-stack/.env.
+use_default_settings: true
+
+general:
+  instance_name: "Search"
+  enable_metrics: false
+
+search:
+  safe_search: 1
+  autocomplete: "duckduckgo"
+  # json is what Open WebUI's web search reads.
+  formats:
+    - html
+    - json
+
+server:
+  # Only reachable through Caddy + Authentik, so SearXNG's bot limiter
+  # (which needs Valkey) isn't needed.
+  limiter: false
+  public_instance: false
+  image_proxy: true
+  method: "GET"
+
+ui:
+  default_theme: simple
+  theme_args:
+    simple_style: auto
