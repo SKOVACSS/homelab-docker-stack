@@ -11,6 +11,7 @@
 | `enable-email.ps1` | Turns on the email server (Mailu) later, if you skipped it in the wizard | No |
 | `detect-gpu.ps1` | Detects usable NVIDIA/AMD/Intel GPU acceleration for Immich/Plex/Jellyfin and writes it to their `.env` files | No |
 | `heal-network-dependents.ps1` | Auto-recreates qBittorrent/slskd if gluetun's container ID changed under them | No |
+| `enable-remote-management.ps1` | Turns on OpenSSH Server + Remote Desktop (NLA, H.264/AVC444) so a separate workstation can manage this host - see [../workstation/README.md](../workstation/README.md) | **Yes** |
 
 See [../SETUP.md](../SETUP.md) for the full first-time walkthrough. This
 file just documents each script's options.
@@ -341,3 +342,19 @@ $action = New-ScheduledTaskAction -Execute "PowerShell.exe" `
 $trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 10:00AM
 Register-ScheduledTask -Action $action -Trigger $trigger -TaskName "Homelab_Check_Model_Updates"
 ```
+
+## enable-remote-management.ps1
+
+```powershell
+# From an elevated PowerShell
+.\enable-remote-management.ps1
+.\enable-remote-management.ps1 -PublicKey "ssh-ed25519 AAAA... you@laptop"
+```
+
+Installs and starts OpenSSH Server (PowerShell 7 as the login shell when
+it's installed), optionally authorizes a workstation's SSH key, and enables
+Remote Desktop with Network Level Authentication plus the H.264/AVC444 and
+GPU-encoding policies. Remote Desktop hosting needs Windows Pro or higher;
+on Home only the SSH half is applied. Opens nothing to the internet - reach
+it on the LAN or through WireGuard. Idempotent. Pairs with
+[../workstation/README.md](../workstation/README.md).
