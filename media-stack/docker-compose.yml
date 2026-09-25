@@ -505,6 +505,10 @@ services:
       # folder, which would have let CWA delete files out from under
       # active torrents - a hit-and-run on a private tracker.
       - ${BOOKS_INGEST_PATH}:/books-ingest
+      # Audiobookshelf's audiobook library (family-stack) - LazyLibrarian's
+      # AUDIO_DIR. Copied in (DESTINATION_COPY), so torrents keep seeding;
+      # Audiobookshelf picks new folders up by itself.
+      - ${AUDIOBOOKS_PATH}:/audiobooks
     networks:
       - media-network
       - caddy-network
