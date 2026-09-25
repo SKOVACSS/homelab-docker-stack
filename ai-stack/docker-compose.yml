@@ -70,6 +70,15 @@ services:
       - "8192"
       - "--gpu-memory-utilization"
       - "0.9"
+      # Tool calling (web search, tools, "native" function calling in
+      # Open WebUI). Without these, any request with tool_choice "auto"
+      # fails with: '"auto" tool choice requires --enable-auto-tool-choice
+      # and --tool-call-parser to be set'. The parser must match the
+      # model family: hermes for Qwen2.5/Qwen3 (llama3_json for Llama 3,
+      # mistral for Mistral) - update it if the model above changes.
+      - "--enable-auto-tool-choice"
+      - "--tool-call-parser"
+      - "hermes"
     # No Caddy route and no caddy-network membership - this is a backend
     # API only Open WebUI needs to reach, same reasoning as
     # immich-machine-learning not getting one either.
