@@ -175,18 +175,32 @@ fi
 step "Suspend/resume fix for the Apple NVMe SSD"
 # 2016/2017 MacBook Pros fail to wake from suspend (or the SSD vanishes on
 # resume) when the kernel lets the Apple NVMe controller enter D3cold.
-# Matches by vendor (Apple, 0x106b) + class (NVMe, 0x010802) instead of a
-# fixed PCI address, so it survives slot renumbering.
+# The controller is found through the NVMe driver (/sys/class/nvme) rather
+# than by PCI class: on a MacBookPro13,2 it doesn't report the standard
+# NVMe class code, so a class match silently found nothing. The udev rule
+# then matches that exact Apple vendor/device ID, so it survives slot
+# renumbering.
 RULE=/etc/udev/rules.d/90-apple-nvme-d3cold.rules
-sudo tee "$RULE" >/dev/null <<'EOF'
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x106b", ATTR{class}=="0x010802", ATTR{d3cold_allowed}="0"
-EOF
-for dev in /sys/bus/pci/devices/*; do
-  if [ "$(cat "$dev/vendor")" = "0x106b" ] && [ "$(cat "$dev/class")" = "0x010802" ]; then
+RULES=""
+for ctrl in /sys/class/nvme/nvme*; do
+  [ -e "$ctrl/device" ] || continue
+  dev="$(readlink -f "$ctrl/device")"
+  [ -f "$dev/vendor" ] || continue
+  if [ "$(cat "$dev/vendor")" = "0x106b" ]; then
+    id="$(cat "$dev/device")"
+    RULES="${RULES}ACTION==\"add\", SUBSYSTEM==\"pci\", ATTR{vendor}==\"0x106b\", ATTR{device}==\"$id\", ATTR{d3cold_allowed}=\"0\"
+"
     echo 0 | sudo tee "$dev/d3cold_allowed" >/dev/null
-    ok "d3cold disabled on $(basename "$dev")"
+    ok "d3cold disabled on $(basename "$dev") (Apple NVMe $id)"
   fi
 done
+if [ -n "$RULES" ]; then
+  printf '%s' "$RULES" | sudo tee "$RULE" >/dev/null
+  ok "udev rule written to $RULE (applies at every boot)"
+else
+  sudo rm -f "$RULE"
+  warn "no Apple NVMe controller found - not applied (check: lspci -nn | grep -i 106b)"
+fi
 
 # ---------------------------------------------------------------------------
 step "Caps Lock -> Esc (the Touch Bar's Esc is unreliable on Linux)"
