@@ -63,3 +63,6 @@ Thumbs.db
 
 # Per-server memory of which chat models check-model-updates.ps1 already suggested.
 ai-stack/model-check-state.json
+
+# Off-site backup settings (Restic repository + password) - secrets.
+_scripts/offsite.env

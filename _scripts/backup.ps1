@@ -36,15 +36,15 @@ param(
     [string]$GotifyUrl = "",
     [string]$GotifyToken = "",
 
-    # Optional: push each local backup off-site with Restic. Both must be
-    # set for this to do anything - unset (the default) means local-only
-    # backups, same as before this existed. RESTIC_REPOSITORY can be any
-    # backend Restic supports (s3:..., b2:..., sftp:..., a plain local
-    # path for testing); backend-specific credentials (e.g. B2_ACCOUNT_ID/
-    # B2_ACCOUNT_KEY, AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY) are read
-    # from this process's own environment - set them before invoking this
-    # script rather than passing them as script parameters, since the set
-    # of variables needed depends entirely on which backend you pick.
+    # Optional: push each backup off-site with Restic (encrypted,
+    # deduplicated). Both must be set for this to do anything; when not
+    # passed here they're read from _scripts\offsite.env (git-ignored, see
+    # offsite.env.example), and if that doesn't exist backups stay
+    # local-only. RESTIC_REPOSITORY can be a Windows folder - e.g. inside
+    # the Proton Drive sync folder, which the Proton Drive app then uploads
+    # - or any backend Restic supports (s3:..., b2:..., sftp:...);
+    # backend credentials (B2_ACCOUNT_ID/B2_ACCOUNT_KEY, AWS_*...) are read
+    # from this process's own environment.
     [string]$ResticRepository = "",
     [string]$ResticPassword = "",
 
@@ -53,7 +53,7 @@ param(
     # the ~35GB total on this host) and anonymous volumes (64-hex names,
     # left behind by image-declared VOLUMEs, not app state). Pass "" to
     # back up everything.
-    [string]$ExcludeVolumes = '(hf-cache|model-cache)$|^[0-9a-f]{64}$'
+    [string]$ExcludeVolumes = '(hf-cache|model-cache)$|^restic-cache$|^[0-9a-f]{64}$'
 )
 
 # Scheduled tasks don't inherit Docker Desktop's PATH entry on every
@@ -68,14 +68,46 @@ $appRoot = Split-Path -Parent $PSScriptRoot
 $backupRoot = $BackupRoot
 $timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 
+function Get-EnvFileValue([string]$File, [string]$Key) {
+    if (-not (Test-Path $File)) { return "" }
+    $line = Get-Content $File | Where-Object { $_ -match "^\s*$Key\s*=" } | Select-Object -First 1
+    if (-not $line) { return "" }
+    return ($line -replace "^\s*$Key\s*=\s*", "").Trim().Trim('"').Trim("'")
+}
+
+# Off-site settings not passed as parameters come from _scripts\offsite.env.
+$offsiteEnv = Join-Path $PSScriptRoot "offsite.env"
+if (-not $ResticRepository) { $ResticRepository = Get-EnvFileValue $offsiteEnv "RESTIC_REPOSITORY" }
+if (-not $ResticPassword) { $ResticPassword = Get-EnvFileValue $offsiteEnv "RESTIC_PASSWORD" }
+# Extra host folders to include off-site, "name=path;name=path" (e.g. the
+# Immich photo library, which is a bind mount, not a Docker volume).
+$offsiteExtra = Get-EnvFileValue $offsiteEnv "OFFSITE_EXTRA_PATHS"
+
+# With no -GotifyUrl, fall back to GOTIFY_TOKEN from utilities\.env and
+# post from a short-lived container on notification-network (same as
+# test-restore.ps1) - the scheduled task passes no Gotify arguments.
+$gotifyFallbackToken = ""
+if (-not $GotifyUrl) {
+    $t = Get-EnvFileValue (Join-Path $appRoot "utilities\.env") "GOTIFY_TOKEN"
+    if ($t -and $t -notlike "CHANGE_ME*") { $gotifyFallbackToken = $t }
+}
+
 function Send-GotifyNotification {
     param([string]$Title, [string]$Message, [int]$Priority = 5)
-    if ([string]::IsNullOrEmpty($GotifyUrl) -or [string]::IsNullOrEmpty($GotifyToken)) { return }
-    try {
-        $body = @{ title = $Title; message = $Message; priority = $Priority } | ConvertTo-Json
-        Invoke-RestMethod -Uri "$GotifyUrl/message?token=$GotifyToken" -Method Post -Body $body -ContentType "application/json" | Out-Null
-    } catch {
-        Write-Host "  (Gotify notification failed: $_)" -ForegroundColor Yellow
+    $body = @{ title = $Title; message = $Message; priority = $Priority } | ConvertTo-Json -Compress
+    if ($GotifyUrl -and $GotifyToken) {
+        try {
+            Invoke-RestMethod -Uri "$GotifyUrl/message?token=$GotifyToken" -Method Post -Body $body -ContentType "application/json" | Out-Null
+        } catch {
+            Write-Host "  (Gotify notification failed: $_)" -ForegroundColor Yellow
+        }
+    } elseif ($gotifyFallbackToken) {
+        $tmp = Join-Path $env:TEMP "backup-gotify.json"
+        [System.IO.File]::WriteAllText($tmp, $body)
+        docker run --rm --network notification-network -v "${tmp}:/body.json:ro" curlimages/curl:latest `
+            -s -o /dev/null -X POST -H "Content-Type: application/json" `
+            --data-binary "@/body.json" "http://gotify:80/message?token=$gotifyFallbackToken" | Out-Null
+        Remove-Item $tmp -ErrorAction SilentlyContinue
     }
 }
 
@@ -87,20 +119,35 @@ function Invoke-Restic {
     # naming a var without a value tells `docker run` to read it from the
     # invoking shell, and an unset one just comes through empty - harmless,
     # since only the backend you've actually configured will have these set.
-    param([string[]]$ResticArgs, [string]$MountPath = "")
+    # -Mounts: extra "-v" specs (read-only sources for `restic backup`).
+    param([string[]]$ResticArgs, [string]$MountPath = "", [string[]]$Mounts = @())
+
+    # A Windows folder repository (e.g. D:\ProtonDrive\...) is mounted into
+    # the container at /repo; anything else is a Restic backend URL.
+    $repo = $ResticRepository
+    $repoMount = @()
+    if ($ResticRepository -match '^[A-Za-z]:\\') {
+        New-Item -ItemType Directory -Force -Path $ResticRepository | Out-Null
+        $repo = "/repo"
+        $repoMount = @("-v", "${ResticRepository}:/repo")
+    }
 
     $dockerArgs = @(
         "run", "--rm",
-        "-e", "RESTIC_REPOSITORY=$ResticRepository",
+        "-e", "RESTIC_REPOSITORY=$repo",
         "-e", "RESTIC_PASSWORD=$ResticPassword",
         "-e", "B2_ACCOUNT_ID", "-e", "B2_ACCOUNT_KEY",
         "-e", "AWS_ACCESS_KEY_ID", "-e", "AWS_SECRET_ACCESS_KEY", "-e", "AWS_DEFAULT_REGION",
         "-e", "AZURE_ACCOUNT_NAME", "-e", "AZURE_ACCOUNT_KEY",
-        "-e", "GOOGLE_PROJECT_ID"
-    )
+        "-e", "GOOGLE_PROJECT_ID",
+        # Persistent cache: without it every run re-reads the repository's
+        # whole index.
+        "-v", "restic-cache:/root/.cache/restic"
+    ) + $repoMount
     if ($MountPath) {
         $dockerArgs += @("-v", "${MountPath}:/data:ro")
     }
+    foreach ($m in $Mounts) { $dockerArgs += @("-v", $m) }
     $dockerArgs += @("restic/restic:latest")
     $dockerArgs += $ResticArgs
 
@@ -122,7 +169,7 @@ function Test-ResticConfigured {
 }
 
 function Backup-OffSite {
-    param([string]$LocalBackupPath, [string]$BackupLabel)
+    param([string]$LocalBackupPath, [string]$BackupLabel, [string[]]$Volumes = @())
 
     if (-not (Test-ResticConfigured)) { return }
 
@@ -143,12 +190,46 @@ function Backup-OffSite {
         }
     }
 
-    Invoke-Restic -MountPath $LocalBackupPath -ResticArgs @("backup", "/data", "--tag", $BackupLabel) | Out-Null
+    # What goes off-site: tonight's config and database dumps, the Docker
+    # volumes themselves (not tonight's .tar.gz copies - compressed
+    # archives change byte-for-byte every night, so Restic couldn't
+    # deduplicate them and each night would re-upload ~7.5 GB; the raw
+    # volumes only upload what actually changed), plus OFFSITE_EXTRA_PATHS.
+    $mounts = @()
+    foreach ($part in @("config", "dumps", "manifest.json")) {
+        $src = Join-Path $LocalBackupPath $part
+        if (Test-Path $src) { $mounts += "${src}:/data/backup/${part}:ro" }
+    }
+    foreach ($vol in $Volumes) { $mounts += "${vol}:/data/volumes/${vol}:ro" }
+    $excludes = @()
+    foreach ($entry in ($offsiteExtra -split ';')) {
+        if ($entry -notmatch '^\s*([\w-]+)\s*=\s*(.+?)\s*$') { continue }
+        $name = $Matches[1]; $path = $Matches[2]
+        if (-not (Test-Path $path)) { Write-Host "  (extra path $path not found - skipped)" -ForegroundColor Yellow; continue }
+        $mounts += "${path}:/data/extra/${name}:ro"
+    }
+    # Immich regenerates thumbnails and transcoded video from the originals.
+    $excludes += @("--exclude", "/data/extra/*/thumbs", "--exclude", "/data/extra/*/encoded-video")
+
+    # --host keeps every night's snapshot in one series (the container's
+    # hostname changes per run); bigger packs mean far fewer files for a
+    # sync client like Proton Drive to upload; mounted folders get new
+    # inode numbers each run, so changes are judged by size and mtime only
+    # (otherwise every photo would be re-read nightly).
+    Invoke-Restic -Mounts $mounts -ResticArgs (@("backup", "/data", "--host", "homelab", "--tag", $BackupLabel,
+        "--pack-size", "64", "--ignore-inode", "--ignore-ctime") + $excludes) | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  restic backup failed." -ForegroundColor Red
         Send-GotifyNotification -Title "Off-site backup failed" -Message "$BackupLabel - restic backup failed" -Priority 8
         return
     }
+
+    # Keep 7 daily, 5 weekly and 12 monthly snapshots. Pruning rewrites
+    # data files (more to upload), so only on Sundays.
+    $forget = @("forget", "--host", "homelab", "--keep-daily", "7", "--keep-weekly", "5", "--keep-monthly", "12")
+    if ((Get-Date).DayOfWeek -eq "Sunday") { $forget += "--prune" }
+    Invoke-Restic -ResticArgs $forget | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Host "  (restic forget failed - old snapshots kept)" -ForegroundColor Yellow }
 
     Write-Host "  Off-site backup complete." -ForegroundColor Green
     Send-GotifyNotification -Title "Off-site backup complete" -Message $BackupLabel -Priority 3
@@ -354,7 +435,7 @@ function Create-Backup {
 
     Send-GotifyNotification -Title "Backup complete" -Message "$backupName ($sizeMb MB)" -Priority 3
 
-    Backup-OffSite -LocalBackupPath $backupPath -BackupLabel $backupName
+    Backup-OffSite -LocalBackupPath $backupPath -BackupLabel $backupName -Volumes $(if ($Full) { $volumes } else { @() })
 }
 
 function List-Backups {
