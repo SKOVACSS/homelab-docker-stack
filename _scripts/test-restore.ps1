@@ -213,6 +213,36 @@ Get-ChildItem $LiveRoot -Directory | Where-Object { Test-Path (Join-Path $_.Full
 }
 if ($missing) { Fail "config backup is missing .env for: $($missing -join ', ')" } else { Pass "every stack's .env is in the backup" }
 
+# --- 4. Off-site copy (only if _scripts\offsite.env is filled in) ------------
+$offsiteEnv = Join-Path $PSScriptRoot "offsite.env"
+$repo = Get-EnvValue $offsiteEnv "RESTIC_REPOSITORY"
+$repoPw = Get-EnvValue $offsiteEnv "RESTIC_PASSWORD"
+if ($repo -and $repoPw) {
+    Write-Host ""
+    Write-Host "Off-site copy" -ForegroundColor Cyan
+    $rArgs = @("run", "--rm", "-e", "RESTIC_PASSWORD=$repoPw", "-v", "restic-cache:/root/.cache/restic")
+    if ($repo -match '^[A-Za-z]:\\') { $rArgs += @("-e", "RESTIC_REPOSITORY=/repo", "-v", "${repo}:/repo:ro") }
+    else { $rArgs += @("-e", "RESTIC_REPOSITORY=$repo") }
+    $rArgs += "restic/restic:latest"
+
+    $snapJson = docker @rArgs snapshots --host homelab --latest 1 --json --no-lock 2>$null
+    $latest = $null
+    try { $latest = ($snapJson | ConvertFrom-Json) | Select-Object -Last 1 } catch {}
+    if (-not $latest) {
+        Fail "off-site repository has no snapshots (or can't be opened)"
+    } else {
+        # Restic prints nanoseconds, more than [datetime] parses - drop them.
+        $snapTime = [datetime]::Parse(("$($latest.time)" -replace '\.\d+', ''), [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::AdjustToUniversal)
+        $age = [math]::Round(((Get-Date).ToUniversalTime() - $snapTime).TotalHours)
+        if ($age -gt 48) { Fail "newest off-site snapshot is $age hours old" } else { Pass "newest off-site snapshot is $age hours old" }
+        # Structure check plus re-reading a random 2% of the stored data,
+        # so corruption anywhere is caught within a few months.
+        docker @rArgs check --read-data-subset 2% --no-lock *> $null
+        if ($LASTEXITCODE -eq 0) { Pass "off-site repository check (2% of data re-read)" } else { Fail "off-site repository check reported errors" }
+    }
+}
+
 # --- Report --------------------------------------------------------------------
 $mins = [math]::Round(((Get-Date) - $started).TotalMinutes)
 Write-Host ""
