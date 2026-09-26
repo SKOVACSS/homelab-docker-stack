@@ -744,6 +744,16 @@ join.{$DOMAIN} {
   }
 }
 
+# Hermes Agent dashboard - admins only, then Hermes' own login.
+hermes.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit hermes
+  import authentik
+  reverse_proxy hermes:9119
+}
+
 # ========== DASHBOARD ==========
 
 # Admin dashboard (Homepage) - every service, live widgets. Its own
@@ -918,4 +928,25 @@ family.{$DOMAIN} {
 # which can rewrite Caddy's config and stays bound to localhost.
 :9180 {
   metrics /metrics
+}
+
+# ========== INTERNAL: local AI model API for agents ==========
+# Plain HTTP on :8010, reachable only from containers on caddy-network
+# (not published). Hermes Agent (ai-stack) calls the local model here
+# instead of vllm:8000 directly, because vLLM sleeps via Sablier: the
+# blocking strategy holds the request until the AI stack has woken
+# (1-3 minutes on a cold start), then proxies it through.
+:8010 {
+  sablier http://sablier:10000 {
+    group ai
+    session_duration 30m
+    blocking {
+      timeout 5m
+    }
+  }
+  reverse_proxy vllm:8000 {
+    transport http {
+      read_timeout 10m
+    }
+  }
 }

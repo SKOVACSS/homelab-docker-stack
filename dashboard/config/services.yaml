@@ -304,6 +304,12 @@
         description: Local LLM chat (GPU-accelerated)
         server: my-docker
         container: open-webui
+    - Hermes Agent:
+        icon: mdi-robot-outline
+        href: "https://hermes.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: AI agent on the local model (tools, memory)
+        server: my-docker
+        container: hermes
 
 - Files & Collaboration:
     - Nextcloud:
