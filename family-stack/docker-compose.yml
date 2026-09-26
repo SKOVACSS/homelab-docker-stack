@@ -350,7 +350,10 @@ services:
           region: CA
           dark_mode: "dark"
           quality: dash
-          quality_dash: best
+          # YouTube hands the companion ~5.6 Mbps per stream (measured
+          # 2026-09-26); "best" picked 1080p60+, which outruns that and
+          # buffers. 720p fits with room to spare.
+          quality_dash: 720p
           autoplay: false
           related_videos: true
           local: true
