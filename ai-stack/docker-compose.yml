@@ -67,8 +67,15 @@ services:
       - "Qwen/Qwen2.5-7B-Instruct-AWQ"
       - "--port"
       - "8000"
+      # 64K window: Hermes Agent refuses local models under 64K. Qwen2.5's
+      # native window is 32K; YaRN rope scaling (factor 2, Qwen's documented
+      # long-context method) stretches it to 64K. The KV cache holds ~78K
+      # tokens on the B580, so one full-length request fits.
       - "--max-model-len"
-      - "32768"
+      - "65536"
+      - "--hf-overrides"
+      # This vLLM build reads rope_parameters (Transformers v5 name), not rope_scaling.
+      - '{"rope_parameters": {"rope_type": "yarn", "factor": 2.0, "original_max_position_embeddings": 32768, "rope_theta": 1000000.0}}'
       - "--gpu-memory-utilization"
       - "0.9"
       # Tool calling (web search, tools, "native" function calling in
@@ -80,11 +87,13 @@ services:
       - "--enable-auto-tool-choice"
       - "--tool-call-parser"
       - "hermes"
-    # No Caddy route and no caddy-network membership - this is a backend
-    # API only Open WebUI needs to reach, same reasoning as
-    # immich-machine-learning not getting one either.
+    # No public Caddy route. On caddy-network only so Caddy's internal :8010
+    # listener can wake it (Sablier) and proxy agent calls to it - see
+    # hermes below. Otherwise it's a backend API only Open WebUI talks to,
+    # same reasoning as immich-machine-learning having no route either.
     networks:
       - ai-network
+      - caddy-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       # Generous start period: first boot downloads ~5GB of weights, then
@@ -168,8 +177,46 @@ services:
           cpus: '0.5'
           memory: 512M
 
+
+  # Hermes Agent (Nous Research) - an AI assistant that can use tools
+  # (shell, files, web) and remembers things, running on the LOCAL model
+  # above via Caddy's internal :8010 listener (which wakes vLLM first).
+  # Dashboard at hermes.{$DOMAIN}: Authentik admin wall, then Hermes' own
+  # login (HERMES_DASHBOARD_BASIC_AUTH_* in .env). Its shell runs inside
+  # this container only (terminal backend "local" = this container, as the
+  # non-root hermes user): no Docker socket, no host folders, nothing
+  # mounted except its own data volume. Config lives in the volume at
+  # /opt/data/config.yaml. Messaging bots (Telegram etc.) are added later
+  # in /opt/data/.env.
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    restart: unless-stopped
+    container_name: hermes
+    command: ["gateway", "run"]
+    environment:
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_USER}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_PASSWORD}
+      - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_SECRET}
+      - TZ=${TZ:-UTC}
+    volumes:
+      - hermes-data:/opt/data
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+
 volumes:
   vllm-hf-cache:
     driver: local
   open-webui-data:
+    driver: local
+  hermes-data:
     driver: local
