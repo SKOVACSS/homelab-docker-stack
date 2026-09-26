@@ -251,6 +251,9 @@ lidarr.{$DOMAIN} {
 # LazyLibrarian - Book/ebook automation
 lazylibrarian.{$DOMAIN} {
   import security_headers
+  # Its themes (Config -> Interface) load from the Bootswatch CDN plus
+  # Google Fonts; the shared policy blocked them, so themes never changed.
+  header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://maxcdn.bootstrapcdn.com https://fonts.gstatic.com; connect-src 'self' https:;"
   log
   import rate_limit lazylibrarian
   import authentik /api*
