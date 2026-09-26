@@ -173,6 +173,23 @@
         description: Stream monitoring & sharing alerts
         server: my-docker
         container: tracearr
+        widget:
+          # No built-in Homepage widget for Tracearr - customapi reads its
+          # public API (owner API key, Settings -> API in Tracearr).
+          type: customapi
+          url: http://tracearr:3000/api/v2/public/streams?summary=true
+          headers:
+            Authorization: "Bearer {{HOMEPAGE_VAR_TRACEARR_API_KEY}}"
+          mappings:
+            - field:
+                summary: total
+              label: Streams
+            - field:
+                summary: transcodes
+              label: Transcodes
+            - field:
+                summary: total_bitrate
+              label: Bandwidth
     - Wizarr:
         icon: wizarr.png
         href: "https://join.{{HOMEPAGE_VAR_DOMAIN}}"
