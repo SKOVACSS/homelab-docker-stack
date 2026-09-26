@@ -198,6 +198,13 @@ services:
       - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_USER}
       - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_PASSWORD}
       - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_SECRET}
+      # API server for the Conduit phone app (hermes-api.{$DOMAIN}, key
+      # auth instead of the Authentik wall - apps can't do a browser login).
+      # Anyone with this key can drive the agent, so keep it secret.
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${HERMES_API_KEY}
       - TZ=${TZ:-UTC}
     volumes:
       - hermes-data:/opt/data
