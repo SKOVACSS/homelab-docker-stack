@@ -32,6 +32,12 @@ networks:
       config:
         - subnet: 172.23.0.0/16
 
+  # Private: Tracearr and its database/Redis only.
+  tracearr-network:
+    driver: bridge
+    name: tracearr-network
+    internal: true
+
 services:
   gluetun:
     image: qmcgaw/gluetun:v3.41.3
@@ -855,6 +861,198 @@ services:
           cpus: '1.0'
           memory: 512M
 
+  # SABnzbd - Usenet downloader (sab.{$DOMAIN}, admin wall; its API
+  # skips the wall with SAB's own key for Sonarr/Radarr/Lidarr/Helmarr).
+  # Needs a paid Usenet provider (Servers) and Usenet indexers in Prowlarr
+  # before it downloads anything. Not behind the VPN: Usenet runs over
+  # SSL to the provider, so the ISP only sees encrypted traffic, and VPNs
+  # cut Usenet speeds sharply. Downloads land in /downloads/usenet - the
+  # same /downloads path the *arrs see, so no path mapping is needed.
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:5.1.3
+    restart: unless-stopped
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - sabnzbd-config:/config
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+  # Tdarr - re-encodes the library (e.g. to H.265/HEVC) to save disk
+  # space (tdarr.{$DOMAIN}, admin wall). Deployed with NO libraries: it
+  # rewrites media files, so nothing happens until a library and a flow
+  # are set up in its UI. Never point it at anything still seeding
+  # (Pretome) - a re-encoded file no longer matches the torrent. CPU
+  # only: Docker Desktop's GPU passthrough (/dev/dxg) doesn't give ffmpeg
+  # QSV/VAAPI here. Work files go to /temp on the D: download drive.
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr:2.90.01
+    restart: unless-stopped
+    container_name: tdarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - UMASK_SET=002
+      - serverIP=0.0.0.0
+      - serverPort=8266
+      - webUIPort=8265
+      - internalNode=true
+      - inContainer=true
+      - ffmpegVersion=7
+      - nodeName=homelab-node
+      # The Authentik wall in front is the login.
+      - auth=false
+      - maxLogSizeMB=10
+    volumes:
+      - tdarr-server:/app/server
+      - tdarr-configs:/app/configs
+      - tdarr-logs:/app/logs
+      - ${MEDIA_TV}:/media/tv
+      - ${MEDIA_MOVIES}:/media/movies
+      - ${QBIT_DOWNLOADS_PATH}/tdarr-cache:/temp
+    networks:
+      - media-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 3G
+
+  # Wizarr - invite links for Plex/Jellyfin (join.{$DOMAIN}). A friend
+  # opens the link, makes an account and gets access plus app download
+  # help. Invite pages must be public, so no Authentik wall; the admin
+  # side uses Wizarr's own login (created on first visit).
+  wizarr:
+    image: ghcr.io/wizarrrr/wizarr:v2026.9.1
+    restart: unless-stopped
+    container_name: wizarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      - DISABLE_BUILTIN_AUTH=false
+    volumes:
+      - wizarr-data:/data
+    networks:
+      - media-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  # Tracearr - stream monitoring across Plex and Jellyfin: sessions,
+  # analytics, account-sharing detection, newsletters (tracearr.{$DOMAIN},
+  # admin wall; its API skips the wall with Tracearr's own key for
+  # Helmarr/its app). Its own login is created on first visit. Can import
+  # Tautulli history. Database is backed up nightly (backup.ps1 dumps).
+  tracearr:
+    image: ghcr.io/connorgallopo/tracearr:2.5.0
+    restart: unless-stopped
+    container_name: tracearr
+    environment:
+      - NODE_ENV=production
+      - HOST=0.0.0.0
+      - TZ=${TZ:-UTC}
+      - DATABASE_URL=postgres://tracearr:${TRACEARR_DB_PASSWORD}@tracearr-db:5432/tracearr
+      - REDIS_URL=redis://tracearr-redis:6379
+      - JWT_SECRET=${TRACEARR_JWT_SECRET}
+      - COOKIE_SECRET=${TRACEARR_COOKIE_SECRET}
+      - CORS_ORIGIN=https://tracearr.${DOMAIN}
+      - LOG_LEVEL=info
+    depends_on:
+      tracearr-db:
+        condition: service_healthy
+      tracearr-redis:
+        condition: service_healthy
+    volumes:
+      - tracearr-backups:/data/backup
+      - tracearr-images:/data/tracearr/image-cache
+    networks:
+      - tracearr-network
+      - media-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+  tracearr-db:
+    # TimescaleDB on PostgreSQL 18, as Tracearr's own compose pins it.
+    image: timescale/timescaledb-ha:pg18.4-ts2.29.1
+    restart: unless-stopped
+    container_name: tracearr-db
+    shm_size: 512mb
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    command: postgres -c timescaledb.license=timescale -c timescaledb.max_tuples_decompressed_per_dml_transaction=100000 -c max_locks_per_transaction=4096 -c timescaledb.telemetry_level=off -c max_connections=150
+    environment:
+      - POSTGRES_USER=tracearr
+      - POSTGRES_PASSWORD=${TRACEARR_DB_PASSWORD}
+      - POSTGRES_DB=tracearr
+    volumes:
+      - tracearr-db:/home/postgres/pgdata/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracearr"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tracearr-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  tracearr-redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    container_name: tracearr-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - tracearr-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tracearr-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 volumes:
   gluetun:
     driver: local
@@ -887,4 +1085,22 @@ volumes:
   maintainerr-data:
     driver: local
   tautulli-config:
+    driver: local
+  sabnzbd-config:
+    driver: local
+  tdarr-server:
+    driver: local
+  tdarr-configs:
+    driver: local
+  tdarr-logs:
+    driver: local
+  wizarr-data:
+    driver: local
+  tracearr-backups:
+    driver: local
+  tracearr-images:
+    driver: local
+  tracearr-db:
+    driver: local
+  tracearr-redis:
     driver: local

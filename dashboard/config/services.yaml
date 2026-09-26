@@ -148,6 +148,37 @@
         description: Library cleanup rules (none active until set)
         server: my-docker
         container: maintainerr
+    - SABnzbd:
+        icon: sabnzbd.png
+        href: "https://sab.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Usenet downloader
+        server: my-docker
+        container: sabnzbd
+        widget:
+          type: sabnzbd
+          url: http://sabnzbd:8080
+          key: "{{HOMEPAGE_VAR_SABNZBD_API_KEY}}"
+    - Tdarr:
+        icon: tdarr.png
+        href: "https://tdarr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Library re-encoding (no libraries until set)
+        server: my-docker
+        container: tdarr
+        widget:
+          type: tdarr
+          url: http://tdarr:8265
+    - Tracearr:
+        icon: mdi-chart-timeline-variant
+        href: "https://tracearr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Stream monitoring & sharing alerts
+        server: my-docker
+        container: tracearr
+    - Wizarr:
+        icon: wizarr.png
+        href: "https://join.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Plex/Jellyfin invite links
+        server: my-docker
+        container: wizarr
 
 - Media Servers:
     - Plex:
