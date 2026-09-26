@@ -53,6 +53,7 @@ services:
       - HOMEPAGE_VAR_SLSKD_API_KEY=${SLSKD_API_KEY}
       - HOMEPAGE_VAR_BAZARR_API_KEY=${BAZARR_API_KEY:-}
       - HOMEPAGE_VAR_TAUTULLI_API_KEY=${TAUTULLI_API_KEY:-}
+      - HOMEPAGE_VAR_SABNZBD_API_KEY=${SABNZBD_API_KEY:-}
       # LAN-only links (Immich Kiosk) - the server's home-network address.
       - HOMEPAGE_VAR_SERVER_LAN_IP=${SERVER_LAN_IP:-}
       # Homepage had no login of its own by default - anyone reaching

@@ -302,6 +302,8 @@ function Backup-Databases {
         @{ Container = "immich_postgres";      Engine = "postgres"; User = $immichUser }
         @{ Container = "paperless-db";         Engine = "postgres"; User = "paperless" }
         @{ Container = "wallabag-db";          Engine = "postgres"; User = "wallabag" }
+        @{ Container = "guacamole-db";         Engine = "postgres"; User = "guacamole" }
+        @{ Container = "tracearr-db";          Engine = "postgres"; User = "tracearr" }
         @{ Container = "nextcloud-db";         Engine = "mariadb";  User = "root"; RootPassword = $nextcloudRootPass }
     )
 

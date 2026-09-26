@@ -699,6 +699,48 @@ speedtest.{$DOMAIN} {
   reverse_proxy speedtest-tracker:80
 }
 
+# SABnzbd - Usenet downloader. Its API (own key) skips the wall.
+sab.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit sab
+  import authentik /api*
+  reverse_proxy sabnzbd:8080
+}
+
+# Tdarr - library re-encoding. No login of its own: wall only.
+tdarr.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit tdarr
+  import authentik
+  reverse_proxy tdarr:8265
+}
+
+# Tracearr - stream monitoring. Its API (own key) skips the wall.
+tracearr.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit tracearr
+  import authentik /api/*
+  reverse_proxy tracearr:3000
+}
+
+# Wizarr - Plex/Jellyfin invite links. Only the invitee flow is public
+# (the people opening a link have no account yet): /j/<code>, /join,
+# /invitation, /wizard and static assets; /api/* uses Wizarr's own API key.
+# Everything else - first-run /setup, /settings, /admin, users, invites -
+# needs an Authentik admin first, then Wizarr's own login.
+join.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit join
+  import authentik /j/* /join* /invitation* /wizard/* /static/* /favicon* /health /image-proxy* /cinema-posters* /api/*
+  reverse_proxy wizarr:5690 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # ========== DASHBOARD ==========
 
 # Admin dashboard (Homepage) - every service, live widgets. Its own
