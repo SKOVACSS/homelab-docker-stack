@@ -19,7 +19,8 @@
 # space) is heavier than llama.cpp's - a 14B AWQ model's ~9.4GB of
 # weights alone left only ~0.15GB free for KV cache on this 12GB card,
 # not enough to serve even one request. 7B AWQ (~5GB weights) leaves
-# comfortable headroom for an 8192-token context, confirmed by actually
+# comfortable headroom for a 32768-token context (78k tokens of KV cache
+# measured on 2026-09-26; room for agent-style prompts), confirmed by actually
 # loading it and completing a real chat request, not just estimating.
 
 networks:
@@ -67,7 +68,7 @@ services:
       - "--port"
       - "8000"
       - "--max-model-len"
-      - "8192"
+      - "32768"
       - "--gpu-memory-utilization"
       - "0.9"
       # Tool calling (web search, tools, "native" function calling in
