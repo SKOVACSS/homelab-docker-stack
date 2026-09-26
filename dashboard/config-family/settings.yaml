@@ -20,7 +20,7 @@ layout:
   Watch:
     icon: mdi-television-play
     style: row
-    columns: 3
+    columns: 4
   Photos & Files:
     icon: mdi-image-multiple
     style: row
@@ -28,7 +28,7 @@ layout:
   Listen & Read:
     icon: mdi-headphones
     style: row
-    columns: 3
+    columns: 4
   Everyday:
     icon: mdi-home-heart
     style: row

@@ -25,6 +25,12 @@
         description: Ask for a movie or show
         server: my-docker
         container: seerr
+    - YouTube (Invidious):
+        icon: invidious.png
+        href: "https://youtube.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: YouTube without ads or tracking
+        server: my-docker
+        container: invidious
 
 - Photos & Files:
     - Photos (Immich):
@@ -53,6 +59,12 @@
         description: Stream the music library
         server: my-docker
         container: navidrome
+    - Spotify Playlists (SoulSync):
+        icon: mdi-playlist-music
+        href: "https://playlists.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Paste a Spotify playlist - it lands in Music
+        server: my-docker
+        container: soulsync
     - Books (Calibre-Web):
         icon: calibre-web.png
         href: "https://calibre.{{HOMEPAGE_VAR_DOMAIN}}"

@@ -118,6 +118,51 @@ entries:
       meta_launch_url: !Format ["https://drop.%s/", !Env DOMAIN]
       meta_description: Send files between phones and computers
       policy_engine_mode: any
+  # Household wall for SoulSync (playlists.DOMAIN) and Invidious
+  # (youtube.DOMAIN). SoulSync also reads the X-Authentik-Username header
+  # to pick each person's profile.
+  - model: authentik_providers_proxy.proxyprovider
+    id: playlists-provider
+    identifiers:
+      name: Playlists
+    attrs:
+      name: Playlists
+      mode: forward_single
+      external_host: !Format ["https://playlists.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: playlists
+    attrs:
+      name: Playlists
+      slug: playlists
+      provider: !KeyOf playlists-provider
+      meta_launch_url: !Format ["https://playlists.%s/", !Env DOMAIN]
+      meta_description: Bring Spotify playlists into our music library
+      policy_engine_mode: any
+  - model: authentik_providers_proxy.proxyprovider
+    id: youtube-provider
+    identifiers:
+      name: YouTube
+    attrs:
+      name: YouTube
+      mode: forward_single
+      external_host: !Format ["https://youtube.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: youtube
+    attrs:
+      name: YouTube
+      slug: youtube
+      provider: !KeyOf youtube-provider
+      meta_launch_url: !Format ["https://youtube.%s/", !Env DOMAIN]
+      meta_description: YouTube without ads or tracking
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -129,3 +174,5 @@ entries:
         - !KeyOf pdf-tools-provider
         - !KeyOf search-provider
         - !KeyOf file-drop-provider
+        - !KeyOf playlists-provider
+        - !KeyOf youtube-provider

@@ -848,6 +848,36 @@ drop.{$DOMAIN} {
   }
 }
 
+# SoulSync - household playlist sync. Wall for any household account;
+# SoulSync maps the X-Authentik-Username header to each person's profile.
+playlists.{$DOMAIN} {
+  import security_headers
+  # Its UI pulls album art and fonts from music services' CDNs.
+  header -Content-Security-Policy
+  log
+  import rate_limit playlists
+  import authentik
+  reverse_proxy soulsync:8008 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
+# Invidious - household YouTube. Wall for any household account. Video
+# streams are proxied through Invidious (local), so YouTube never sees
+# the viewer.
+youtube.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit youtube
+  import authentik
+  # Video streams are served by invidious-companion under /companion.
+  reverse_proxy /companion/* invidious-companion:8282
+  reverse_proxy invidious:3000 {
+    header_up X-Real-IP {http.request.remote}
+  }
+}
+
 # Family dashboard (second Homepage) - household apps only, same look.
 home.{$DOMAIN} {
   import security_headers

@@ -28,6 +28,10 @@
 # the four *_OIDC_CLIENT_SECRET values (same as authentik/.env).
 
 networks:
+  # Private: Invidious and its database only.
+  invidious-network:
+    name: invidious-network
+    internal: true
   caddy-network:
     name: caddy-network
     external: true
@@ -40,6 +44,8 @@ volumes:
   stirling-configs:
   searxng-cache:
   homebox-data:
+  invidious-db:
+  invidious-companion-cache:
 
 services:
   audiobookshelf:
@@ -302,4 +308,110 @@ services:
       resources:
         limits:
           cpus: '0.5'
+          memory: 256M
+
+  # Invidious - private YouTube for the household (youtube.{$DOMAIN},
+  # Authentik wall for any household account). No ads or tracking, and
+  # YouTube only sees this server. Watching needs no account; an optional
+  # Invidious account (made inside it) keeps subscriptions and playlists.
+  # invidious-companion fetches the actual video streams and handles
+  # YouTube's anti-bot tokens - it and Invidious must stay on :latest
+  # (Watchtower) because YouTube changes break older versions quickly.
+  invidious:
+    image: quay.io/invidious/invidious:latest
+    restart: unless-stopped
+    container_name: invidious
+    environment:
+      INVIDIOUS_CONFIG: |
+        db:
+          dbname: invidious
+          user: kemal
+          password: ${INVIDIOUS_DB_PASSWORD}
+          host: invidious-db
+          port: 5432
+        check_tables: true
+        invidious_companion:
+          - private_url: "http://invidious-companion:8282/companion"
+        invidious_companion_key: "${INVIDIOUS_COMPANION_KEY}"
+        hmac_key: "${INVIDIOUS_HMAC_KEY}"
+        domain: youtube.${DOMAIN}
+        https_only: true
+        external_port: 443
+        registration_enabled: true
+        login_enabled: true
+        captcha_enabled: false
+        statistics_enabled: false
+        default_user_preferences:
+          locale: en-US
+          region: CA
+          dark_mode: "dark"
+          quality: dash
+          quality_dash: best
+          autoplay: false
+          related_videos: true
+          local: true
+    depends_on:
+      invidious-db:
+        condition: service_healthy
+    networks:
+      - invidious-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -nv --tries=1 --spider http://127.0.0.1:3000/api/v1/stats || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  invidious-companion:
+    image: quay.io/invidious/invidious-companion:latest
+    restart: unless-stopped
+    container_name: invidious-companion
+    environment:
+      - SERVER_SECRET_KEY=${INVIDIOUS_COMPANION_KEY}
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - invidious-companion-cache:/var/tmp/youtubei.js:rw
+    networks:
+      - invidious-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  invidious-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    container_name: invidious-db
+    environment:
+      - POSTGRES_DB=invidious
+      - POSTGRES_USER=kemal
+      - POSTGRES_PASSWORD=${INVIDIOUS_DB_PASSWORD}
+    volumes:
+      - invidious-db:/var/lib/postgresql/data
+    networks:
+      - invidious-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kemal -d invidious"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
           memory: 256M
