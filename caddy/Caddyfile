@@ -754,6 +754,24 @@ hermes.{$DOMAIN} {
   reverse_proxy hermes:9119
 }
 
+# Hermes Agent API - for the Conduit phone app. No Authentik wall (apps
+# can't do a browser login); Hermes requires its API_SERVER_KEY bearer
+# token on every request. Tighter rate limit than other sites.
+hermes-api.{$DOMAIN} {
+  import security_headers
+  log
+  rate_limit {
+    zone hermes_api_zone {
+      key    {remote_host}
+      events 120
+      window 1m
+    }
+  }
+  reverse_proxy hermes:8642 {
+    flush_interval -1
+  }
+}
+
 # ========== DASHBOARD ==========
 
 # Admin dashboard (Homepage) - every service, live widgets. Its own
