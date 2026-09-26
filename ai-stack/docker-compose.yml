@@ -229,6 +229,11 @@ services:
   # GPU instead (Qwen2.5-VL-7B, 2026-09-26): it read images well, but
   # crashed the Arc in compiled mode and lost tool calling, so the text
   # model stays on the GPU and images go here. No public route.
+  # --parallel 2 (8K context each): Hermes and AI Chat can each read an
+  # image at once instead of queueing - one queued behind the other took
+  # ~2 minutes. AI Chat's background tasks (titles, tags, follow-ups) are
+  # pointed at the GPU model (Open WebUI task.model) so they never queue
+  # here.
   vision:
     image: ghcr.io/ggml-org/llama.cpp:server-v0.5.0
     restart: unless-stopped
@@ -243,11 +248,11 @@ services:
       - "--port"
       - "8080"
       - "--ctx-size"
-      - "8192"
+      - "16384"
       - "--threads"
       - "6"
       - "--parallel"
-      - "1"
+      - "2"
     volumes:
       - vision-models:/root/.cache/huggingface
     networks:
