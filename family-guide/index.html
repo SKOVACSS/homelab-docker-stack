@@ -339,7 +339,17 @@
           "Search for any movie or show and tap <b>Request</b>.",
           "Check back under <b>Requests</b> to see when it's available."
         ] },
-        tip: "Some requests need approval first. That's normal." }
+        tip: "Some requests need approval first. That's normal." },
+      { id: "youtube", icon: "play", name: "YouTube", appName: "Invidious", replaces: "YouTube (with ads)", sub: "youtube",
+        tagline: "All of YouTube with no ads and no tracking. YouTube only ever sees our server, never you.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with your family account.",
+          "Search and watch as usual. No account needed.",
+          "Want subscriptions and playlists? Tap <b>Log in / register</b> (top right) and make a simple Invidious account. Only our server keeps it.",
+          "Already subscribed on YouTube? Invidious → Settings → <b>Import/Export</b> brings your subscriptions over."
+        ] },
+        tip: "Add it to your home screen to use it like the YouTube app." }
     ] },
     { title: "Photos & Files", apps: [
       { id: "photos", icon: "photo", name: "Photos", appName: "Immich", replaces: "Google Photos / iCloud Photos", sub: "photos",
@@ -388,6 +398,16 @@
           "Browse albums and playlists. Download them for listening offline."
         ], computer: ["No app needed on a computer: tap Open and play music in the browser."] },
         tip: "Music uses its own username and password, not the family login." },
+      { id: "playlists", icon: "music", name: "Spotify Playlists", appName: "SoulSync", replaces: "Downloading songs one by one", sub: "playlists",
+        tagline: "Paste a Spotify playlist and its songs get added to our music library, with the same playlist appearing in Music.",
+        pwa: true,
+        steps: { all: [
+          "Tap Open and sign in with your family account, then pick your profile.",
+          "Go to <b>Playlists</b> → <b>Add playlist</b> and paste a Spotify playlist link (Share → Copy link in Spotify).",
+          "It finds and downloads the missing songs by itself. They appear in <b>Music</b> (Navidrome), in a playlist with the same name.",
+          "Turn on <b>Auto-sync</b> for a playlist, and songs you add in Spotify later come over automatically."
+        ] },
+        tip: "Public playlists work straight away. For your Liked Songs or private playlists, ask for help linking your Spotify account once." },
       { id: "audiobooks", icon: "headphones", name: "Audiobooks & Podcasts", appName: "Audiobookshelf", replaces: "Audible", sub: "audiobooks",
         tagline: "Our audiobook collection and your podcasts. It remembers your place across every device.",
         phone: { android: [android("Audiobookshelf", "com.audiobookshelf.app")] },

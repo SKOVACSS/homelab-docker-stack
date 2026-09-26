@@ -196,6 +196,18 @@
         description: Plex/Jellyfin invite links
         server: my-docker
         container: wizarr
+    - SoulSync:
+        icon: mdi-playlist-music
+        href: "https://playlists.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Spotify playlist sync (Soulseek/torrent/Usenet)
+        server: my-docker
+        container: soulsync
+    - Invidious:
+        icon: invidious.png
+        href: "https://youtube.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Private YouTube (household)
+        server: my-docker
+        container: invidious
 
 - Media Servers:
     - Plex:

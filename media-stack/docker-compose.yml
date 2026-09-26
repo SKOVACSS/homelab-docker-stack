@@ -209,7 +209,9 @@ services:
       - SLSKD_USERNAME=${SLSKD_USERNAME}
       - SLSKD_PASSWORD=${SLSKD_PASSWORD}
       - SLSKD_API_KEY=${SLSKD_API_KEY}
-      - SLSKD_SHARED_DIR=/music
+      # Music library plus finished Soulseek downloads (semicolon list):
+      # Soulseek bans users who download without sharing.
+      - SLSKD_SHARED_DIR=/music;/app/downloads
       - SLSKD_REMOTE_CONFIGURATION=true
     volumes:
       - slskd-config:/app
@@ -1053,6 +1055,57 @@ services:
         limits:
           memory: 256M
 
+  # SoulSync - Spotify (and YouTube Music, Deezer, Apple...) playlist sync
+  # for the whole household (playlists.{$DOMAIN}, Authentik wall for any
+  # household account; SoulSync trusts Authentik's username header, so
+  # each person gets their own profile). Paste a playlist link: it finds
+  # the tracks through our own sources (Soulseek via slskd, then torrent/
+  # Usenet via Prowlarr), verifies and tags them, files them into the
+  # music library and keeps a matching playlist in Navidrome.
+  # Paths match what each client reports, so no path mapping is needed:
+  # slskd -> /app/downloads, qBittorrent/SABnzbd -> /downloads.
+  soulsync:
+    image: boulderbadgedad/soulsync:3.4.6
+    restart: unless-stopped
+    container_name: soulsync
+    # Spotify account linking only: Spotify redirects the browser to
+    # 127.0.0.1:8888, so link it from a browser ON the server (e.g. via
+    # remote.DOMAIN). Localhost-only - not reachable from the network.
+    ports:
+      - "127.0.0.1:8888:8888"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - UMASK=022
+      - TZ=${TZ:-UTC}
+      - PYTHONPATH=/app
+      - SOULSYNC_CONFIG_PATH=/app/config/config.json
+    volumes:
+      - soulsync-config:/app/config
+      - soulsync-logs:/app/logs
+      - soulsync-data:/app/data
+      - ${SLSKD_DOWNLOADS_PATH}:/app/downloads
+      - ${QBIT_DOWNLOADS_PATH}:/downloads
+      - ${MEDIA_MUSIC}:/app/Transfer
+      - ${QBIT_DOWNLOADS_PATH}/soulsync/staging:/app/Staging
+      - ${QBIT_DOWNLOADS_PATH}/soulsync/music-videos:/app/MusicVideos
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8008/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+
 volumes:
   gluetun:
     driver: local
@@ -1103,4 +1156,10 @@ volumes:
   tracearr-db:
     driver: local
   tracearr-redis:
+    driver: local
+  soulsync-config:
+    driver: local
+  soulsync-logs:
+    driver: local
+  soulsync-data:
     driver: local
