@@ -111,7 +111,13 @@ services:
       POSTGRES_DB: ${DB_DATABASE_NAME}
       POSTGRES_INITDB_ARGS: '--data-checksums'
     volumes:
-      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+      # Docker volume, not the Windows-shared DB_DATA_LOCATION folder: on
+      # Docker Desktop, Postgres writes through that share failed under memory
+      # pressure ("could not write to log file ... Cannot allocate memory"),
+      # crashing the database and Immich with it (2026-09-26). Immich's docs
+      # also require a local filesystem for the database. The old folder
+      # (immich-app/postgres) was left in place as a fallback copy.
+      - immich-postgres:/var/lib/postgresql/data
     shm_size: 128mb
     networks:
       - immich
@@ -130,6 +136,8 @@ services:
           memory: 1G
 
 volumes:
+  immich-postgres:
+    driver: local
   model-cache:
     driver: local
 
