@@ -341,7 +341,11 @@ services:
         login_enabled: true
         captcha_enabled: false
         statistics_enabled: false
+        # Popular is built from this instance's own subscriptions (empty until
+        # people subscribe), so open on Trending instead.
         default_user_preferences:
+          default_home: Trending
+          feed_menu: ["Trending", "Popular", "Subscriptions", "Playlists"]
           locale: en-US
           region: CA
           dark_mode: "dark"
