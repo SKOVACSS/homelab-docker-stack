@@ -650,7 +650,9 @@ services:
       - PLEX_GID=1000
       - TZ=${TZ:-UTC}
       - PLEX_CLAIM=${PLEX_CLAIM_TOKEN}
-      - ADVERTISE_IP=https://${PLEX_DOMAIN}:443/
+      # LAN address first so apps at home connect straight to port 32400
+      # (no Caddy/Cloudflare hop); the domain covers everywhere else.
+      - ADVERTISE_IP=http://${SERVER_LAN_IP:-127.0.0.1}:32400/,https://${PLEX_DOMAIN}:443/
     volumes:
       - plex-config:/config
       - ${MEDIA_MOVIES}:/movies
