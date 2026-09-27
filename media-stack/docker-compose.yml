@@ -834,6 +834,41 @@ services:
           cpus: '1.0'
           memory: 512M
 
+  # Cleanuparr - watches the Sonarr/Radarr/Lidarr queues and qBittorrent:
+  # removes and blocklists fake/malware releases (.exe/.lnk/.zipx posing
+  # as video - three slipped in on 2026-09-27), stalled downloads and
+  # failed imports, then triggers a new search. Private-tracker (Pretome)
+  # torrents are never deleted, to protect ratio. Admin wall at
+  # cleanuparr.{$DOMAIN} plus its own login; settings live in /config.
+  cleanuparr:
+    image: ghcr.io/cleanuparr/cleanuparr:2.10.8
+    restart: unless-stopped
+    container_name: cleanuparr
+    environment:
+      - PORT=11011
+      - PUID=1000
+      - PGID=1000
+      - UMASK=022
+      - TZ=${TZ:-UTC}
+    volumes:
+      - cleanuparr-config:/config
+    networks:
+      - media-network
+      - caddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11011/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
   # Tautulli - Plex watch history and stats. Sign in with Plex on first
   # open (tautulli.{$DOMAIN}); it finds the server itself at plex:32400.
   tautulli:
@@ -1136,6 +1171,8 @@ volumes:
   bazarr-config:
     driver: local
   maintainerr-data:
+    driver: local
+  cleanuparr-config:
     driver: local
   tautulli-config:
     driver: local
