@@ -105,6 +105,10 @@ services:
     # by hand, on your own schedule.
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
+    # FTL keeps its query log in /dev/shm. Docker's 64MB default ran out
+    # once the log grew (2026-09-27: "realloc_shm ... No space left on
+    # device", then a restart loop), so give it room.
+    shm_size: '256m'
     healthcheck:
       test: ["CMD", "dig", "@127.0.0.1", "pi.hole"]
       interval: 30s
