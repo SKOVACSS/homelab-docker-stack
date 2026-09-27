@@ -148,6 +148,12 @@
         description: Library cleanup rules (none active until set)
         server: my-docker
         container: maintainerr
+    - Cleanuparr:
+        icon: cleanuparr.png
+        href: "https://cleanuparr.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Removes fake/malware and stalled downloads
+        server: my-docker
+        container: cleanuparr
     - SABnzbd:
         icon: sabnzbd.png
         href: "https://sab.{{HOMEPAGE_VAR_DOMAIN}}"

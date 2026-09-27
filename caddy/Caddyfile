@@ -673,6 +673,16 @@ maintainerr.{$DOMAIN} {
   reverse_proxy maintainerr:6246
 }
 
+# Cleanuparr - removes fake/malware and stalled downloads. Admin wall,
+# then its own login.
+cleanuparr.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit cleanuparr
+  import authentik
+  reverse_proxy cleanuparr:11011
+}
+
 # Tautulli - Plex stats. Its API (own key) skips the wall.
 tautulli.{$DOMAIN} {
   import security_headers
