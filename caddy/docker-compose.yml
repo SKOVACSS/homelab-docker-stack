@@ -17,6 +17,9 @@ services:
       # JS, no build step, so it's served directly rather than through its
       # own container.
       - ../family-guide:/srv/family-guide:ro
+      # Private IT-business plan site (plan.{$DOMAIN}, admins only). Its
+      # files live outside the repo; the path is set in caddy/.env.
+      - ${IT_BUSINESS_SITE_PATH:-./sites/it-business}:/srv/it-business:ro
       # Optional CrowdSec bouncer config - see crowdsec.d/*.example and
       # the Caddyfile's global block. Only *.caddy files are imported.
       - ./crowdsec.d:/etc/caddy/crowdsec.d:ro

@@ -949,6 +949,17 @@ family.{$DOMAIN} {
   file_server
 }
 
+# IT-business plan - private static site (finances, pricing), so it sits
+# behind the Authentik admin wall. Files mounted from IT_BUSINESS_SITE_PATH.
+plan.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit plan
+  import authentik
+  root * /srv/it-business
+  file_server
+}
+
 # ========== INTERNAL: Prometheus metrics ==========
 # Plain HTTP on :9180, reachable only from containers on caddy-network
 # (Prometheus scrapes caddy:9180) - the port isn't published in
