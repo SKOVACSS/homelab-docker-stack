@@ -1,0 +1,245 @@
+# Management Workstation (Fedora on a 2016 MacBook Pro)
+
+How to turn an old MacBook Pro into a quick, low-maintenance terminal for
+managing this homelab: Remote Desktop into the Windows Docker host, SSH
+for the `_scripts/*.ps1` tooling, a local editor for this repo, and
+WireGuard for doing all of that away from home.
+
+Written for the known quirks of the **13" late-2016
+MacBook Pro with four Thunderbolt 3 ports** - `MacBookPro13,2`, i5-6267U,
+Iris 550, 8 GB, Touch Bar + T1 chip. The same steps apply to the other
+2016/2017 models (`MacBookPro13,x`/`14,x`); most other Intel Macs need
+fewer of the fixes below, not different ones.
+
+## Why Fedora KDE, and not a custom kernel
+
+What these Macs need from Linux is a *recent* mainline kernel - the
+internal keyboard/trackpad (Apple SPI, `applespi`) and several other
+drivers have only matured in recent releases - not a tuned one. Fedora
+tracks new kernels within weeks, on a fully supported distro. Performance
+kernels (CachyOS, XanMod) make no measurable difference on a dual-core
+machine whose heavy lifting happens on the server.
+
+KDE Plasma 6 on Wayland handles the 2560x1600 Retina panel's fractional
+scaling (175-200%) well, and is lighter than GNOME on 8 GB. Fedora's
+default zram swap stretches that further.
+
+## 1. Before you start
+
+Download ahead of time:
+
+- **Fedora KDE Plasma Desktop ISO** (x86_64) -
+  [fedoraproject.org/kde/download](https://fedoraproject.org/kde/download/).
+  Verify its SHA256 against the `CHECKSUM` file next to it.
+- **Fedora Media Writer** (or Rufus, in *DD Image* mode) to write it.
+
+Have on hand:
+
+- A **USB-C** stick (or a USB-A stick + adapter) - 4 GB or more.
+- A **USB keyboard/mouse**, just in case the internal ones misbehave in
+  the live session or at an encryption prompt.
+- **A way online that isn't the built-in Wi-Fi**: a USB-C Ethernet
+  adapter, or USB tethering from your phone. On the Touch Bar models the
+  Wi-Fi often won't connect until it's fixed (see "Wi-Fi" below), and the
+  fix needs the internet.
+- Your **Wi-Fi password**, and a **WireGuard peer config** from the server
+  (`security-stack/wireguard/config/peerN/peerN.conf`) on a second stick
+  or somewhere you can download it from after install. Use a peer no other
+  device already uses.
+- A backup of anything you want from macOS - installing wipes the disk.
+
+Nothing else needs pre-downloading: every package and driver in step 3
+comes from Fedora, RPM Fusion, Microsoft or GitHub during setup.
+
+## 2. Install
+
+1. Plug in the stick, power on holding **Option (⌥)**, pick **EFI Boot**.
+2. In the live session, check keyboard, trackpad and display before
+   committing, and try Wi-Fi (see "Wi-Fi" below if it won't connect).
+   No sound, a blank Touch Bar and no webcam are all expected.
+   - The Fedora menu's **"Test this media"** entry may print
+     `grub_efidisk_open: invalid buffer alignment` and/or report the
+     result as **NA** - neither means the stick is bad. Recent Fedora
+     ISOs don't embed the checksum that test reads; the SHA256 you
+     checked on download is the real verification.
+3. **Install to Hard Drive** -> erase the whole disk. OpenCore Legacy
+   Patcher and macOS go with it; nothing on this Mac needs them. Its
+   firmware is already final (Monterey was the last supported macOS), and
+   there's no T2 chip or Secure Boot to deal with.
+4. **Disk encryption (LUKS)** is worth enabling on a laptop that holds SSH
+   keys to your server. If you do, keep the USB keyboard plugged in for
+   the first boot: until step 3's script adds the SPI keyboard drivers to
+   the initramfs, the built-in keyboard may not work at the passphrase
+   prompt.
+
+## USB kit (no internet needed to start)
+
+If the Mac can't get online yet, copy these onto a USB stick (any format
+works - that's why everything below is run with `bash`, not `./`):
+
+```
+wifi-fix.sh                     # offline Wi-Fi fix - run this first
+net-diagnose.sh                 # writes net-report-*.txt onto the stick
+firmware/brcmfmac43602-pcie.txt # used by wifi-fix.sh
+fedora-macbook-setup.sh         # everything else (needs internet)
+enable-remote-management.ps1    # for the Windows host (from _scripts/)
+```
+
+On the Mac: plug the stick in, open it in Dolphin, right-click an empty
+spot -> *Open Terminal Here*, then `bash wifi-fix.sh --ssid "YourNetwork"`.
+Once online, `bash fedora-macbook-setup.sh ...` as in step 3 below.
+
+Nothing else can usefully go on the stick: the speaker driver compiles
+against the running kernel's source, which it downloads during the build,
+and every other package comes from Fedora/RPM Fusion/Microsoft.
+
+## 3. Post-install script
+
+```bash
+git clone https://github.com/SKOVACSS/homelab-docker-stack.git
+cd homelab-docker-stack/workstation   # or the USB kit folder
+./fedora-macbook-setup.sh --server 192.168.1.50 --user YourWindowsUser \
+                          --wg-conf ~/Downloads/peer2.conf
+```
+
+(`--server`/`--user`/`--wg-conf` are optional - see `--help`.) Then
+**reboot and run it once more**: the speaker driver has to be built
+against the kernel you're actually running, and the first run's update
+usually installs a newer one.
+
+What it does:
+
+| Step | Why |
+|---|---|
+| `dnf upgrade`, base tools, Remmina + FreeRDP, WireGuard tools | The client side of everything below. |
+| `thermald` | Intel thermal management - keeps clocks and fans sane. |
+| RPM Fusion, full `ffmpeg`, `intel-media-driver` | Hardware H.264 decode on the Iris 550, so RDP's AVC444 mode runs on the GPU instead of the CPU. |
+| VS Code, PowerShell 7 | Edit this repo locally or over Remote-SSH; lint/dry-run the `.ps1` scripts. |
+| SPI keyboard drivers into the initramfs | Built-in keyboard works at the LUKS prompt. |
+| udev rule: Apple NVMe `d3cold_allowed=0` | These Macs otherwise fail to resume from suspend (SSD drops off the bus). |
+| `brcmfmac feature_disable=0x82000` (BCM43602 only) | Touch Bar models' Wi-Fi firmware fails WPA logins without it. |
+| Wi-Fi power saving off | The BCM43602's driver stalls/drops with it on. |
+| Caps Lock -> Esc | The Touch Bar's Esc isn't dependable on Linux (see below). |
+| `snd_hda_macbookpro` | Mainline's CS8409 codec driver only knows Dell's wiring; without this the speakers are silent. Not confirmed upstream on the 13" Touch Bar (`MacBookPro13,2`) - may still be silent there. |
+| SSH key, `Host homelab`, `rdp-homelab` | One-word connections to the server. |
+| WireGuard import (off by default) | Toggle it from the tray when away from home. |
+
+Setting the display scale (System Settings -> Display) is left to you -
+175% or 200% are the usual picks for this panel.
+
+## 4. Windows side
+
+On the Docker host, from an **elevated** PowerShell in `_scripts\`:
+
+```powershell
+.\enable-remote-management.ps1 -PublicKey "ssh-ed25519 AAAA... you@macbook"
+```
+
+(Paste the key the setup script printed.) This installs and starts
+OpenSSH Server with PowerShell as its login shell, authorizes the key,
+and enables Remote Desktop with NLA plus the H.264/AVC444 + GPU-encode
+policies. RDP hosting needs Windows **Pro** or higher - on Home the
+script sets up SSH only and says so.
+
+Then from the laptop:
+
+```bash
+ssh homelab                 # run deploy.ps1 / health-check.ps1 there
+rdp-homelab                 # full desktop; Remmina works too
+# VS Code: install the "Remote - SSH" extension, then Connect to Host -> homelab
+```
+
+Web UIs (Portainer, Grafana, Uptime Kuma, Homepage) just work in Firefox.
+
+**Away from home**, turn on the WireGuard connection first. Never publish
+3389 or 22 through Caddy/Cloudflare Tunnel - see [SECURITY.md](../SECURITY.md).
+The stock peer configs send *all* traffic through home
+(`ALLOWEDIPS=0.0.0.0/0` in `security-stack/docker-compose.yml`); to route
+only the LAN through it, change `AllowedIPs` in the imported connection
+to your LAN's subnet (e.g. `192.168.1.0/24, 10.13.13.0/24`).
+
+## Known gaps on this model
+
+- **Wi-Fi (Touch Bar models)** - linux-firmware ships the BCM43602's
+  firmware but not its board NVRAM (calibration) file. Without it the
+  firmware never settles on a country: **2.4 GHz only** (`iw list` shows
+  only `Band 1`; `iw reg set` changes nothing), a weak signal, and WPA2
+  logins failing as "password incorrect" or `...was not in the scan list`.
+  **`wifi-fix.sh` fixes this offline** - run it from a USB stick before
+  you have internet:
+  ```bash
+  bash wifi-fix.sh --ssid "YourNetwork"
+  ```
+  It disables the firmware's broken WPA offload (`feature_disable=0x82000`,
+  the standard workaround for wpa_supplicant 2.11+ on this chip),
+  NetworkManager's MAC randomization and Wi-Fi power saving, installs the
+  NVRAM, reloads the driver and reconnects. `--undo` reverts it all;
+  `--no-nvram` skips the NVRAM. On a `MacBookPro13,2` this went from
+  ~1 Mbps on 2.4 GHz to ~47 Mbps on 5 GHz (Starlink-limited), with every
+  nearby 2.4 and 5 GHz network visible.
+
+  **The NVRAM's `macaddr=` line is load-bearing.** The chip has no MAC
+  address of its own on these boards (`ethtool -P wlp2s0` reports
+  whatever the NVRAM says), and with the line removed the firmware
+  crashes on load (`Retrieving cur_etheraddr failed`, `Firmware has halted
+  or crashed`, no Wi-Fi device). The file ships a shared Broadcom
+  placeholder (`00:90:4c:0d:f4:3e`); `wifi-fix.sh` swaps in an address
+  unique to the Mac, derived from its hardware UUID so it's the same
+  after a reinstall (`--mac` to choose one). Set your router's DHCP
+  reservation to that address.
+
+  5 GHz on this chip is range-sensitive: around -75 dBm it connects but
+  drops now and then, and it may vanish after suspend/resume (per
+  [this guide](https://dev.to/cmiranda/linux-on-macbook-pro-2016-1onb)).
+  Where the 5 GHz signal is weak, pin the connection to 2.4 GHz, which the
+  NVRAM also makes much stronger:
+  `nmcli connection modify "YourNetwork" 802-11-wireless.band bg`
+  (`a` = 5 GHz only, `""` = either).
+
+  If Wi-Fi drops and won't come back, the firmware has probably hung
+  (`sudo dmesg | grep brcmf` shows "timed out waiting for txstatus" /
+  "bus is down"); reloading the driver recovers it without a reboot:
+  `sudo modprobe -r brcmfmac_wcc brcmfmac; sudo modprobe brcmfmac`.
+  Connected but no internet: give it a minute or two on a weak signal,
+  then `bash net-diagnose.sh`, which writes a report next to itself (so
+  onto the USB stick). For a connection you can rely on, a
+  Linux-supported USB Wi-Fi adapter or Ethernet sidesteps this chip
+  entirely.
+
+  Access-point settings that matter for this chip (on a MacBookPro13,2 a
+  TP-Link Deco network worked at ~20 Mbps while a weaker-signal Omada SSID
+  kept failing): **WPA2-Personal, AES only** (not WPA/WPA2 mixed with
+  TKIP - shows as `WPA1 WPA2` in `nmcli device wifi list` - and not WPA3
+  or WPA2/WPA3 transition), **802.11r / fast roaming off**, and **PMF
+  "Capable"/optional** rather than required. Signal strength matters more
+  than any of these: below ~20% in `nmcli device wifi list` it rarely
+  holds a connection.
+- **USB-C / Thunderbolt devices plugged in after boot** (sticks, docks)
+  often aren't detected - plug them in before powering on. A
+  **Thunderbolt dock** is also held back until you approve it once
+  (`boltctl list` shows it as `connected` rather than `authorized`):
+  ```bash
+  boltctl list
+  sudo boltctl enroll --policy auto <uuid from boltctl list>
+  ```
+  (or System Settings -> Thunderbolt). After that its Ethernet port works
+  at full speed - the easiest way to run the setup script.
+- **Speakers (13" Touch Bar, `MacBookPro13,2`)** - listed as not working
+  upstream, even with the `snd_hda_macbookpro` driver the script builds.
+  Plan on USB/Bluetooth audio or headphones.
+
+- **Touch Bar** - the T1-era Touch Bar has no mainline driver; it may be
+  blank or only partly working. The out-of-tree
+  [macbook12-spi-driver](https://github.com/roadrunner2/macbook12-spi-driver)
+  (`apple-ib-tb`) can show F-keys. Caps Lock -> Esc covers the one key
+  that matters most.
+- **Webcam** - needs the out-of-tree `facetimehd` driver (available as a
+  COPR); skipped since a management terminal rarely needs it.
+- **Touch ID** - not supported.
+- **Battery** - after nine-plus years, check it with
+  `upower -i $(upower -e | grep BAT)` before trusting it away from a
+  charger.
+
+The community notes at
+[Dunedan/mbp-2016-linux](https://github.com/Dunedan/mbp-2016-linux) track
+the current state of every component on these models.

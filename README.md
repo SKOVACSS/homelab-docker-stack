@@ -48,6 +48,7 @@ since it owns the shared `caddy-network` every other stack joins).
 - **[PLATFORM.md](PLATFORM.md)** - path/OS differences (Windows, Linux, macOS, Synology) and moving between them.
 - **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - known gotchas and how to work around them.
 - **[CHANGELOG.md](CHANGELOG.md)** - what changed in the 1.0 pass, including two removed/replaced services.
+- **[workstation/README.md](workstation/README.md)** - turning an old laptop (a 2016 MacBook Pro running Fedora) into a management terminal: RDP, SSH, VS Code, WireGuard.
 
 ## Design notes
 
