@@ -118,7 +118,12 @@ if ($SkipVolumes) {
     $check = 'for d in /b/*/; do n=$(basename "$d"); f="$d/data.tar.gz"; ' +
              'if [ ! -s "$f" ]; then echo "BAD $n missing-or-empty"; continue; fi; ' +
              'if gzip -t "$f" 2>/dev/null && tar -tzf "$f" >/dev/null 2>&1; then echo "OK $n"; else echo "BAD $n corrupt"; fi; done'
-    $out = docker run --rm -v "${volDir}:/b:ro" alpine:3.22 sh -c $check
+    # 2>&1 so a failed docker run (image pull, mount) says why instead of
+    # just "no output" - on 2026-09-27 that was all the report had.
+    $out = docker run --rm -v "${volDir}:/b:ro" alpine:3.22 sh -c $check 2>&1
+    $err = @($out | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+    $out = @($out | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] })
+    if ($err) { Fail "volume check could not run: $(($err | Select-Object -First 1).ToString())" }
     $ok = 0
     foreach ($line in $out) {
         if ($line -like "OK *") { $ok++ }
