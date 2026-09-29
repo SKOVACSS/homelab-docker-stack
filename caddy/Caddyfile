@@ -949,8 +949,9 @@ family.{$DOMAIN} {
   file_server
 }
 
-# IT-business plan - private static site (finances, pricing), so it sits
-# behind the Authentik admin wall. Files mounted from IT_BUSINESS_SITE_PATH.
+# IT-business plan - private static site (finances, pricing): any household
+# account via the wall ("Business plan" provider in admin-apps.yaml).
+# Files mounted from IT_BUSINESS_SITE_PATH.
 plan.{$DOMAIN} {
   import security_headers
   log
