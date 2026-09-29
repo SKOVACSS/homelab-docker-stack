@@ -163,6 +163,29 @@ entries:
       meta_launch_url: !Format ["https://youtube.%s/", !Env DOMAIN]
       meta_description: YouTube without ads or tracking
       policy_engine_mode: any
+  # Household wall for the IT-business plan site (plan.DOMAIN): every
+  # family account, not just admins.
+  - model: authentik_providers_proxy.proxyprovider
+    id: plan-provider
+    identifiers:
+      name: Business plan
+    attrs:
+      name: Business plan
+      mode: forward_single
+      external_host: !Format ["https://plan.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: plan
+    attrs:
+      name: Business plan
+      slug: plan
+      provider: !KeyOf plan-provider
+      meta_launch_url: !Format ["https://plan.%s/", !Env DOMAIN]
+      meta_description: IT business plan and study tracks
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -176,3 +199,4 @@ entries:
         - !KeyOf file-drop-provider
         - !KeyOf playlists-provider
         - !KeyOf youtube-provider
+        - !KeyOf plan-provider
