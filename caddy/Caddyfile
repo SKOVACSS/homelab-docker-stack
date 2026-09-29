@@ -799,6 +799,30 @@ dash.{$DOMAIN} {
 # except Stirling-PDF, SearXNG and PairDrop, which sit behind the
 # Authentik wall (any household account).
 
+# Komga (comics) and RomM (games) sign in with Authentik themselves (no
+# wall, so reading apps and RomM's API keep working).
+comics.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit comics
+  reverse_proxy komga:25600
+}
+
+games.{$DOMAIN} {
+  import security_headers
+  # EmulatorJS runs cores as WebAssembly in web workers and needs
+  # SharedArrayBuffer; RomM sets its own policy headers.
+  header -Content-Security-Policy
+  log
+  import rate_limit games
+  request_body {
+    max_size 4GB
+  }
+  reverse_proxy romm:8080 {
+    flush_interval -1
+  }
+}
+
 audiobooks.{$DOMAIN} {
   import security_headers
   log

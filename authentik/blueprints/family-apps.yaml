@@ -1,5 +1,5 @@
 # Authentik blueprint - sign-in for family-stack's apps (Audiobookshelf,
-# Mealie, Actual Budget, Homebox). Same pattern as app-logins.yaml. Any Authentik
+# Mealie, Actual Budget, Homebox, Komga, RomM). Same pattern as app-logins.yaml. Any Authentik
 # user may sign in; each app decides what they can see. Stirling-PDF has
 # no login of its own and uses the forward-auth wall instead (see
 # admin-apps.yaml, "PDF tools").
@@ -153,4 +153,88 @@ entries:
       provider: !KeyOf homebox-provider
       meta_launch_url: !Format ["https://inventory.%s/", !Env DOMAIN]
       meta_description: What we own, where it is, receipts & warranties
+      policy_engine_mode: any
+
+  # ---------- email with email_verified: true ----------
+  # Authentik's built-in email scope reports email_verified false, and
+  # RomM refuses unverified emails. Accounts here are created by the
+  # admin, so their addresses are trusted.
+  - model: authentik_providers_oauth2.scopemapping
+    id: email-verified-mapping
+    identifiers:
+      name: "Homelab: email (verified)"
+    attrs:
+      name: "Homelab: email (verified)"
+      scope_name: email
+      description: Email address (verified)
+      expression: |
+        return {"email": request.user.email, "email_verified": True}
+
+  # ---------- Komga ----------
+  - model: authentik_providers_oauth2.oauth2provider
+    id: komga-provider
+    identifiers:
+      name: Komga
+    attrs:
+      name: Komga
+      client_type: confidential
+      client_id: komga
+      client_secret: !Env KOMGA_OIDC_CLIENT_SECRET
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://comics.%s/login/oauth2/code/authentik", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !KeyOf email-verified-mapping
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: komga
+    attrs:
+      name: Comics
+      slug: komga
+      provider: !KeyOf komga-provider
+      meta_launch_url: !Format ["https://comics.%s/", !Env DOMAIN]
+      meta_description: Comics, manga and magazines
+      policy_engine_mode: any
+
+  # ---------- RomM ----------
+  # The profile scope carries "groups"; RomM makes "authentik Admins" admins.
+  - model: authentik_providers_oauth2.oauth2provider
+    id: romm-provider
+    identifiers:
+      name: RomM
+    attrs:
+      name: RomM
+      client_type: confidential
+      client_id: romm
+      client_secret: !Env ROMM_OIDC_CLIENT_SECRET
+      grant_types:
+        - authorization_code
+        - refresh_token
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+      redirect_uris:
+        - matching_mode: strict
+          url: !Format ["https://games.%s/api/oauth/openid", !Env DOMAIN]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+        - !KeyOf email-verified-mapping
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+  - model: authentik_core.application
+    identifiers:
+      slug: romm
+    attrs:
+      name: Games
+      slug: romm
+      provider: !KeyOf romm-provider
+      meta_launch_url: !Format ["https://games.%s/", !Env DOMAIN]
+      meta_description: Retro game library, play in the browser
       policy_engine_mode: any

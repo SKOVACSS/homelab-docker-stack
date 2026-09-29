@@ -32,6 +32,10 @@ networks:
   invidious-network:
     name: invidious-network
     internal: true
+  # Private: RomM and its database only.
+  romm-network:
+    name: romm-network
+    internal: true
   caddy-network:
     name: caddy-network
     external: true
@@ -46,6 +50,12 @@ volumes:
   homebox-data:
   invidious-db:
   invidious-companion-cache:
+  komga-config:
+  romm-resources:
+  romm-redis:
+  romm-assets:
+  romm-config:
+  romm-db:
 
 services:
   audiobookshelf:
@@ -422,3 +432,120 @@ services:
       resources:
         limits:
           memory: 256M
+
+  # Komga - comics, manga and magazines (comics.{$DOMAIN}). "Sign in with
+  # Authentik" (family-apps.yaml) creates each person's account on first
+  # login; the first admin is made in its setup page. Works with Mihon/
+  # Tachiyomi, Paperback and Panels via its own login or API key.
+  komga:
+    image: gotson/komga:1.28.0
+    restart: unless-stopped
+    container_name: komga
+    environment:
+      - TZ=${TZ:-UTC}
+      - JAVA_TOOL_OPTIONS=-Xmx1g
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_PROVIDER=authentik
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_ID=komga
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_SECRET=${KOMGA_OIDC_CLIENT_SECRET}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_CLIENT_NAME=Authentik
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_SCOPE=openid,email,profile
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_AUTHORIZATION_GRANT_TYPE=authorization_code
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_AUTHENTIK_REDIRECT_URI={baseUrl}/{action}/oauth2/code/{registrationId}
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHENTIK_ISSUER_URI=https://auth.${DOMAIN}/application/o/komga/
+      - SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_AUTHENTIK_USER_NAME_ATTRIBUTE=email
+      - KOMGA_OAUTH2_ACCOUNT_CREATION=true
+      - KOMGA_OIDC_EMAIL_VERIFICATION=false
+    volumes:
+      - komga-config:/config
+      - ${COMICS_PATH}:/data/comics
+    networks:
+      - caddy-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:25600/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+
+  # RomM - retro game library with in-browser play (games.{$DOMAIN}).
+  # "Sign in with Authentik" creates accounts on first login (players);
+  # "authentik Admins" become RomM admins. ROMs go in
+  # GAMES_PATH\roms\<platform>\ (e.g. roms\snes, roms\gba).
+  romm:
+    image: rommapp/romm:5.3.1
+    restart: unless-stopped
+    container_name: romm
+    environment:
+      - TZ=${TZ:-UTC}
+      - DB_HOST=romm-db
+      - DB_NAME=romm
+      - DB_USER=romm
+      - DB_PASSWD=${ROMM_DB_PASSWORD}
+      - ROMM_AUTH_SECRET_KEY=${ROMM_AUTH_SECRET_KEY}
+      - ROMM_BASE_URL=https://games.${DOMAIN}
+      - HASHEOUS_API_ENABLED=true
+      - SCAN_WORKERS=2
+      - WEB_SERVER_CONCURRENCY=2
+      - OIDC_ENABLED=true
+      - OIDC_PROVIDER=authentik
+      - OIDC_CLIENT_ID=romm
+      - OIDC_CLIENT_SECRET=${ROMM_OIDC_CLIENT_SECRET}
+      - OIDC_REDIRECT_URI=https://games.${DOMAIN}/api/oauth/openid
+      - OIDC_SERVER_APPLICATION_URL=https://auth.${DOMAIN}/application/o/romm
+      - OIDC_CLAIM_ROLES=groups
+      - OIDC_ROLE_ADMIN=authentik Admins
+      # Optional metadata logins (covers, descriptions) - see .env.example.
+      - SCREENSCRAPER_USER=${ROMM_SCREENSCRAPER_USER:-}
+      - SCREENSCRAPER_PASSWORD=${ROMM_SCREENSCRAPER_PASSWORD:-}
+      - RETROACHIEVEMENTS_API_KEY=${ROMM_RETROACHIEVEMENTS_API_KEY:-}
+      - STEAMGRIDDB_API_KEY=${ROMM_STEAMGRIDDB_API_KEY:-}
+    volumes:
+      - romm-resources:/romm/resources
+      - romm-redis:/redis-data
+      - romm-assets:/romm/assets
+      - romm-config:/romm/config
+      - ${GAMES_PATH}:/romm/library
+    depends_on:
+      romm-db:
+        condition: service_healthy
+    networks:
+      - romm-network
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+
+  romm-db:
+    image: mariadb:11.8
+    restart: unless-stopped
+    container_name: romm-db
+    environment:
+      - MARIADB_ROOT_PASSWORD=${ROMM_DB_ROOT_PASSWORD}
+      - MARIADB_DATABASE=romm
+      - MARIADB_USER=romm
+      - MARIADB_PASSWORD=${ROMM_DB_PASSWORD}
+    volumes:
+      - romm-db:/var/lib/mysql
+    networks:
+      - romm-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
