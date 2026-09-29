@@ -95,6 +95,13 @@ services:
       # at once - "DNS operation refused" for everyone for ~a minute at a
       # time (2026-09-27). 0 = off.
       - FTLCONF_dns_rateLimit_count=0
+      # Conditional forwarding OFF. The router (192.168.0.1) uses Pi-hole as
+      # its own upstream, so forwarding *.lan and reverse lookups to it made
+      # an endless loop (router -> Pi-hole -> router ...). With the rate
+      # limit off that loop wrote a 38GB query log in a day and filled C:
+      # (2026-09-29). Clients all appear as 172.20.0.1 anyway, so local
+      # hostnames added nothing.
+      - FTLCONF_dns_revServers=
     volumes:
       - pihole-data:/etc/pihole
     depends_on:
