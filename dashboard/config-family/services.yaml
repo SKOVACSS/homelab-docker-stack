@@ -77,6 +77,18 @@
         description: Audiobooks & podcasts (phone app too)
         server: my-docker
         container: audiobookshelf
+    - Comics (Komga):
+        icon: komga.png
+        href: "https://comics.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Comics & manga (sign in with Authentik)
+        server: my-docker
+        container: komga
+    - Games (RomM):
+        icon: romm.png
+        href: "https://games.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Retro games, play in the browser
+        server: my-docker
+        container: romm
 
 - Everyday:
     - AI Chat (Open WebUI):

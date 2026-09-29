@@ -296,6 +296,7 @@ function Backup-Databases {
     $pgUser = Get-EnvValue "$appRoot\authentik\.env" "PG_USER"
     $immichUser = Get-EnvValue "$appRoot\immich-app\.env" "DB_USERNAME"
     $nextcloudRootPass = Get-EnvValue "$appRoot\privacy-stack\.env" "NEXTCLOUD_DB_ROOT_PASS"
+    $rommRootPass = Get-EnvValue "$appRoot\family-stack\.env" "ROMM_DB_ROOT_PASSWORD"
 
     $databaseContainers = @(
         @{ Container = "authentik-postgresql"; Engine = "postgres"; User = $pgUser }
@@ -306,6 +307,7 @@ function Backup-Databases {
         @{ Container = "tracearr-db";          Engine = "postgres"; User = "tracearr" }
         @{ Container = "invidious-db";         Engine = "postgres"; User = "kemal" }
         @{ Container = "nextcloud-db";         Engine = "mariadb";  User = "root"; RootPassword = $nextcloudRootPass }
+        @{ Container = "romm-db";              Engine = "mariadb";  User = "root"; RootPassword = $rommRootPass }
     )
 
     foreach ($db in $databaseContainers) {
