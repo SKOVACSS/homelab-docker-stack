@@ -471,11 +471,13 @@ cal.{$DOMAIN} {
 
 # ========== UTILITIES ==========
 
-# Portainer - Container management UI
+# Portainer - Container management UI. It has full control of Docker, so
+# the admin wall goes in front of its own login (audit, 2026-09-30).
 portainer.{$DOMAIN} {
   import security_headers
   log
   import rate_limit portainer
+  import authentik
   reverse_proxy portainer:9000 {
     header_up X-Real-IP {http.request.remote}
   }
