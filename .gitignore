@@ -66,3 +66,4 @@ ai-stack/model-check-state.json
 
 # Off-site backup settings (Restic repository + password) - secrets.
 _scripts/offsite.env
+_scripts/.storage-alert-state.json
