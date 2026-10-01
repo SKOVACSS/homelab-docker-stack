@@ -509,6 +509,17 @@ grafana.{$DOMAIN} {
   import security_headers
   log
   import rate_limit grafana
+  # On demand (Sablier): only the charts sleep; Prometheus/Loki keep
+  # collecting.
+  sablier http://sablier:10000 {
+    group grafana
+    session_duration 30m
+    dynamic {
+      display_name "Grafana"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
   reverse_proxy grafana:3000 {
     header_up X-Real-IP {http.request.remote}
   }
@@ -729,6 +740,17 @@ tdarr.{$DOMAIN} {
   log
   import rate_limit tdarr
   import authentik
+  # On demand (Sablier): re-encoding is off, so it only needs to run
+  # while someone is looking at it.
+  sablier http://sablier:10000 {
+    group tdarr
+    session_duration 1h
+    dynamic {
+      display_name "Tdarr"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
   reverse_proxy tdarr:8265
 }
 
@@ -807,6 +829,15 @@ comics.{$DOMAIN} {
   import security_headers
   log
   import rate_limit comics
+  # On demand (Sablier). Blocking, not a loading page, so reading apps'
+  # API calls just wait for Komga to start (~30-60s) instead of failing.
+  sablier http://sablier:10000 {
+    group comics
+    session_duration 2h
+    blocking {
+      timeout 2m
+    }
+  }
   reverse_proxy komga:25600
 }
 
@@ -817,6 +848,15 @@ games.{$DOMAIN} {
   header -Content-Security-Policy
   log
   import rate_limit games
+  # On demand (Sablier), blocking so RomM's API and game downloads wait
+  # for it to start. romm-db stays running (RomM exits without it).
+  sablier http://sablier:10000 {
+    group games
+    session_duration 2h
+    blocking {
+      timeout 2m
+    }
+  }
   request_body {
     max_size 4GB
   }
@@ -921,6 +961,16 @@ playlists.{$DOMAIN} {
   log
   import rate_limit playlists
   import authentik
+  # On demand (Sablier): asleep until opened, stops after 1h idle.
+  sablier http://sablier:10000 {
+    group playlists
+    session_duration 1h
+    dynamic {
+      display_name "Spotify Playlists"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
   reverse_proxy soulsync:8008 {
     header_up X-Real-IP {http.request.remote}
   }

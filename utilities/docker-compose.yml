@@ -420,7 +420,9 @@ services:
   # separate Grafana per data source - see CHANGELOG.md.
   grafana:
     image: grafana/grafana:13.2.2
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: grafana
     # No published port: reachable only via Caddy's grafana.{$DOMAIN}
     # route - a security audit found this directly published too, the
@@ -470,6 +472,8 @@ services:
       timeout: 5s
       retries: 3
     labels:
+      - "sablier.enable=true"
+      - "sablier.group=grafana"
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:

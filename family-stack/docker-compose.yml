@@ -155,7 +155,9 @@ services:
 
   stirling-pdf:
     image: docker.io/stirlingtools/stirling-pdf:2.14.3
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: stirling-pdf
     environment:
       # Login happens in front of it (Caddy + Authentik), not in the app.
@@ -439,7 +441,9 @@ services:
   # Tachiyomi, Paperback and Panels via its own login or API key.
   komga:
     image: gotson/komga:1.28.0
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: komga
     environment:
       - TZ=${TZ:-UTC}
@@ -467,6 +471,8 @@ services:
       start_period: 60s
       retries: 3
     labels:
+      - "sablier.enable=true"
+      - "sablier.group=comics"
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
@@ -480,7 +486,9 @@ services:
   # GAMES_PATH\roms\<platform>\ (e.g. roms\snes, roms\gba).
   romm:
     image: rommapp/romm:5.3.1
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: romm
     environment:
       - TZ=${TZ:-UTC}
@@ -518,7 +526,17 @@ services:
     networks:
       - romm-network
       - caddy-network
+    # Sablier's blocking wake waits for "healthy"; without a check it let
+    # requests through before RomM was listening (502 on first visit).
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-o", "/dev/null", "http://localhost:8080/api/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     labels:
+      - "sablier.enable=true"
+      - "sablier.group=games"
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
