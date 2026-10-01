@@ -145,7 +145,7 @@ services:
   # rules to add (a wildcard covering every service, plus one exception
   # for Mailu's own certificate challenge).
   cloudflared:
-    image: cloudflare/cloudflared:2026.9.1
+    image: cloudflare/cloudflared:2026.9.3
     restart: unless-stopped
     container_name: cloudflared
     command: tunnel run

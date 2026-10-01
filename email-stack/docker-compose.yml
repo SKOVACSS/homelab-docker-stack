@@ -3,7 +3,7 @@
 # Services: Mailu (all-in-one email solution)
 # Features: IMAP, POP3, SMTP, Webmail, Spam filtering, Antivirus, CalDAV/CardDAV
 #
-# Rebuilt against Mailu's own official reference compose (2024.06.58) after
+# Rebuilt against Mailu's own official reference compose (2024.06.61) after
 # a live audit found this stack was missing three of Mailu's own services
 # (front, antivirus, webdav) and had TLS silently disabled on Dovecot and
 # entirely unconfigured on Postfix - see CHANGELOG.md. Every *_ADDRESS var
@@ -35,7 +35,7 @@ services:
   # (RESOLVER_ADDRESS below) - container-name resolution is untouched and
   # still goes through Docker's normal embedded DNS.
   mailu-resolver:
-    image: ghcr.io/mailu/unbound:2024.06.58
+    image: ghcr.io/mailu/unbound:2024.06.61
     restart: unless-stopped
     container_name: mailu-resolver
     environment:
@@ -84,7 +84,7 @@ services:
   # using its own certbot-issued certificate, then proxies decrypted
   # traffic internally to mailu-smtp/mailu-imap.
   mailu-front:
-    image: ghcr.io/mailu/nginx:2024.06.58
+    image: ghcr.io/mailu/nginx:2024.06.61
     restart: unless-stopped
     container_name: mailu-front
     labels:
@@ -134,7 +134,7 @@ services:
           memory: 256M
 
   mailu-admin:
-    image: ghcr.io/mailu/admin:2024.06.58
+    image: ghcr.io/mailu/admin:2024.06.61
     restart: unless-stopped
     container_name: mailu-admin
     dns:
@@ -209,7 +209,7 @@ services:
           memory: 512M
 
   mailu-imap:
-    image: ghcr.io/mailu/dovecot:2024.06.58
+    image: ghcr.io/mailu/dovecot:2024.06.61
     restart: unless-stopped
     container_name: mailu-imap
     labels:
@@ -248,7 +248,7 @@ services:
           memory: 512M
 
   mailu-smtp:
-    image: ghcr.io/mailu/postfix:2024.06.58
+    image: ghcr.io/mailu/postfix:2024.06.61
     restart: unless-stopped
     container_name: mailu-smtp
     labels:
@@ -285,7 +285,7 @@ services:
           memory: 512M
 
   mailu-rspamd:
-    image: ghcr.io/mailu/rspamd:2024.06.58
+    image: ghcr.io/mailu/rspamd:2024.06.61
     restart: unless-stopped
     container_name: mailu-rspamd
     labels:
@@ -353,7 +353,7 @@ services:
   # Radicale (general-purpose, not mail-account-linked). Reachable through
   # mailu-front (WEBDAV_ADDRESS above); no direct external route added here.
   mailu-webdav:
-    image: ghcr.io/mailu/radicale:2024.06.58
+    image: ghcr.io/mailu/radicale:2024.06.61
     restart: unless-stopped
     container_name: mailu-webdav
     labels:
@@ -372,7 +372,7 @@ services:
           memory: 128M
 
   mailu-webmail:
-    image: ghcr.io/mailu/webmail:2024.06.58
+    image: ghcr.io/mailu/webmail:2024.06.61
     restart: unless-stopped
     container_name: mailu-webmail
     labels:
