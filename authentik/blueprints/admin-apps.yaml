@@ -186,6 +186,29 @@ entries:
       meta_launch_url: !Format ["https://plan.%s/", !Env DOMAIN]
       meta_description: IT business plan and study tracks
       policy_engine_mode: any
+  # Household wall for wger (fitness.DOMAIN); wger logs people in from the
+  # username this passes on. The phone app paths are exempt in Caddy.
+  - model: authentik_providers_proxy.proxyprovider
+    id: fitness-provider
+    identifiers:
+      name: Fitness
+    attrs:
+      name: Fitness
+      mode: forward_single
+      external_host: !Format ["https://fitness.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: fitness
+    attrs:
+      name: Fitness
+      slug: fitness
+      provider: !KeyOf fitness-provider
+      meta_launch_url: !Format ["https://fitness.%s/", !Env DOMAIN]
+      meta_description: Workouts, body weight and nutrition (wger)
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -200,3 +223,4 @@ entries:
         - !KeyOf playlists-provider
         - !KeyOf youtube-provider
         - !KeyOf plan-provider
+        - !KeyOf fitness-provider

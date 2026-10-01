@@ -1,0 +1,276 @@
+# Fitness stack - wger (workouts, body weight, nutrition) at fitness.{$DOMAIN}.
+#
+# Layout follows wger's own deployment (github.com/wger-project/docker):
+# Django app + Celery worker/beat + PowerSync (the phone app's sync
+# service) + nginx for static files, on Postgres and Redis.
+#
+# Memory: everything except the database and cache sleeps behind Sablier
+# (group "fitness") and wakes when the site or the phone app is used - see
+# fitness.{$DOMAIN} in caddy/Caddyfile. Those containers are not started
+# at boot (restart: on-failure only restarts them after a crash).
+#
+# Sign-in: the household Authentik wall, and wger's auth-proxy login reads
+# the username Caddy passes on (accounts are created on first visit). The
+# phone app's paths (/api, /ps, /static, /media) skip the wall; wger only
+# trusts the header on its login page, which stays behind the wall.
+
+networks:
+  caddy-network:
+    name: caddy-network
+    external: true
+  # Fixed subnet so wger can trust exactly its nginx for the sign-in header.
+  wger-network:
+    name: wger-network
+    ipam:
+      config:
+        - subnet: 10.250.50.0/24
+
+volumes:
+  wger-db:
+  wger-cache:
+  wger-static:
+  wger-media:
+  wger-beat:
+
+x-wger-env: &wger-env
+  TZ: ${TZ:-UTC}
+  TIME_ZONE: ${TZ:-UTC}
+  SECRET_KEY: ${WGER_SECRET_KEY}
+  SITE_URL: https://fitness.${DOMAIN}
+  CSRF_TRUSTED_ORIGINS: https://fitness.${DOMAIN}
+  X_FORWARDED_PROTO_HEADER_SET: "True"
+  USE_X_FORWARDED_HOST: "True"
+  NUMBER_OF_PROXIES: "2"
+  MEDIA_URL: https://fitness.${DOMAIN}/media/
+  STATIC_URL: https://fitness.${DOMAIN}/static/
+  JWT_PUBLIC_KEY: ${WGER_JWT_PUBLIC_KEY}
+  JWT_PRIVATE_KEY: ${WGER_JWT_PRIVATE_KEY}
+  DJANGO_DB_ENGINE: django.db.backends.postgresql
+  DJANGO_DB_DATABASE: wger
+  DJANGO_DB_USER: wger
+  DJANGO_DB_PASSWORD: ${WGER_DB_PASSWORD}
+  DJANGO_DB_HOST: db
+  DJANGO_DB_PORT: "5432"
+  DJANGO_PERFORM_MIGRATIONS: "True"
+  DJANGO_COLLECTSTATIC_ON_STARTUP: "True"
+  DJANGO_CACHE_BACKEND: django_redis.cache.RedisCache
+  DJANGO_CACHE_LOCATION: redis://cache:6379/1
+  DJANGO_CACHE_TIMEOUT: "1296000"
+  DJANGO_CACHE_CLIENT_CLASS: django_redis.client.DefaultClient
+  DJANGO_DEBUG: "False"
+  WGER_USE_GUNICORN: "True"
+  WGER_PORT: "8000"
+  USE_CELERY: "True"
+  CELERY_BROKER: redis://cache:6379/2
+  CELERY_BACKEND: redis://cache:6379/2
+  CELERY_WORKER_CONCURRENCY: "1"
+  SYNC_EXERCISES_CELERY: "True"
+  SYNC_EXERCISE_IMAGES_CELERY: "True"
+  SYNC_EXERCISE_VIDEOS_CELERY: "False"
+  SYNC_INGREDIENTS_CELERY: "True"
+  DOWNLOAD_INGREDIENTS_FROM: WGER
+  CACHE_API_EXERCISES_CELERY: "True"
+  WGER_INSTANCE: https://wger.de
+  ALLOW_REGISTRATION: "False"
+  ALLOW_GUEST_USERS: "False"
+  ALLOW_UPLOAD_VIDEOS: "False"
+  AXES_ENABLED: "True"
+  AXES_FAILURE_LIMIT: "10"
+  AXES_COOLOFF_TIME: "30"
+  AXES_HANDLER: axes.handlers.cache.AxesCacheHandler
+  AXES_LOCKOUT_PARAMETERS: ip_address
+  AXES_IPWARE_PROXY_COUNT: "2"
+  AXES_IPWARE_META_PRECEDENCE_ORDER: HTTP_X_FORWARDED_FOR,REMOTE_ADDR
+  AUTH_PROXY_HEADER: HTTP_X_AUTHENTIK_USERNAME
+  AUTH_PROXY_TRUSTED_IPS: 10.250.50.10
+  AUTH_PROXY_CREATE_UNKNOWN_USER: "True"
+  AUTH_PROXY_USER_EMAIL_HEADER: HTTP_X_AUTHENTIK_EMAIL
+  AUTH_PROXY_USER_NAME_HEADER: HTTP_X_AUTHENTIK_NAME
+  PS_DATABASE_URI: postgres://wger:${WGER_DB_PASSWORD}@db:5432/wger
+  PS_STORAGE_PG_URI: postgres://powersync_storage:${WGER_POWERSYNC_STORAGE_PASSWORD}@db:5432/wger
+  PS_PORT: "8080"
+  POWERSYNC_URL_PATH: ps
+  WGER_SHOW_APP_STORE_LINKS: "True"
+  LOG_LEVEL_PYTHON: WARNING
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    container_name: wger-db
+    environment:
+      - TZ=${TZ:-UTC}
+      - POSTGRES_DB=wger
+      - POSTGRES_USER=wger
+      - POSTGRES_PASSWORD=${WGER_DB_PASSWORD}
+      - POWERSYNC_STORAGE_PASSWORD=${WGER_POWERSYNC_STORAGE_PASSWORD}
+    # wal_level=logical: PowerSync streams changes to the phone app.
+    command: ["postgres", "-c", "wal_level=logical", "-c", "shared_buffers=64MB", "-c", "max_connections=30"]
+    volumes:
+      - wger-db:/var/lib/postgresql/data
+      - ./wger/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - wger-network
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wger -d wger"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  cache:
+    image: redis:8-alpine
+    restart: unless-stopped
+    container_name: wger-cache
+    command: ["redis-server", "--save", "3600", "1", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-lru"]
+    volumes:
+      - wger-cache:/data
+    networks:
+      - wger-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 96M
+
+  web:
+    image: wger/server:2.7.0
+    restart: on-failure
+    container_name: wger-web
+    environment: *wger-env
+    volumes:
+      - wger-static:/home/wger/static
+      - wger-media:/home/wger/media
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    networks:
+      - wger-network
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O", "/dev/null", "http://localhost:8000/api/v2/version/"]
+      interval: 10s
+      timeout: 5s
+      start_period: 300s
+      retries: 5
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=fitness"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  celery_worker:
+    image: wger/server:2.7.0
+    restart: on-failure
+    container_name: wger-worker
+    command: /start-worker
+    environment: *wger-env
+    volumes:
+      - wger-media:/home/wger/media
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    networks:
+      - wger-network
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=fitness"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  celery_beat:
+    image: wger/server:2.7.0
+    restart: on-failure
+    container_name: wger-beat
+    command: /start-beat
+    environment: *wger-env
+    volumes:
+      - wger-beat:/home/wger/beat/
+    depends_on:
+      cache:
+        condition: service_healthy
+    networks:
+      - wger-network
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=fitness"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  powersync:
+    image: journeyapps/powersync-service:1.26.1
+    restart: on-failure
+    container_name: wger-powersync
+    command: ["start", "-r", "unified"]
+    environment:
+      - POWERSYNC_CONFIG_PATH=/config/powersync.yaml
+      - PS_JWKS_URL=http://web:8000/api/v2/powersync-keys
+      - PS_DATABASE_URI=postgres://wger:${WGER_DB_PASSWORD}@db:5432/wger
+      - PS_STORAGE_PG_URI=postgres://powersync_storage:${WGER_POWERSYNC_STORAGE_PASSWORD}@db:5432/wger
+      - PS_PORT=8080
+    volumes:
+      - ./wger/powersync:/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wger-network
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=fitness"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: on-failure
+    container_name: wger-nginx
+    volumes:
+      - ./wger/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - wger-static:/wger/static:ro
+      - wger-media:/wger/media:ro
+    depends_on:
+      - web
+    networks:
+      wger-network:
+        ipv4_address: 10.250.50.10
+      caddy-network: {}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=fitness"
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          memory: 64M

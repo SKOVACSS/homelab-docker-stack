@@ -306,6 +306,7 @@ function Backup-Databases {
         @{ Container = "guacamole-db";         Engine = "postgres"; User = "guacamole" }
         @{ Container = "tracearr-db";          Engine = "postgres"; User = "tracearr" }
         @{ Container = "invidious-db";         Engine = "postgres"; User = "kemal" }
+        @{ Container = "wger-db";              Engine = "postgres"; User = "wger" }
         @{ Container = "nextcloud-db";         Engine = "mariadb";  User = "root"; RootPassword = $nextcloudRootPass }
         @{ Container = "romm-db";              Engine = "mariadb";  User = "root"; RootPassword = $rommRootPass }
     )

@@ -265,6 +265,12 @@
         description: Retro games, play in the browser
         server: my-docker
         container: romm
+    - wger:
+        icon: wger.png
+        href: "https://fitness.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Fitness tracker (sleeps until opened)
+        server: my-docker
+        container: wger-web
 
 - Household:
     - Mealie:

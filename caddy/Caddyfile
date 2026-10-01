@@ -823,6 +823,29 @@ dash.{$DOMAIN} {
 # except Stirling-PDF, SearXNG and PairDrop, which sit behind the
 # Authentik wall (any household account).
 
+# wger (fitness-stack). Household wall with wger's auth-proxy login; the
+# phone app's paths skip the wall (they use wger's own tokens). Sleeps
+# behind Sablier; blocking so the app's requests wait while it starts.
+fitness.{$DOMAIN} {
+  import security_headers
+  log
+  import rate_limit fitness
+  # A client-sent X-Authentik-Username can't log anyone in: wger only reads
+  # it on /user/login (behind the wall, where forward_auth overwrites it),
+  # and nginx blanks it on /api/.
+  import authentik /api/* /ps/* /static/* /media/* /nginx-health
+  sablier http://sablier:10000 {
+    group fitness
+    session_duration 1h
+    blocking {
+      timeout 4m
+    }
+  }
+  reverse_proxy wger-nginx:80 {
+    flush_interval -1
+  }
+}
+
 # Komga (comics) and RomM (games) sign in with Authentik themselves (no
 # wall, so reading apps and RomM's API keep working).
 comics.{$DOMAIN} {
