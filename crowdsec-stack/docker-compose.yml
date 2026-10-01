@@ -21,6 +21,12 @@ networks:
   crowdsec-network:
     driver: bridge
     name: crowdsec-network
+    # Explicit range: Docker's automatic pick was 192.168.0.0/20, which
+    # overlaps the home LAN (192.168.0.0/24) - CrowdSec couldn't reach LAN
+    # devices and the LAN route was shadowed inside the container.
+    ipam:
+      config:
+        - subnet: 10.250.10.0/24
   # Owned by the caddy stack - see media-stack's same external reference.
   caddy-network:
     name: caddy-network
