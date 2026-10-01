@@ -551,7 +551,7 @@ services:
   # hops (Cloudflare Tunnel, then Caddy) so CWA logs/rate-limits the real
   # client IP instead of Caddy's.
   calibre-web-automated:
-    image: crocodilestick/calibre-web-automated:v4.0.6
+    image: crocodilestick/calibre-web-automated:v4.0.8
     restart: unless-stopped
     container_name: calibre-web-automated
     environment:
@@ -754,7 +754,7 @@ services:
   # policy, and Gotify notifications are all first-run/admin-UI setup, not
   # env vars - see SETUP.md.
   seerr:
-    image: ghcr.io/seerr-team/seerr:v3.4.1
+    image: ghcr.io/seerr-team/seerr:v3.5.0
     restart: unless-stopped
     container_name: seerr
     volumes:
@@ -879,7 +879,7 @@ services:
   # Tautulli - Plex watch history and stats. Sign in with Plex on first
   # open (tautulli.{$DOMAIN}); it finds the server itself at plex:32400.
   tautulli:
-    image: ghcr.io/tautulli/tautulli:v2.18.1
+    image: ghcr.io/tautulli/tautulli:v2.18.2
     restart: unless-stopped
     container_name: tautulli
     environment:
@@ -948,7 +948,7 @@ services:
   # only: Docker Desktop's GPU passthrough (/dev/dxg) doesn't give ffmpeg
   # QSV/VAAPI here. Work files go to /temp on the D: download drive.
   tdarr:
-    image: ghcr.io/haveagitgat/tdarr:2.90.01
+    image: ghcr.io/haveagitgat/tdarr:2.93.01
     # Not started at boot: Sablier starts it on demand (and stops it
     # when idle). Otherwise it ran until first visited after a reboot.
     restart: "no"
@@ -1020,7 +1020,7 @@ services:
   # Helmarr/its app). Its own login is created on first visit. Can import
   # Tautulli history. Database is backed up nightly (backup.ps1 dumps).
   tracearr:
-    image: ghcr.io/connorgallopo/tracearr:2.5.0
+    image: ghcr.io/connorgallopo/tracearr:2.5.1
     restart: unless-stopped
     container_name: tracearr
     environment:
@@ -1111,7 +1111,7 @@ services:
   # Paths match what each client reports, so no path mapping is needed:
   # slskd -> /app/downloads, qBittorrent/SABnzbd -> /downloads.
   soulsync:
-    image: boulderbadgedad/soulsync:3.4.6
+    image: boulderbadgedad/soulsync:3.4.9
     # Not started at boot: Sablier starts it on demand (and stops it
     # when idle). Otherwise it ran until first visited after a reboot.
     restart: "no"

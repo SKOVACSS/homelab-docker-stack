@@ -132,7 +132,7 @@ services:
   # allowed (CONTAINERS=1, everything else - exec, images, POST - is off),
   # and it sits on a private network only homepage-family can reach.
   family-docker-proxy:
-    image: lscr.io/linuxserver/socket-proxy:3.2.3
+    image: lscr.io/linuxserver/socket-proxy:3.4.6
     restart: unless-stopped
     container_name: family-docker-proxy
     environment:

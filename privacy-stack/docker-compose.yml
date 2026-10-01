@@ -14,7 +14,7 @@ networks:
 services:
   # ========== MUSIC STREAMING (Replace Spotify) ==========
   navidrome:
-    image: deluan/navidrome:0.64.0
+    image: deluan/navidrome:0.64.2
     restart: unless-stopped
     container_name: navidrome
     labels:
@@ -61,7 +61,7 @@ services:
   # opening its lock file, confirmed live. This one-shot container fixes
   # ownership before syncthing ever starts, so a fresh deploy just works.
   syncthing-permissions-fix:
-    image: alpine:3.22
+    image: alpine:3.24
     container_name: syncthing-permissions-fix
     command: chown -R 1000:1000 /var/syncthing/config
     volumes:
@@ -108,7 +108,7 @@ services:
 
   # ========== ALL-IN-ONE (Replace Google: Drive, Calendar, Contacts, Notes) ==========
   nextcloud:
-    image: nextcloud:35.0.0
+    image: nextcloud:35.0.1
     restart: unless-stopped
     container_name: nextcloud
     labels:
@@ -392,7 +392,7 @@ services:
   # zadam/trilium is abandoned (archived upstream); TriliumNext is the
   # actively-maintained community successor with the same data format.
   trilium:
-    image: triliumnext/trilium:v0.105.0
+    image: triliumnext/trilium:v0.106.0
     restart: unless-stopped
     container_name: trilium
     labels:
@@ -506,7 +506,7 @@ services:
 
   # ========== CALENDAR/CONTACTS (Alternative to Nextcloud) - Optional ==========
   radicale:
-    image: tomsquest/docker-radicale:3.8.0.0
+    image: tomsquest/docker-radicale:3.8.1.1
     restart: unless-stopped
     container_name: radicale
     labels:
