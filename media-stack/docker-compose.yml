@@ -382,6 +382,9 @@ services:
   # scraping off the home IP generally.
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+    # Off by default (2026-10-01): only 1337x/EZTV/Torrent Downloads used it,
+    # and Cloudflare blocks them anyway. Start with --profile flaresolverr.
+    profiles: ["flaresolverr"]
     restart: unless-stopped
     container_name: flaresolverr
     depends_on:
@@ -689,7 +692,9 @@ services:
 
   jellyfin:
     image: jellyfin/jellyfin:12.1
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: jellyfin
     # JELLYFIN_HWACCEL is written by _scripts/detect-gpu.ps1 (run
     # automatically by deploy.ps1) into .env - defaults to cpu if unset or
@@ -944,7 +949,9 @@ services:
   # QSV/VAAPI here. Work files go to /temp on the D: download drive.
   tdarr:
     image: ghcr.io/haveagitgat/tdarr:2.90.01
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: tdarr
     environment:
       - PUID=1000
@@ -972,6 +979,8 @@ services:
       - media-network
       - caddy-network
     labels:
+      - "sablier.enable=true"
+      - "sablier.group=tdarr"
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:
@@ -1103,7 +1112,9 @@ services:
   # slskd -> /app/downloads, qBittorrent/SABnzbd -> /downloads.
   soulsync:
     image: boulderbadgedad/soulsync:3.4.6
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: soulsync
     # Spotify account linking only: Spotify redirects the browser to
     # 127.0.0.1:8888, so link it from a browser ON the server (e.g. via
@@ -1136,6 +1147,8 @@ services:
       retries: 3
       start_period: 90s
     labels:
+      - "sablier.enable=true"
+      - "sablier.group=playlists"
       - "com.centurylinklabs.watchtower.enable=true"
     deploy:
       resources:

@@ -65,7 +65,9 @@ services:
 
   guacd:
     image: guacamole/guacd:1.6.0
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: guacd
     networks:
       - remote-network
@@ -89,7 +91,9 @@ services:
 
   guacamole:
     image: guacamole/guacamole:1.6.0
-    restart: unless-stopped
+    # Not started at boot: Sablier starts it on demand (and stops it
+    # when idle). Otherwise it ran until first visited after a reboot.
+    restart: "no"
     container_name: guacamole
     depends_on:
       guacamole-db:

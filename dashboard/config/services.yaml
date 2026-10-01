@@ -167,12 +167,9 @@
     - Tdarr:
         icon: tdarr.png
         href: "https://tdarr.{{HOMEPAGE_VAR_DOMAIN}}"
-        description: Library re-encoding (no libraries until set)
+        description: Library re-encoding (sleeps until opened)
         server: my-docker
         container: tdarr
-        widget:
-          type: tdarr
-          url: http://tdarr:8265
     - Tracearr:
         icon: mdi-chart-timeline-variant
         href: "https://tracearr.{{HOMEPAGE_VAR_DOMAIN}}"
