@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.0
+#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -70,11 +70,11 @@ function Write-Info {
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     $dockerBin = "C:\Program Files\Docker\Docker\resources\bin"
     if (Test-Path "$dockerBin\docker.exe") { $env:Path += ";$dockerBin" }
-    else { Write-Host "❌ docker not found - is Docker Desktop installed?" -ForegroundColor Red; exit 1 }
+    else { Write-Host "❌ docker not found - is Docker installed and on PATH?" -ForegroundColor Red; exit 1 }
 }
 
 $port = 8080
-$envFile = "$appRoot\media-stack\.env"
+$envFile = Join-Path (Join-Path $appRoot "media-stack") ".env"
 if (Test-Path $envFile) {
     $line = Get-Content $envFile | Where-Object { $_ -match '^QBIT_PORT=\d+' } | Select-Object -First 1
     if ($line) { $port = [int]($line -replace '^QBIT_PORT=', '') }

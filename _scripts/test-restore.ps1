@@ -35,7 +35,7 @@ roughly 10-20 minutes, mostly restoring Immich's database.
 #>
 
 param(
-    [string]$BackupRoot = "D:\Backups\docker",
+    [string]$BackupRoot = $(if ($IsLinux) { "/tank/backups/docker" } else { "D:\Backups\docker" }),
     [string]$BackupName = "",
     [string]$LiveRoot = (Split-Path -Parent $PSScriptRoot),
     [switch]$SkipVolumes,
@@ -65,10 +65,10 @@ function Get-EnvValue([string]$File, [string]$Key) {
 
 function Send-Gotify([string]$Title, [string]$Message, [int]$Priority) {
     if ($NoNotify) { return }
-    $token = Get-EnvValue (Join-Path $LiveRoot "utilities\.env") "GOTIFY_TOKEN"
+    $token = Get-EnvValue (Join-Path (Join-Path $LiveRoot "utilities") ".env") "GOTIFY_TOKEN"
     if ([string]::IsNullOrEmpty($token) -or $token -like "CHANGE_ME*") { return }
     $body = @{ title = $Title; message = $Message; priority = $Priority } | ConvertTo-Json -Compress
-    $tmp = Join-Path $env:TEMP "restore-test-gotify.json"
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "restore-test-gotify.json"
     [System.IO.File]::WriteAllText($tmp, $body)
     docker run --rm --network notification-network -v "${tmp}:/body.json:ro" curlimages/curl:latest `
         -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" `
@@ -190,9 +190,15 @@ foreach ($dump in $dumps) {
             if ([int]$n -eq 0) { $empty += $db }
         }
     } else {
-        $errs = docker exec $name sh -c "mariadb -uroot -p$pw < /tmp/dump.sql 2>&1 | grep -c ERROR"
+        # Import and count in ONE session: an --all-databases dump carries the
+        # live server's accounts, so once it has loaded (newer MariaDB applies
+        # them straight away) the throwaway's root password is the live one
+        # and a second login with $pw is refused - RomM's 11.8 dump "failed"
+        # that way on 2026-10-02 although the data had restored fine.
         $q = "SELECT table_schema, count(*) FROM information_schema.tables WHERE table_schema NOT IN ('mysql','information_schema','performance_schema','sys') GROUP BY table_schema"
-        $rows = docker exec $name mariadb -uroot "-p$pw" -N -e $q
+        docker exec $name sh -c "printf '%s\n' `"$q;`" > /tmp/q.sql"
+        $rows = docker exec $name sh -c "cat /tmp/dump.sql /tmp/q.sql | mariadb -uroot -p$pw -N --force 2>/tmp/err.txt"
+        $errs = docker exec $name sh -c "grep -c ERROR /tmp/err.txt"
         $summary = @()
         $empty = @()
         foreach ($r in $rows) { $p = $r -split "\s+"; $summary += "$($p[0])=$($p[1])" }
@@ -214,7 +220,7 @@ Write-Host ""
 Write-Host "Config" -ForegroundColor Cyan
 $missing = @()
 Get-ChildItem $LiveRoot -Directory | Where-Object { Test-Path (Join-Path $_.FullName ".env") } | ForEach-Object {
-    if (-not (Test-Path (Join-Path $backup.FullName "config\$($_.Name)\.env"))) { $missing += $_.Name }
+    if (-not (Test-Path (Join-Path $backup.FullName (Join-Path (Join-Path "config" $_.Name) ".env")))) { $missing += $_.Name }
 }
 if ($missing) { Fail "config backup is missing .env for: $($missing -join ', ')" } else { Pass "every stack's .env is in the backup" }
 

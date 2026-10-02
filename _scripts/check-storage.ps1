@@ -39,10 +39,10 @@ function Get-EnvFileValue([string]$File, [string]$Key) {
 }
 
 function Send-Gotify([string]$Title, [string]$Message, [int]$Priority) {
-    $token = Get-EnvFileValue (Join-Path $appRoot "utilities\.env") "GOTIFY_TOKEN"
+    $token = Get-EnvFileValue (Join-Path (Join-Path $appRoot "utilities") ".env") "GOTIFY_TOKEN"
     if (-not $token -or $token -like "CHANGE_ME*") { return }
     $body = @{ title = $Title; message = $Message; priority = $Priority } | ConvertTo-Json -Compress
-    $tmp = Join-Path $env:TEMP "storage-gotify.json"
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "storage-gotify.json"
     [System.IO.File]::WriteAllText($tmp, $body)
     docker run --rm --network notification-network -v "${tmp}:/body.json:ro" curlimages/curl:latest `
         -s -o /dev/null -X POST -H "Content-Type: application/json" `
@@ -52,21 +52,48 @@ function Send-Gotify([string]$Title, [string]$Message, [int]$Priority) {
 
 $problems = @()
 
-foreach ($d in Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -and $_.Root -match '^[A-Z]:\\$' }) {
-    $freeGB = [math]::Round($d.Free / 1GB, 1)
-    if ($freeGB -lt $MinFreeGB) { $problems += "$($d.Name): only $freeGB GB free" }
-}
-
-foreach ($v in Get-VirtualDisk -ErrorAction SilentlyContinue) {
-    if ($v.HealthStatus -ne "Healthy") {
-        $problems += "Storage pool '$($v.FriendlyName)' is $($v.HealthStatus) / $($v.OperationalStatus)"
+if ($IsLinux) {
+    # Free space on real filesystems (root, ZFS datasets) - not tmpfs/overlay.
+    foreach ($line in (df -B1 --output=target,avail,fstype -x tmpfs -x devtmpfs -x overlay -x squashfs -x efivarfs 2>$null | Select-Object -Skip 1)) {
+        $mount, $avail, $fs = $line -split '\s+', 3
+        if ($mount -notmatch '^/($|tank|srv|var|home|opt|mnt)') { continue }
+        $freeGB = [math]::Round([double]$avail / 1GB, 1)
+        if ($freeGB -lt $MinFreeGB) { $problems += "${mount}: only $freeGB GB free" }
     }
-}
-foreach ($p in Get-PhysicalDisk -ErrorAction SilentlyContinue) {
-    if ($p.HealthStatus -ne "Healthy") {
-        $sn = if ($p.SerialNumber) { $p.SerialNumber.Trim() } else { "" }
-        $tail = if ($sn.Length -ge 4) { $sn.Substring($sn.Length - 4) } else { $sn }
-        $problems += "Disk $($p.FriendlyName) (...$tail) is $($p.HealthStatus): $($p.OperationalStatus -join ', ')"
+    # ZFS: "all pools are healthy" unless something is degraded/faulted or
+    # has read/write/checksum errors (a bad cable shows up here).
+    if (Get-Command zpool -ErrorAction SilentlyContinue) {
+        $z = (zpool status -x 2>&1 | Out-String).Trim()
+        if ($z -and $z -notmatch 'all pools are healthy|no pools available') {
+            $problems += "ZFS: " + (($z -split "`n" | Where-Object { $_ -match 'pool:|state:|status:|errors:' }) -join '; ')
+        }
+    }
+    # Drive SMART overall health (needs root - the systemd unit runs as root).
+    if (Get-Command smartctl -ErrorAction SilentlyContinue) {
+        foreach ($dev in (lsblk -dn -o NAME, TYPE 2>$null | Where-Object { $_ -match '\sdisk$' } | ForEach-Object { ($_ -split '\s+')[0] })) {
+            $h = (smartctl -H "/dev/$dev" 2>$null | Out-String)
+            if ($h -match '(overall-health|SMART Health Status).*:\s*(\S+)' -and $Matches[2] -notin 'PASSED', 'OK') {
+                $problems += "Disk /dev/$dev SMART health: $($Matches[2])"
+            }
+        }
+    }
+} else {
+    foreach ($d in Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -and $_.Root -match '^[A-Z]:\\$' }) {
+        $freeGB = [math]::Round($d.Free / 1GB, 1)
+        if ($freeGB -lt $MinFreeGB) { $problems += "$($d.Name): only $freeGB GB free" }
+    }
+
+    foreach ($v in Get-VirtualDisk -ErrorAction SilentlyContinue) {
+        if ($v.HealthStatus -ne "Healthy") {
+            $problems += "Storage pool '$($v.FriendlyName)' is $($v.HealthStatus) / $($v.OperationalStatus)"
+        }
+    }
+    foreach ($p in Get-PhysicalDisk -ErrorAction SilentlyContinue) {
+        if ($p.HealthStatus -ne "Healthy") {
+            $sn = if ($p.SerialNumber) { $p.SerialNumber.Trim() } else { "" }
+            $tail = if ($sn.Length -ge 4) { $sn.Substring($sn.Length - 4) } else { $sn }
+            $problems += "Disk $($p.FriendlyName) (...$tail) is $($p.HealthStatus): $($p.OperationalStatus -join ', ')"
+        }
     }
 }
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Homelab: nightly backup and off-site copy
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/homelab/_scripts/backup.ps1 -Action backup -Full
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/homelab/_scripts/backup.ps1 -Action clean
+ExecStart=/opt/homelab/_scripts/linux/offsite-upload.sh
+TimeoutStartSec=12h
+Nice=10
+IOSchedulingClass=idle

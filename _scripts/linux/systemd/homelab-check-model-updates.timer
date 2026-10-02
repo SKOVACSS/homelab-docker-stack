@@ -1,0 +1,10 @@
+[Unit]
+Description=Homelab: weekly AI model update check
+
+[Timer]
+OnCalendar=Sun *-*-* 10:00:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
