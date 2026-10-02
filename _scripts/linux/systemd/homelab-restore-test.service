@@ -1,0 +1,11 @@
+[Unit]
+Description=Homelab: restore test (first Sunday of each month)
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/homelab/_scripts/test-restore.ps1
+Nice=10
+IOSchedulingClass=idle

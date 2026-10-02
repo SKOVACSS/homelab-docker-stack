@@ -1,0 +1,10 @@
+[Unit]
+Description=Homelab: restore test (first Sunday of each month)
+
+[Timer]
+OnCalendar=Sun *-*-1..7 05:00:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

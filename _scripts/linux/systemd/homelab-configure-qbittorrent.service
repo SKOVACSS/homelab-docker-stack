@@ -1,0 +1,11 @@
+[Unit]
+Description=Homelab: qBittorrent queue and seeding policy
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/homelab/_scripts/configure-qbittorrent.ps1 -Quiet
+Nice=10
+IOSchedulingClass=idle

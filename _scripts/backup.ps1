@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.0
+#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -28,7 +28,7 @@ param(
 
     [string]$BackupName = "",
     [switch]$Full = $false,
-    [string]$BackupRoot = "D:\Backups\docker",
+    [string]$BackupRoot = $(if ($IsLinux) { "/tank/backups/docker" } else { "D:\Backups\docker" }),
 
     # Optional: notify Gotify when a backup finishes. Create an Application
     # in Gotify's web UI (gotify.DOMAIN -> Apps -> Create) to get a token -
@@ -88,7 +88,7 @@ $offsiteExtra = Get-EnvFileValue $offsiteEnv "OFFSITE_EXTRA_PATHS"
 # test-restore.ps1) - the scheduled task passes no Gotify arguments.
 $gotifyFallbackToken = ""
 if (-not $GotifyUrl) {
-    $t = Get-EnvFileValue (Join-Path $appRoot "utilities\.env") "GOTIFY_TOKEN"
+    $t = Get-EnvFileValue (Join-Path (Join-Path $appRoot "utilities") ".env") "GOTIFY_TOKEN"
     if ($t -and $t -notlike "CHANGE_ME*") { $gotifyFallbackToken = $t }
 }
 
@@ -102,7 +102,7 @@ function Send-GotifyNotification {
             Write-Host "  (Gotify notification failed: $_)" -ForegroundColor Yellow
         }
     } elseif ($gotifyFallbackToken) {
-        $tmp = Join-Path $env:TEMP "backup-gotify.json"
+        $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "backup-gotify.json"
         [System.IO.File]::WriteAllText($tmp, $body)
         docker run --rm --network notification-network -v "${tmp}:/body.json:ro" curlimages/curl:latest `
             -s -o /dev/null -X POST -H "Content-Type: application/json" `
@@ -126,7 +126,7 @@ function Invoke-Restic {
     # the container at /repo; anything else is a Restic backend URL.
     $repo = $ResticRepository
     $repoMount = @()
-    if ($ResticRepository -match '^[A-Za-z]:\\') {
+    if ($ResticRepository -match '^[A-Za-z]:\\' -or $ResticRepository.StartsWith('/')) {
         New-Item -ItemType Directory -Force -Path $ResticRepository | Out-Null
         $repo = "/repo"
         $repoMount = @("-v", "${ResticRepository}:/repo")
@@ -293,10 +293,10 @@ function Backup-Databases {
     # (dashboard/HOMEPAGE_VAR_*, etc.): read them from the file directly
     # rather than requiring them to be duplicated into this script's own
     # environment ahead of time.
-    $pgUser = Get-EnvValue "$appRoot\authentik\.env" "PG_USER"
-    $immichUser = Get-EnvValue "$appRoot\immich-app\.env" "DB_USERNAME"
-    $nextcloudRootPass = Get-EnvValue "$appRoot\privacy-stack\.env" "NEXTCLOUD_DB_ROOT_PASS"
-    $rommRootPass = Get-EnvValue "$appRoot\family-stack\.env" "ROMM_DB_ROOT_PASSWORD"
+    $pgUser = Get-EnvValue (Join-Path (Join-Path $appRoot "authentik") ".env") "PG_USER"
+    $immichUser = Get-EnvValue (Join-Path (Join-Path $appRoot "immich-app") ".env") "DB_USERNAME"
+    $nextcloudRootPass = Get-EnvValue (Join-Path (Join-Path $appRoot "privacy-stack") ".env") "NEXTCLOUD_DB_ROOT_PASS"
+    $rommRootPass = Get-EnvValue (Join-Path (Join-Path $appRoot "family-stack") ".env") "ROMM_DB_ROOT_PASSWORD"
 
     $databaseContainers = @(
         @{ Container = "authentik-postgresql"; Engine = "postgres"; User = $pgUser }
@@ -370,7 +370,7 @@ function Create-Backup {
     # walked into bind-mounted app data (immich-app/library - the whole
     # photo library) and took long enough that a scheduled run looked hung.
     Get-ChildItem $appRoot -Depth 1 -Filter ".env" | ForEach-Object {
-        $dest = Join-Path $configPath $_.FullName.Replace("$appRoot\", "")
+        $dest = Join-Path $configPath $_.FullName.Substring($appRoot.Length).TrimStart([char[]]"\/")
         $dir = Split-Path -Parent $dest
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
         Copy-Item $_.FullName -Destination $dest -Force
@@ -427,7 +427,7 @@ function Create-Backup {
         IncludedConfigs = (Get-ChildItem $appRoot -Depth 1 -Filter ".env" | Measure-Object).Count
     }
     
-    $manifest | ConvertTo-Json | Out-File -FilePath "$backupPath\manifest.json" -Encoding UTF8 -Force
+    $manifest | ConvertTo-Json | Out-File -FilePath (Join-Path $backupPath "manifest.json") -Encoding UTF8 -Force
     
     Write-Host ""
     Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Green
@@ -459,7 +459,7 @@ function List-Backups {
     $backups = Get-ChildItem $backupRoot -Directory | Sort-Object -Property Name -Descending
     
     foreach ($backup in $backups) {
-        $manifest = Get-Content "$($backup.FullPath)\manifest.json" -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+        $manifest = Get-Content (Join-Path $backup.FullPath "manifest.json") -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
         $size = ("{0:N2}" -f ((Get-ChildItem $backup.FullPath -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB))
         
         Write-Host "  📦 $($backup.Name)" -ForegroundColor Cyan
@@ -509,7 +509,7 @@ function Restore-Backup {
     if (Test-Path $configPath) {
         Get-ChildItem $configPath -Recurse -File | ForEach-Object {
             $relativePath = $_.FullName.Replace($configPath, "")
-            $destPath = Join-Path $appRoot $relativePath.TrimStart('\')
+            $destPath = Join-Path $appRoot $relativePath.TrimStart([char[]]"\/")
             $dir = Split-Path -Parent $destPath
             
             New-Item -ItemType Directory -Path $dir -Force | Out-Null

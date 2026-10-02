@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.0
+#Requires -Version 5.0
 
 <#
 .SYNOPSIS
@@ -37,7 +37,7 @@ param(
 )
 
 $appRoot = Split-Path -Parent $PSScriptRoot
-$statePath = "$appRoot\ai-stack\model-check-state.json"
+$statePath = (Join-Path (Join-Path $appRoot "ai-stack") "model-check-state.json")
 $api = 'https://huggingface.co/api/models'
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -89,7 +89,7 @@ Write-Host $message
 if ($DryRun) { Write-Host "(dry run - no notification sent, nothing remembered)"; exit 0 }
 
 # ---------- Notify (Gotify, reached from a container on caddy-network) ----------
-$tokenLine = Get-Content "$appRoot\utilities\.env" -ErrorAction SilentlyContinue | Where-Object { $_ -match '^GOTIFY_TOKEN=.+' } | Select-Object -First 1
+$tokenLine = Get-Content (Join-Path (Join-Path $appRoot "utilities") ".env") -ErrorAction SilentlyContinue | Where-Object { $_ -match '^GOTIFY_TOKEN=.+' } | Select-Object -First 1
 if (-not $tokenLine) { Write-Host "⚠️  GOTIFY_TOKEN not set in utilities\.env - not notifying" -ForegroundColor Yellow; exit 0 }
 $token = $tokenLine -replace '^GOTIFY_TOKEN=', ''
 $body = @{ title = 'Chat model update available'; message = $message; priority = 4 } | ConvertTo-Json -Compress

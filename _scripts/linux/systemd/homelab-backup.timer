@@ -1,0 +1,10 @@
+[Unit]
+Description=Homelab: nightly backup and off-site copy
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

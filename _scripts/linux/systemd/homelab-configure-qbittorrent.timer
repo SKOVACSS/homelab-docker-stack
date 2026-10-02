@@ -1,0 +1,11 @@
+[Unit]
+Description=Homelab: qBittorrent queue and seeding policy
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1h
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

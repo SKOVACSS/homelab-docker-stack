@@ -1,0 +1,11 @@
+[Unit]
+Description=Homelab: disk space and ZFS/SMART health alert
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

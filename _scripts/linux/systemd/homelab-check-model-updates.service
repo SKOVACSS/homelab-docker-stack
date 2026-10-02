@@ -1,0 +1,11 @@
+[Unit]
+Description=Homelab: weekly AI model update check
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pwsh -NoProfile -File /opt/homelab/_scripts/check-model-updates.ps1
+Nice=10
+IOSchedulingClass=idle
