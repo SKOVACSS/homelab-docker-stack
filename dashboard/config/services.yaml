@@ -331,6 +331,12 @@
         description: AI agent on the local model (tools, memory)
         server: my-docker
         container: hermes
+    - Odysseus (trial):
+        icon: mdi-sail-boat
+        href: "https://odysseus.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: AI workspace - email assistant, deep research (sleeps until opened)
+        server: my-docker
+        container: odysseus
 
 - Files & Collaboration:
     - Nextcloud:

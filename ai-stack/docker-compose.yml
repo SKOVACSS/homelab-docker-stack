@@ -276,6 +276,72 @@ services:
           cpus: '6.0'
           memory: 4G
 
+  # Odysseus (github.com/odysseus-dev/odysseus) - TRIAL, 2026-10-03.
+  # Self-hosted AI workspace: chat, agents with tools, email assistant,
+  # deep research. At odysseus.{$DOMAIN}: Authentik ADMIN wall, then its own
+  # login (first admin password is printed once in its log). Uses the local
+  # model through Caddy's :8010 (wakes vLLM) and the household SearXNG.
+  # Its shell/file tools run inside this container only - no Docker socket,
+  # no host folders. Sleeps behind Sablier with its Chroma database.
+  odysseus:
+    image: ghcr.io/odysseus-dev/odysseus:1.0.3
+    restart: "no"
+    container_name: odysseus
+    environment:
+      - TZ=${TZ:-UTC}
+      - PUID=1000
+      - PGID=1000
+      - AUTH_ENABLED=true
+      - LOCALHOST_BYPASS=false
+      - SECURE_COOKIES=true
+      - ALLOWED_ORIGINS=https://odysseus.${DOMAIN}
+      - OAUTH_REDIRECT_BASE_URL=https://odysseus.${DOMAIN}
+      - SEARXNG_INSTANCE=http://searxng:8080
+      - CHROMADB_HOST=odysseus-chroma
+      - CHROMADB_PORT=8000
+      - RESEARCH_LLM_ENDPOINT=http://caddy:8010/v1/chat/completions
+      - DATABASE_URL=sqlite:///./data/app.db
+    volumes:
+      - odysseus-data:/app/data
+      - odysseus-logs:/app/logs
+      - odysseus-hf:/app/.cache/huggingface
+      - odysseus-local:/app/.local
+    depends_on:
+      - odysseus-chroma
+    networks:
+      - ai-network
+      - caddy-network
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=odysseus"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+
+  odysseus-chroma:
+    image: chromadb/chroma:1.5.9
+    restart: "no"
+    container_name: odysseus-chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - odysseus-chroma:/chroma/chroma
+    networks:
+      - ai-network
+    labels:
+      - "sablier.enable=true"
+      - "sablier.group=odysseus"
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
 volumes:
   vllm-hf-cache:
     driver: local
@@ -284,4 +350,10 @@ volumes:
   hermes-data:
     driver: local
   vision-models:
+    driver: local
+  odysseus-data:
+  odysseus-logs:
+  odysseus-hf:
+  odysseus-local:
+  odysseus-chroma:
     driver: local
