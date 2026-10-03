@@ -823,6 +823,29 @@ dash.{$DOMAIN} {
 # except Stirling-PDF, SearXNG and PairDrop, which sit behind the
 # Authentik wall (any household account).
 
+# Odysseus (ai-stack) - TRIAL. Admin wall, then its own login; its agent
+# has shell/file tools (inside its container), so admins only. Sleeps
+# behind Sablier with its Chroma database.
+odysseus.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit odysseus
+  import authentik
+  sablier http://sablier:10000 {
+    group odysseus
+    session_duration 1h
+    dynamic {
+      display_name "Odysseus"
+      theme hacker-terminal
+      refresh_frequency 5s
+    }
+  }
+  reverse_proxy odysseus:7000 {
+    flush_interval -1
+  }
+}
+
 # wger (fitness-stack). Household wall with wger's auth-proxy login; the
 # phone app's paths skip the wall (they use wger's own tokens). Sleeps
 # behind Sablier; blocking so the app's requests wait while it starts.
