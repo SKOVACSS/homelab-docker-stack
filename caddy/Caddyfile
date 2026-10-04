@@ -879,7 +879,8 @@ fitness.{$DOMAIN} {
   # A client-sent X-Authentik-Username can't log anyone in: wger only reads
   # it on /user/login (behind the wall, where forward_auth overwrites it),
   # and nginx blanks it on /api/.
-  import authentik /api/* /ps/* /static/* /media/* /nginx-health
+  # /allauth/app/* is the phone app's own login + token refresh (wger 2.7 / app 2.x).
+  import authentik /api/* /ps/* /allauth/app/* /static/* /media/* /nginx-health
   sablier http://sablier:10000 {
     group fitness
     session_duration 1h
