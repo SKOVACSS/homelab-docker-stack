@@ -1000,10 +1000,13 @@ search.{$DOMAIN} {
 }
 
 # Homebox signs in with Authentik itself.
+# Homebox keeps open registration on (its family invite links need it), so
+# the household wall keeps strangers off the sign-up page (audit 2026-10-04).
 inventory.{$DOMAIN} {
   import security_headers
   log
   import rate_limit inventory
+  import authentik
   reverse_proxy homebox:7745 {
     header_up X-Real-IP {http.request.remote}
   }
