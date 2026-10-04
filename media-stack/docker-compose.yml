@@ -193,6 +193,40 @@ services:
   # useful on its own for manual searches, reachable at slskd.{$DOMAIN}
   # via Caddy - no extra login layer needed, slskd has its own built-in
   # auth (SLSKD_USERNAME/PASSWORD below), unlike Sonarr/Radarr originally.
+  # JDownloader 2 - general download manager (file hosts, link lists,
+  # multi-part archives with auto-extract). Shares gluetun's network like
+  # qBittorrent, so every download goes through the VPN (and stops if the
+  # VPN drops). Its desktop UI runs in the browser at jd.{$DOMAIN}
+  # (Authentik admin wall); the MyJDownloader app works too once signed
+  # in from that UI. Always on (Sablier would cut off running downloads).
+  jdownloader:
+    image: jlesage/jdownloader-2:v26.09.1
+    restart: unless-stopped
+    container_name: jdownloader
+    depends_on:
+      gluetun:
+        condition: service_started
+    network_mode: service:gluetun
+    environment:
+      - TZ=${TZ:-UTC}
+      - USER_ID=1000
+      - GROUP_ID=1000
+      - KEEP_APP_RUNNING=1
+      - DARK_MODE=1
+      - WEB_LISTENING_PORT=5800
+    volumes:
+      - jdownloader-config:/config
+      - ${DIRECT_DOWNLOADS_PATH}:/output
+    labels:
+      # JDownloader updates itself in-app; the image (UI wrapper) is bumped
+      # deliberately.
+      - "com.centurylinklabs.watchtower.enable=false"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
   slskd:
     image: slskd/slskd:0.26.0
     restart: unless-stopped
@@ -1186,6 +1220,8 @@ volumes:
   bazarr-config:
     driver: local
   maintainerr-data:
+    driver: local
+  jdownloader-config:
     driver: local
   cleanuparr-config:
     driver: local

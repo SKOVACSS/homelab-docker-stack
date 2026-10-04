@@ -31,6 +31,12 @@
         description: YouTube without ads or tracking
         server: my-docker
         container: invidious
+    - Video Saver (MeTube):
+        icon: metube.png
+        href: "https://videos.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Save a video or its audio from YouTube and more
+        server: my-docker
+        container: metube
 
 - Photos & Files:
     - Photos (Immich):

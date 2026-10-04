@@ -823,6 +823,29 @@ dash.{$DOMAIN} {
 # except Stirling-PDF, SearXNG and PairDrop, which sit behind the
 # Authentik wall (any household account).
 
+# JDownloader 2 (media-stack, inside gluetun's network namespace like
+# qBittorrent - downloads go through the VPN). Browser-based desktop UI;
+# admin wall.
+jd.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit jd
+  import authentik
+  reverse_proxy gluetun:5800
+}
+
+# MeTube (family-stack) - save videos/audio. Household wall ("Video saver"
+# provider in admin-apps.yaml); not VPN-routed (YouTube blocks VPNs).
+videos.{$DOMAIN} {
+  import security_headers
+  header -Content-Security-Policy
+  log
+  import rate_limit videos
+  import authentik
+  reverse_proxy metube:8081
+}
+
 # Odysseus (ai-stack) - TRIAL. Admin wall, then its own login; its agent
 # has shell/file tools (inside its container), so admins only. Sleeps
 # behind Sablier with its Chroma database.
