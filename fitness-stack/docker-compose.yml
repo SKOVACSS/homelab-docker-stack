@@ -254,8 +254,10 @@ services:
       - ./wger/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - wger-static:/wger/static:ro
       - wger-media:/wger/media:ro
-    depends_on:
-      - web
+    # No depends_on: web. Sablier honours compose dependencies on wake-up
+    # and refuses to start nginx when web's last stop was a force-kill
+    # (exit 137) - which made fitness.<domain> fail to wake (2026-10-04).
+    # nginx just returns 502 for the few seconds web takes to come up.
     networks:
       wger-network:
         ipv4_address: 10.250.50.10

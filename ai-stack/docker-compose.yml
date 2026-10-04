@@ -158,8 +158,8 @@ services:
       - WEB_SEARCH_RESULT_COUNT=5
     volumes:
       - open-webui-data:/app/backend/data
-    depends_on:
-      - vllm
+    # No depends_on: vllm - Sablier refuses to wake a container whose compose
+    # dependency last exited 137 (force-stopped), which happens to vLLM.
     networks:
       - ai-network
       - caddy-network
@@ -306,8 +306,7 @@ services:
       - odysseus-logs:/app/logs
       - odysseus-hf:/app/.cache/huggingface
       - odysseus-local:/app/.local
-    depends_on:
-      - odysseus-chroma
+    # No depends_on (see open-webui above): same Sablier wake-up issue.
     networks:
       - ai-network
       - caddy-network
