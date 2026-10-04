@@ -50,6 +50,7 @@ volumes:
   homebox-data:
   invidious-db:
   invidious-companion-cache:
+  metube-state:
   komga-config:
   romm-resources:
   romm-redis:
@@ -387,6 +388,38 @@ services:
       resources:
         limits:
           cpus: '1.0'
+          memory: 512M
+
+  # MeTube - save videos/audio from YouTube and 1000+ other sites (yt-dlp)
+  # at videos.{$DOMAIN}, household wall. NOT through the VPN: YouTube blocks
+  # VPN addresses ("sign in to confirm you're not a bot"), same reason
+  # Invidious runs off the home connection. On :latest with Watchtower -
+  # yt-dlp must stay current or YouTube downloads break within weeks.
+  metube:
+    image: ghcr.io/alexta69/metube:latest
+    restart: unless-stopped
+    container_name: metube
+    environment:
+      - TZ=${TZ:-UTC}
+      - UID=1000
+      - GID=1000
+      - UMASK=022
+      - DOWNLOAD_DIR=/downloads
+      - STATE_DIR=/state
+      - TEMP_DIR=/downloads/.tmp
+      - DEFAULT_THEME=dark
+      - OUTPUT_TEMPLATE=%(title)s [%(id)s].%(ext)s
+    volumes:
+      - ${METUBE_DOWNLOADS_PATH}:/downloads
+      - metube-state:/state
+    networks:
+      - caddy-network
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
           memory: 512M
 
   invidious-companion:

@@ -101,6 +101,18 @@
           url: http://gluetun:8080
           key: "{{HOMEPAGE_VAR_QBITTORRENT_API_KEY}}"
           fields: ["download", "upload"]
+    - JDownloader:
+        icon: jdownloader.png
+        href: "https://jd.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Download manager (VPN-routed)
+        server: my-docker
+        container: jdownloader
+    - MeTube:
+        icon: metube.png
+        href: "https://videos.{{HOMEPAGE_VAR_DOMAIN}}"
+        description: Save videos and audio (yt-dlp)
+        server: my-docker
+        container: metube
     - slskd:
         icon: slskd.png
         href: "https://slskd.{{HOMEPAGE_VAR_DOMAIN}}"

@@ -209,6 +209,28 @@ entries:
       meta_launch_url: !Format ["https://fitness.%s/", !Env DOMAIN]
       meta_description: Workouts, body weight and nutrition (wger)
       policy_engine_mode: any
+  # Household wall for MeTube (videos.DOMAIN) - no login of its own.
+  - model: authentik_providers_proxy.proxyprovider
+    id: videos-provider
+    identifiers:
+      name: Video saver
+    attrs:
+      name: Video saver
+      mode: forward_single
+      external_host: !Format ["https://videos.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: video-saver
+    attrs:
+      name: Video saver
+      slug: video-saver
+      provider: !KeyOf videos-provider
+      meta_launch_url: !Format ["https://videos.%s/", !Env DOMAIN]
+      meta_description: Save videos and audio from YouTube and other sites
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -224,3 +246,4 @@ entries:
         - !KeyOf youtube-provider
         - !KeyOf plan-provider
         - !KeyOf fitness-provider
+        - !KeyOf videos-provider
