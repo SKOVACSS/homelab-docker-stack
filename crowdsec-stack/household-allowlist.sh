@@ -25,7 +25,10 @@ while true; do
     ip=$(wget -qO- -T 10 https://api.ipify.org 2>/dev/null || wget -qO- -T 10 https://ipv4.icanhazip.com 2>/dev/null)
     ip=$(echo "$ip" | tr -d '[:space:]')
     if echo "$ip" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'; then
-        current=$(cscli allowlists inspect "$LIST" -o raw 2>/dev/null | awk -F, 'NR>1 {print $3}')
+        # Only the IPv4 entry is managed here. IPv6 entries (the household
+        # Starlink /56, added by hand 2026-10-04 after home browsing over
+        # IPv6 got banned) are left alone - replacing "everything" removed them.
+        current=$(cscli allowlists inspect "$LIST" -o raw 2>/dev/null | awk -F, 'NR>1 && $3 !~ /:/ {print $3}')
         if [ "$current" != "$ip" ]; then
             # shellcheck disable=SC2086 # one value per word, intentionally
             [ -n "$current" ] && cscli allowlists remove "$LIST" $current >/dev/null
