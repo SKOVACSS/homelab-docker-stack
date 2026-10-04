@@ -231,6 +231,29 @@ entries:
       meta_launch_url: !Format ["https://videos.%s/", !Env DOMAIN]
       meta_description: Save videos and audio from YouTube and other sites
       policy_engine_mode: any
+  # Household wall for Homebox (inventory.DOMAIN): it keeps open registration
+  # for family invites, so strangers must not reach it.
+  - model: authentik_providers_proxy.proxyprovider
+    id: inventory-provider
+    identifiers:
+      name: Inventory
+    attrs:
+      name: Inventory
+      mode: forward_single
+      external_host: !Format ["https://inventory.%s", !Env DOMAIN]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+      access_token_validity: hours=24
+  - model: authentik_core.application
+    identifiers:
+      slug: inventory-wall
+    attrs:
+      name: Inventory (wall)
+      slug: inventory-wall
+      provider: !KeyOf inventory-provider
+      meta_launch_url: !Format ["https://inventory.%s/", !Env DOMAIN]
+      meta_description: Household inventory (Homebox)
+      policy_engine_mode: any
   # The embedded outpost (inside authentik-server) answers Caddy's checks;
   # it only serves providers listed here.
   - model: authentik_outposts.outpost
@@ -247,3 +270,4 @@ entries:
         - !KeyOf plan-provider
         - !KeyOf fitness-provider
         - !KeyOf videos-provider
+        - !KeyOf inventory-provider

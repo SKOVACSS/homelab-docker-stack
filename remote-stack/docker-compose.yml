@@ -95,11 +95,12 @@ services:
     # when idle). Otherwise it ran until first visited after a reboot.
     restart: "no"
     container_name: guacamole
+    # Only the always-on database. guacd sleeps in the same Sablier group,
+    # and Sablier refuses to wake a container whose sleeping dependency last
+    # exited 137 (see the sablier-depends-on note; fixed for wger 2026-10-04).
     depends_on:
       guacamole-db:
         condition: service_healthy
-      guacd:
-        condition: service_started
     environment:
       GUACD_HOSTNAME: guacd
       # Serve at / instead of /guacamole/.
